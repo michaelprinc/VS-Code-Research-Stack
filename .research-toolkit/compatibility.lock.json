@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "profileId": "basic",
+  "supportClaim": "windows-reference-prototype-only",
+  "result": "partial",
+  "host": {
+    "operatingSystem": "Windows 11",
+    "build": "10.0.26300",
+    "architecture": "x64"
+  },
+  "runtime": {
+    "python": "CPython 3.12.13",
+    "uv": "0.11.23",
+    "projectLock": "uv.lock",
+    "projectLockSha256": "121B7F61211B39BC7286E6327D3075D6C44847326C309EDA4DF445EB6BC38A6E"
+  },
+  "components": {
+    "mcp": "2.2.0",
+    "pypdf": "6.4.1",
+    "python-docx": "1.2.0"
+  },
+  "editor": {
+    "vscode": "1.140.0",
+    "mcpConfiguration": ".mcp.json / mcpServers",
+    "copilot": "not-installed-install-conflict"
+  },
+  "verifiedScenarios": [
+    "locked-runtime-install",
+    "host-inspection",
+    "workspace-init-idempotence-and-preservation",
+    "docx-unicode-and-table-extraction",
+    "scanned-pdf-warning",
+    "new-report-no-overwrite",
+    "manual-notebooklm-bundle-integrity",
+    "stdio-mcp-discovery-and-tool-calls",
+    "source-hash-preservation",
+    "relative-path-traversal-rejected"
+  ],
+  "notVerified": [
+    "fresh-vscode-mcp-list-and-start",
+    "copilot-authenticated-chat-tool-call",
+    "copilot-marketplace-install-host-version-conflict",
+    "organization-policy-and-github-authorization",
+    "second-clean-windows-install",
+    "macos-install",
+    "interrupt-resume-and-symlink-junction-escape"
+  ],
+  "receipt": "evidence/phase-1/gate-report.md"
+}

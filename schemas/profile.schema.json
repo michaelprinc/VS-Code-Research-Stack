@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-stack.invalid/schemas/profile.schema.json",
+  "title": "Research Stack profile",
+  "type": "object",
+  "required": ["schemaVersion", "id", "displayName", "capabilities", "platformPolicy", "cloudAI"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "displayName": { "type": "string", "minLength": 1 },
+    "workspaceId": { "type": "string" },
+    "initializedBy": { "type": "string" },
+    "capabilities": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "platformPolicy": { "const": "platform-neutral" },
+    "cloudAI": { "enum": ["optional-user-controlled", "disabled"] }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "profileId": "basic",
+  "resolutionState": "windows-reference-prototype",
+  "components": [
+    {
+      "id": "python",
+      "role": "runtime",
+      "version": "3.12.13",
+      "source": "Astral uv-managed CPython distribution",
+      "ownership": "managed-by-uv-user-runtime",
+      "lifecycle": "user-level-runtime; never alter system Python or PATH"
+    },
+    {
+      "id": "uv",
+      "role": "environment-manager",
+      "version": "0.11.23",
+      "source": "Astral uv",
+      "ownership": "adopted-existing-tool",
+      "lifecycle": "external update; exact version recorded in local receipt"
+    },
+    {
+      "id": "mcp-python-sdk",
+      "role": "python-package",
+      "version": "2.2.0",
+      "source": "modelcontextprotocol/python-sdk",
+      "ownership": "managed-in-uv-project",
+      "integrity": "sha256 hashes in uv.lock"
+    },
+    {
+      "id": "pypdf",
+      "role": "python-package",
+      "version": "6.4.1",
+      "source": "PyPI pypdf",
+      "ownership": "managed-in-uv-project",
+      "integrity": "sha256 hashes in uv.lock"
+    },
+    {
+      "id": "python-docx",
+      "role": "python-package",
+      "version": "1.2.0",
+      "source": "PyPI python-docx",
+      "ownership": "managed-in-uv-project",
+      "integrity": "sha256 hashes in uv.lock"
+    },
+    {
+      "id": "vscode-desktop",
+      "role": "editor-host",
+      "version": "1.140.0",
+      "source": "Microsoft VS Code Stable",
+      "ownership": "adopted-existing-application",
+      "mcpMode": "portable-workspace-mcpServers"
+    },
+    {
+      "id": "git-for-windows",
+      "role": "source-control",
+      "version": "2.54.0.windows.1",
+      "source": "Git for Windows",
+      "ownership": "adopted-existing-application"
+    },
+    {
+      "id": "github-copilot",
+      "role": "editor-extension",
+      "version": null,
+      "source": "GitHub Copilot",
+      "ownership": "external-optional",
+      "state": "not-installed-install-conflict-on-reference-host",
+      "diagnostic": "Marketplace install attempted; CLI refused companion chat downgrade from host-bundled 0.68.0 to requested 0.48.1"
+    },
+    {
+      "id": "github-remote-mcp",
+      "role": "remote-mcp-service",
+      "version": "service-controlled",
+      "source": "GitHub official remote MCP server",
+      "ownership": "external-optional",
+      "state": "opt-in-readonly-repos-fragment-staged-auth-not-tested",
+      "endpoint": "https://api.githubcopilot.com/mcp/x/repos/readonly"
+    }
+  ]
+}

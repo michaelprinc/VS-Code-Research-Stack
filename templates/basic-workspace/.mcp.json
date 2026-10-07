@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "research-stack-basic": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--locked",
+        "--no-dev",
+        "--project",
+        "${workspaceFolder}/.research-toolkit/worker",
+        "research-stack-mcp"
+      ],
+      "env": {
+        "RESEARCH_STACK_WORKSPACE": "${workspaceFolder}"
+      }
+    }
+  }
+}

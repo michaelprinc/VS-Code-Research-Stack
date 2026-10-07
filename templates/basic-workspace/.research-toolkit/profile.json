@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "basic",
+  "displayName": "Research Starter",
+  "capabilities": [
+    "workspace.templates",
+    "documents.pdf.extract",
+    "documents.docx.read",
+    "documents.docx.write",
+    "documents.markdown.write",
+    "mcp.local.document-tools",
+    "git.local",
+    "notebooklm.manual-export"
+  ],
+  "platformPolicy": "platform-neutral",
+  "cloudAI": "optional-user-controlled"
+}

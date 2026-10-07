@@ -1,0 +1,14 @@
+# Local runtime state and generated caches
+.research-toolkit/worker/.venv/
+.research-toolkit/worker/__pycache__/
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+
+# Research originals are private by default; explicitly unignore selected files if desired.
+papers/*
+!papers/.gitkeep
+
+# NotebookLM handoff bundles may contain source text.
+notebooklm-export/

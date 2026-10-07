@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "github-repos-readonly": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/x/repos/readonly"
+    }
+  }
+}
