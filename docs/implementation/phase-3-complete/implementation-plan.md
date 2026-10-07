@@ -1,6 +1,8 @@
 # Phase 3 implementation plan — Complete / Research Lab
 
-Status: planned, not implemented. Dependency: G2, frozen Basic/Research locks and an acquired fixture corpus. Output: validated local advanced research stack and recovery/migration recipes suitable for the final installer.
+Status: prototype foundation partially implemented (7 October 2026); G2 prerequisite remains open and G3 is not passed. Dependency: G2, frozen Basic/Research locks and an acquired fixture corpus. Output: validated local advanced research stack and recovery/migration recipes suitable for the final installer.
+
+Phase 3 revision 0.1.0 adds the specification/design/tasks/acceptance, ADR-008–ADR-011, and a dependency-free in-memory Markdown source/chunk identity plus BM25 prototype. It does not implement or validate Full installation, vector/hybrid retrieval, DuckDB, the Research-RAG MCP, or recovery. See [Phase 3 evidence report](../../../evidence/phase-3/gate-report.md). The Full gate stays closed while G1/G2 are open.
 
 Shared obligations: [C-01 through C-12](../architecture-and-contracts.md). Tracker: [Phase 3 checklist](checklist.md). Previous: [Recommended](../phase-2-recommended/implementation-plan.md). Next: [VSIX completion](../phase-4-vsix/implementation-plan.md).
 

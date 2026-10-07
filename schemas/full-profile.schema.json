@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-stack.invalid/schemas/full-profile.schema.json",
+  "title": "Research Stack Full profile settings",
+  "description": "Cross-platform configuration contract only; it does not imply that any candidate component is installed or supported.",
+  "type": "object",
+  "required": ["schemaVersion", "profileId", "serviceMode", "corpusRoots", "storagePath", "cachePath", "optionalCapabilities"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "profileId": { "const": "full" },
+    "serviceMode": { "enum": ["managed-local", "remote-reviewed"] },
+    "serviceEndpoint": { "type": "string", "format": "uri", "description": "Loopback URL for managed-local; separately reviewed endpoint for remote-reviewed." },
+    "corpusRoots": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "storagePath": { "type": "string", "minLength": 1, "description": "User-data location resolved by the host adapter; not relative to extension install." },
+    "cachePath": { "type": "string", "minLength": 1, "description": "Model/index cache location resolved by the host adapter." },
+    "activeIndexFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "optionalCapabilities": {
+      "type": "object",
+      "required": ["reranker", "browser", "institutionalProviders"],
+      "properties": {
+        "reranker": { "$ref": "#/$defs/readiness" },
+        "browser": { "$ref": "#/$defs/readiness" },
+        "institutionalProviders": { "type": "array", "items": { "type": "object", "required": ["provider", "readiness"], "properties": { "provider": { "type": "string", "minLength": 1 }, "readiness": { "$ref": "#/$defs/readiness" } }, "additionalProperties": false } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "readiness": { "enum": ["not-selected", "planned", "ready", "blocked", "excluded"] }
+  },
+  "allOf": [
+    { "if": { "properties": { "serviceMode": { "const": "managed-local" } }, "required": ["serviceMode"] }, "then": { "properties": { "serviceEndpoint": { "pattern": "^https?://(127\\.0\\.0\\.1|localhost)(:|/)" } }, "required": ["serviceEndpoint"] } },
+    { "if": { "properties": { "serviceMode": { "const": "remote-reviewed" } }, "required": ["serviceMode"] }, "then": { "required": ["serviceEndpoint"] } }
+  ],
+  "additionalProperties": false
+}

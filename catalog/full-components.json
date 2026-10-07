@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "profileId": "full",
+  "resolutionState": "phase-3-prototype; G2-open; G3-not-passed",
+  "components": [
+    {
+      "id": "research-stack-full-markdown-bm25-prototype",
+      "role": "in-memory-lexical-retrieval",
+      "version": "phase-3-revision-0.1.0",
+      "source": "src/research_stack/full.py",
+      "ownership": "authored-project-code",
+      "lifecycle": "standard-library-only; no-persistent-index-model-service-or-MCP",
+      "supportState": "prototype-only"
+    },
+    {
+      "id": "qdrant-local-service",
+      "role": "candidate-vector-database",
+      "version": "unresolved-image-digest",
+      "source": "https://qdrant.tech/",
+      "ownership": "candidate-toolkit-owned-local-container-and-volume",
+      "lifecycle": "not-installed; local-service-persistence-and-recovery-unverified",
+      "supportState": "candidate-not-supported"
+    },
+    {
+      "id": "cpu-embedding-runtime-and-model",
+      "role": "candidate-vector-encoder",
+      "version": "unresolved-runtime-and-immutable-model-revision",
+      "source": "Candidate models: intfloat/multilingual-e5-small or BAAI/bge-m3",
+      "ownership": "candidate-isolated-worker-and-user-model-cache",
+      "lifecycle": "not-selected-not-downloaded-license-and-resource-review-pending",
+      "supportState": "candidate-not-supported"
+    },
+    {
+      "id": "duckdb-research-record-store",
+      "role": "candidate-embedded-source-claim-evidence-store",
+      "version": "unresolved",
+      "source": "https://duckdb.org/",
+      "ownership": "candidate-single-owning-worker",
+      "lifecycle": "not-implemented-backup-migration-and-reconciliation-pending",
+      "supportState": "design-only"
+    },
+    {
+      "id": "playwright-browser-capability",
+      "role": "optional-browser-automation",
+      "version": "unselected",
+      "source": "https://github.com/microsoft/playwright-mcp",
+      "ownership": "separately-managed-dedicated-browser-profile",
+      "lifecycle": "not-installed-opt-in-provider-and-session-review-required",
+      "supportState": "not-selected"
+    },
+    {
+      "id": "institutional-provider-adapters",
+      "role": "optional-provider-specific-research-access",
+      "version": "unselected",
+      "source": "provider-specific official documentation required",
+      "ownership": "user-mediated-provider-entitlement",
+      "lifecycle": "no-provider-selected-no-entitlement-or-content-rights-claimed",
+      "supportState": "not-selected"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Phase 3 checklist — Complete / Research Lab
 
-Status: not started. Plan: [Phase 3 implementation plan](implementation-plan.md). Prerequisite: G2. Shared contracts: [architecture](../architecture-and-contracts.md).
+Status: prototype foundation partial; G3 not passed. Plan: [Phase 3 implementation plan](implementation-plan.md). Prerequisite: G2 (still open). Shared contracts: [architecture](../architecture-and-contracts.md). Evidence: [Phase 3 report](../../../evidence/phase-3/gate-report.md).
 
 Record optional capability selections before running tests. A disabled or credential-blocked capability has no passing compatibility receipt. Full core and each selected advanced capability have separate readiness results.
 
@@ -8,15 +8,16 @@ Record optional capability selections before running tests. A disabled or creden
 
 - [ ] M3-01: Attach G2 receipts and frozen Basic/Research locks.
 - [ ] M3-01: Freeze F-01–F-13, T3-01–T3-14, core/conditional scope and resource thresholds.
-- [ ] M3-01: Create phase specification/design/tasks/acceptance artifacts.
+- [x] M3-01: Create phase specification/design/tasks/acceptance artifacts (revision 0.1.0; proposed acceptance values remain unfrozen).
 - [ ] M3-01: Freeze English/Czech document corpus, hashes, queries and adjudicated relevance labels.
 - [ ] M3-01: Define no-evidence cases, source traceability and grounding acceptance.
 - [ ] M3-01: Record reference CPU/RAM/storage and measurement method.
-- [ ] M3-02: Resolve local backend route and ADR-009; document non-Docker/remote alternatives separately.
-- [ ] M3-03: Resolve model/reranker/backend/license selection and ADR-010.
-- [ ] M3-04: Resolve DuckDB ownership/concurrency/provenance design and ADR-008.
-- [ ] M3-07: Resolve selected browser/provider scope and ADR-011.
+- [x] M3-02: Record local backend candidate and ADR-009; live backend, volume and persistence decision remain unresolved.
+- [x] M3-03: Record unselected CPU/model candidates and ADR-010; revisions, license, backend and runtime remain unresolved.
+- [x] M3-04: Record DuckDB ownership/concurrency/provenance candidate and ADR-008; data worker/evidence tests remain pending.
+- [x] M3-07: Record opt-in, provider-specific browser/connector boundary and ADR-011; no capability selected or validated.
 - [ ] M3-04/M3-08: Approve cross-store journal, backup consistency and migration/reindex contracts.
+- [x] M3-04/M3-05: Implement dependency-free Markdown source/chunk identity and deterministic BM25 prototype (`src/research_stack/full.py`); persistent/vector implementation remains pending.
 
 ## B. Planned local service/model installation
 
@@ -88,4 +89,4 @@ Record optional capability selections before running tests. A disabled or creden
 - [ ] M3-09: Produce `evidence/phase-3/gate-report.md` and updated support matrix.
 - [ ] G3: Close only with mandatory Full core/recovery/regression passes and honest optional scope.
 
-Gate outcome: pending. Specification revision: pending. Evidence root: pending. Reviewer/date: pending.
+Gate outcome: pending / G3 not passed. Specification revision: 0.1.0 (proposed thresholds not frozen). Evidence root: `evidence/phase-3/`. Reviewer/date: pending.
