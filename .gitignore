@@ -1,5 +1,7 @@
 .venv/
 **/.venv/
+**/node_modules/
+**/.vscode-test/
 .research-stack-data/
 __pycache__/
 *.py[cod]

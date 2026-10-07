@@ -1,8 +1,17 @@
 # Phase 4 checklist — Complete VSIX extension
 
-Status: not started. Plan: [Phase 4 implementation plan](implementation-plan.md). Prerequisite: G1–G3. Shared contracts: [architecture](../architecture-and-contracts.md).
+Status: readiness-only preview partial; G4 not passed. Plan: [Phase 4 implementation plan](implementation-plan.md). Prerequisite: G1–G3 (still open). Shared contracts: [architecture](../architecture-and-contracts.md). Preview scope/evidence: [specification](../../../specs/phase-4/spec.md), [gate report](../../../evidence/phase-4/gate-report.md).
 
 Every release checkbox needs evidence from the exact packaged VSIX, where applicable. Development-harness success alone does not validate a distributed artifact.
+
+## Preview evidence completed in this revision
+
+- [x] Readiness-only extension manifest and lazy command entry point created; no runtime dependencies.
+- [x] Exact allow-listed VSIX built and inspected for inventory, source-byte equality, safe paths, runtime dependency absence and SHA-256.
+- [x] Exact VSIX installed in a separate disposable VS Code profile; ID/version observed in the isolated extension list.
+- [x] Packaged bytes exercised in the installed reference VS Code Extension Host; activation and warm/concurrent command checks completed.
+- [x] Current npm build/test dependency audit completed with zero reported vulnerabilities.
+- [ ] G1–G3 closure, full installer/profile/update/recovery implementation, macOS/minimum-host validation and G4 acceptance remain open.
 
 ## A. Release specification and architecture
 

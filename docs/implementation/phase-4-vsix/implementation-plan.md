@@ -1,6 +1,8 @@
 # Phase 4 implementation plan — Complete VSIX extension
 
-Status: planned, not implemented. Dependency: G1–G3, exact compatibility locks and proven installation/configuration/recovery recipes. Output: a complete installable Research Toolkit VSIX with Basic, Recommended, Full and Custom setup modes.
+Status: readiness-only VSIX preview and package-integrity harness partially implemented (7 October 2026); G1–G3 remain open and G4 is not passed. Dependency: G1–G3, exact compatibility locks and proven installation/configuration/recovery recipes. Output: a complete installable Research Toolkit VSIX with Basic, Recommended, Full and Custom setup modes.
+
+This revision packages a tiny status-only preview and tests its exact source inventory, isolated installation, real Extension Host activation and repeated command responsiveness. The preview intentionally contains no setup/update features. See [Phase 4 preview specification](../../../specs/phase-4/spec.md) and [package evidence report](../../../evidence/phase-4/gate-report.md). Passing these bounded checks does not close G4.
 
 Shared obligations: [C-01 through C-12](../architecture-and-contracts.md). Tracker: [Phase 4 checklist](checklist.md). Input: [validated Complete stack](../phase-3-complete/implementation-plan.md).
 

@@ -1,0 +1,44 @@
+{
+  "name": "research-stack-toolkit",
+  "displayName": "Research Stack Toolkit (Phase 4 Preview)",
+  "description": "A readiness-only VS Code extension preview for the Research Stack project.",
+  "version": "0.1.0",
+  "publisher": "michaelprinc",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michaelprinc/VS-Code-Research-Stack.git"
+  },
+  "engines": {
+    "vscode": "^1.140.0"
+  },
+  "categories": ["Other", "Education"],
+  "extensionKind": ["ui"],
+  "main": "./extension.js",
+  "activationEvents": ["onCommand:researchToolkit.showPhaseReadiness"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "researchToolkit.showPhaseReadiness",
+        "title": "Research Toolkit: Show Phase Readiness",
+        "category": "Research Toolkit"
+      }
+    ]
+  },
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": true },
+    "virtualWorkspaces": { "supported": true }
+  },
+  "files": ["extension.js", "README.md", "package.json"],
+  "scripts": {
+    "test": "node --test test/unit.test.js",
+    "test:host": "node test/run-host-test.js",
+    "package": "node scripts/package.js",
+    "verify-package": "uv run --locked python ../scripts/verify_vsix.py ../dist/research-stack-toolkit-0.1.0.vsix"
+  },
+  "devDependencies": {
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

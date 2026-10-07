@@ -30,3 +30,7 @@ To make a user-mediated NotebookLM bundle, run `uv run --locked research-stack e
 ## Phase 3 Research Lab foundation
 
 Phase 3 adds a dependency-free prototype for explicit UTF-8 Markdown/text corpus selection, stable source/chunk identities, provenance-bearing BM25 results and cross-platform Full-profile settings/catalog contracts. It does not yet provide vector or hybrid search, persistent storage, embeddings, a Research-RAG MCP or backup/recovery. Qdrant, DuckDB, embedding models, Playwright and institutional connectors remain unvalidated candidates. G1/G2 are prerequisites and G3 has not passed. See the [Phase 3 specification](specs/phase-3/spec.md), [implementation plan](docs/implementation/phase-3-complete/implementation-plan.md), [checklist](docs/implementation/phase-3-complete/checklist.md), and [evidence report](evidence/phase-3/gate-report.md).
+
+## Phase 4 VSIX preview
+
+An installable, readiness-only VSIX preview and package-integrity/Extension Host test harness are now present under `extension/`. This preview does not install or manage any Research Stack components; G4 remains open. See the [preview specification](specs/phase-4/spec.md) and [artifact evidence](evidence/phase-4/gate-report.md). The built `.vsix` is a local deliverable and is not a Marketplace release.
