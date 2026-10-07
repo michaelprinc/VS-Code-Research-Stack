@@ -57,8 +57,9 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
         if set(names) != EXPECTED:
             raise ValueError(f"unexpected package inventory: expected {sorted(EXPECTED)!r}; got {sorted(names)!r}")
         manifest = json.loads(archive.read("extension/package.json"))
-        if manifest.get("name") != "research-stack-toolkit" or manifest.get("version") != "0.1.0":
-            raise ValueError("extension manifest identity/version does not match the reviewed preview")
+        source_manifest = json.loads((source_root / "vsix-manifest.json").read_bytes())
+        if manifest.get("name") != "research-stack-toolkit" or manifest.get("version") != source_manifest.get("version"):
+            raise ValueError("extension manifest identity/version does not match the reviewed source")
         if manifest.get("dependencies"):
             raise ValueError("extension manifest contains runtime dependencies")
         if any(field in manifest for field in ("devDependencies", "scripts", "private")):

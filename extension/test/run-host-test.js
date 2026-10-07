@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("node:path");
+const fs = require("node:fs");
 const { runTests } = require("@vscode/test-electron");
 
 async function main() {
@@ -9,18 +10,23 @@ async function main() {
   const testRoot = process.env.VSCODE_TEST_ROOT;
   if (!testRoot) throw new Error("Set VSCODE_TEST_ROOT to a new disposable test-data directory.");
   const extensionPath = process.env.EXTENSION_DEVELOPMENT_PATH || path.resolve(__dirname, "..");
-  await runTests({
-    vscodeExecutablePath: executablePath,
-    extensionDevelopmentPath: extensionPath,
-    extensionTestsPath: path.resolve(__dirname, "host.test.js"),
-    launchArgs: [
-      "--disable-extensions",
-      "--disable-gpu",
-      "--disable-workspace-trust",
-      `--user-data-dir=${path.join(testRoot, "user-data")}`,
-      `--extensions-dir=${path.join(testRoot, "extensions")}`,
-    ],
-  });
+  fs.mkdirSync(testRoot, { recursive: true });
+  const stages = process.env.PACKAGE_SWITCH_TEST_STAGE ? [process.env.PACKAGE_SWITCH_TEST_STAGE] : ["mutate", "persist"];
+  for (const stage of stages) {
+    process.env.PACKAGE_SWITCH_TEST_STAGE = stage;
+    await runTests({
+      vscodeExecutablePath: executablePath,
+      extensionDevelopmentPath: extensionPath,
+      extensionTestsPath: path.resolve(__dirname, "host.test.js"),
+      launchArgs: [
+        "--disable-extensions",
+        "--disable-gpu",
+        "--disable-workspace-trust",
+        `--user-data-dir=${path.join(testRoot, "user-data")}`,
+        `--extensions-dir=${path.join(testRoot, "extensions")}`,
+      ],
+    });
+  }
 }
 
 main().catch((error) => {

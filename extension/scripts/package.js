@@ -8,9 +8,9 @@ const { createVSIX } = require("@vscode/vsce");
 async function main() {
   const projectRoot = path.resolve(__dirname, "..");
   const stageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "research-stack-vsix-stage-"));
-  const outputPath = path.resolve(projectRoot, "..", "dist", "research-stack-toolkit-0.1.0.vsix");
+  const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "vsix-manifest.json"), "utf8"));
+  const outputPath = path.resolve(projectRoot, "..", "dist", `research-stack-toolkit-${manifest.version}.vsix`);
   try {
-    const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "vsix-manifest.json"), "utf8"));
     fs.writeFileSync(path.join(stageRoot, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
     fs.copyFileSync(path.join(projectRoot, "extension.js"), path.join(stageRoot, "extension.js"));
     fs.copyFileSync(path.join(projectRoot, "README.md"), path.join(stageRoot, "README.md"));

@@ -33,4 +33,4 @@ Phase 3 adds a dependency-free prototype for explicit UTF-8 Markdown/text corpus
 
 ## Phase 4 VSIX preview
 
-An installable, readiness-only VSIX preview and package-integrity/Extension Host test harness are now present under `extension/`. This preview does not install or manage any Research Stack components; G4 remains open. See the [preview specification](specs/phase-4/spec.md) and [artifact evidence](evidence/phase-4/gate-report.md). The built `.vsix` is a local deliverable and is not a Marketplace release.
+An installable VSIX preview and package-integrity/Extension Host test harness are present under `extension/`. The **Research Toolkit: Switch Package** command changes and persists the Basic, Recommended Research, or Full preference in the active VS Code profile; it does not install or remove components. G1–G3 remain open and G4 has not passed. See the [preview specification](specs/phase-4/spec.md) and [artifact evidence](evidence/phase-4/gate-report.md). The built `.vsix` is a local deliverable and is not a Marketplace release.

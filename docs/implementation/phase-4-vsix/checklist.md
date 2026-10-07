@@ -1,15 +1,15 @@
 # Phase 4 checklist — Complete VSIX extension
 
-Status: readiness-only preview partial; G4 not passed. Plan: [Phase 4 implementation plan](implementation-plan.md). Prerequisite: G1–G3 (still open). Shared contracts: [architecture](../architecture-and-contracts.md). Preview scope/evidence: [specification](../../../specs/phase-4/spec.md), [gate report](../../../evidence/phase-4/gate-report.md).
+Status: preference-selection preview partial; G4 not passed. Plan: [Phase 4 implementation plan](implementation-plan.md). Prerequisite: G1–G3 (still open). Shared contracts: [architecture](../architecture-and-contracts.md). Preview scope/evidence: [specification](../../../specs/phase-4/spec.md), [gate report](../../../evidence/phase-4/gate-report.md).
 
 Every release checkbox needs evidence from the exact packaged VSIX, where applicable. Development-harness success alone does not validate a distributed artifact.
 
 ## Preview evidence completed in this revision
 
-- [x] Readiness-only extension manifest and lazy command entry point created; no runtime dependencies.
+- [x] Readiness and Basic/Recommended Research/Full package-preference commands created; preference persists in VS Code user settings; no runtime dependencies.
 - [x] Exact allow-listed VSIX built and inspected for inventory, source-byte equality, safe paths, runtime dependency absence and SHA-256.
 - [x] Exact VSIX installed in a separate disposable VS Code profile; ID/version observed in the isolated extension list.
-- [x] Packaged bytes exercised in the installed reference VS Code Extension Host; activation and warm/concurrent command checks completed.
+- [x] Packaged bytes exercised in the installed reference VS Code Extension Host; all package choices, persistence across restart, activation, warm and concurrent command checks completed.
 - [x] Current npm build/test dependency audit completed with zero reported vulnerabilities.
 - [ ] G1–G3 closure, full installer/profile/update/recovery implementation, macOS/minimum-host validation and G4 acceptance remain open.
 
@@ -27,7 +27,7 @@ Every release checkbox needs evidence from the exact packaged VSIX, where applic
 
 ## B. Wizard, configuration and diagnostics
 
-- [ ] V-02: Implement Basic/Research/Full profile selection with Research recommended.
+- [ ] V-02: Implement Basic/Research/Full component setup. Preview only persists the selection and does not configure components.
 - [ ] V-02: Implement valid Custom capability resolution and clear conflict/dependency handling.
 - [ ] V-03: Detect existing managed/adopted/external resources and actual host/account policy.
 - [ ] V-03: Show versions, downloads, storage, licenses, permissions, paths and config diff before apply.

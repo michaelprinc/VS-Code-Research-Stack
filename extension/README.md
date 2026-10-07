@@ -1,14 +1,14 @@
 # Research Stack Toolkit — Phase 4 Preview
 
-This private VSIX preview registers one command: **Research Toolkit: Show Phase Readiness**. It displays the current project gate state.
+This private VSIX preview provides two commands: **Research Toolkit: Switch Package** and **Research Toolkit: Show Phase Readiness**. The switch command offers Basic, Recommended Research, and Full and saves the choice in the current VS Code profile.
 
-The extension is intentionally readiness-only. It does not install dependencies, download files, start services, inspect or modify workspaces, access networks, update components, or manage research data. Basic and Research remain prototypes with G1/G2 open; Full is a Phase 3 foundation with G3 open. This preview does not represent completion of Phase 4 or a supported Research Stack profile.
+Package switching currently changes only the saved VS Code profile preference. The preference is shared by windows using that profile. It does not install, remove, or configure any Research Stack components. It does not download files, start services, access networks, update components, or manage research data. Basic and Research remain prototypes with G1/G2 open; Full is a Phase 3 foundation with G3 open. This preview does not represent completion of Phase 4 or a supported Research Stack profile.
 
 The package is tested against VS Code Desktop 1.140.0 on Windows 11 x64. The manifest's `engines.vscode` floor is a package compatibility declaration, not evidence that every host/version has been tested. macOS, web, remote, clean-host and minimum-version support remain unverified.
 
 ## Install
 
-Use VS Code's **Extensions: Install from VSIX...** command and select `research-stack-toolkit-0.1.0.vsix`. Review the readiness status before relying on any project profile. Do not use this preview to install or update runtime components.
+Use VS Code's **Extensions: Install from VSIX...** command and select `research-stack-toolkit-0.2.0.vsix`. Open the Command Palette and run **Research Toolkit: Switch Package** to change the preference saved in the active VS Code profile. Run **Research Toolkit: Show Phase Readiness** to view the selected preference and open gates. Do not use this preview to install or update runtime components.
 
 ## Package boundary
 
