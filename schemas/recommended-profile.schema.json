@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-stack.invalid/schemas/recommended-profile.schema.json",
+  "title": "Research Stack Recommended profile delta",
+  "type": "object",
+  "required": ["schemaVersion", "id", "displayName", "extends", "capabilities", "platformPolicy", "secretPolicy", "fullTextPolicy"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "id": {"const": "recommended"},
+    "displayName": {"type": "string", "minLength": 1},
+    "extends": {"const": "basic"},
+    "capabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "platformPolicy": {"const": "platform-neutral"},
+    "secretPolicy": {"const": "external-user-environment-only"},
+    "fullTextPolicy": {"const": "no-automatic-download"}
+  },
+  "additionalProperties": false
+}

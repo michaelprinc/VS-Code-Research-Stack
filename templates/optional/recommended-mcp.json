@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "research-stack-recommended": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--locked",
+        "--no-dev",
+        "--project",
+        "${workspaceFolder}/.research-toolkit/worker",
+        "python",
+        "-m",
+        "research_stack.recommended_server"
+      ],
+      "env": {
+        "RESEARCH_STACK_WORKSPACE": "${workspaceFolder}"
+      }
+    }
+  }
+}

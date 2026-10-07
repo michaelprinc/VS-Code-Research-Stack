@@ -1,12 +1,12 @@
 # Research Toolkit: four-phase implementation roadmap
 
-Planning baseline: 7 October 2026. Language: English. Phase 1 local implementation is in progress on Windows 11 x64; Phases 2–4 remain planned.
+Planning baseline: 7 October 2026. Language: English. Phase 1 G1 remains open on Windows 11 x64; Phase 2 has an additive implementation prototype but G2 is blocked; Phases 3–4 remain planned.
 
 ## Objective and boundary
 
 First install and validate the scientific stack on a local reference workstation, documenting exact versions, installation steps, compatibility settings, integration behavior, and recovery. Then turn those proven procedures into a complete VS Code extension distributed as a VSIX. Component updates are part of the product design where ownership and upstream mechanisms make them feasible.
 
-The original roadmap remains the project plan. Phase 1 implementation and live receipts are maintained alongside it in `specs/phase-1/`, `docs/implementation/phase-1-basic/`, and `evidence/phase-1/`. Until the gate report records a supported result, this package is an implementation prototype rather than a compatibility claim. Phase 1 does not install or configure GitHub Copilot, sign in to GitHub, publish content, or create a VSIX.
+The original roadmap remains the project plan. Phase 1 implementation and live receipts are maintained alongside it in `specs/phase-1/`, `docs/implementation/phase-1-basic/`, and `evidence/phase-1/`. Phase 2 prototype specifications and deterministic receipts are maintained in `specs/phase-2/`, `docs/implementation/phase-2-recommended/`, and `evidence/phase-2/`. Until gate reports record supported results, both profiles are implementation prototypes rather than compatibility claims. Phase 2 does not download papers, write to Zotero, or execute notebooks automatically.
 
 The starting input is the user-supplied Czech architecture proposal, titled “Ano. Pro váš cíl považuji `.vsix` balíček za velmi vhodnou distribuční vrstvu, …”. It proposes a small orchestrator extension, three cumulative profiles, optional capabilities, MCP, research skills, health checks, and externally installed services. This roadmap retains that architecture and makes installation validation a prerequisite for packaging.
 

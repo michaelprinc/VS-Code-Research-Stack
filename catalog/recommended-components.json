@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "profileId": "recommended",
+  "resolutionState": "windows-reference-prototype; cross-platform recipes prepared",
+  "components": [
+    {
+      "id": "research-stack-recommended-adapter",
+      "role": "local-mcp-server",
+      "version": "0.2.0",
+      "source": "Research Stack authored adapter using Python standard library and official scholarly REST APIs",
+      "ownership": "managed-as-additive-workspace-module",
+      "lifecycle": "uses-existing-uv-managed-Basic-worker-lock; no third-party Research API SDK"
+    },
+    {
+      "id": "openalex-rest-api",
+      "role": "scholarly-metadata-provider",
+      "version": "service-controlled",
+      "source": "https://api.openalex.org/works",
+      "ownership": "external-read-only-service",
+      "credentials": "optional-OPENALEX_API_KEY-from-process-environment"
+    },
+    {
+      "id": "crossref-rest-api",
+      "role": "citation-metadata-provider",
+      "version": "service-controlled",
+      "source": "https://api.crossref.org/works",
+      "ownership": "external-read-only-service",
+      "credentials": "optional-CROSSREF_MAILTO-and-CROSSREF_PLUS_API_TOKEN-from-process-environment"
+    },
+    {
+      "id": "semantic-scholar-academic-graph",
+      "role": "scholarly-metadata-provider",
+      "version": "service-controlled",
+      "source": "https://api.semanticscholar.org/graph/v1/paper/search",
+      "ownership": "external-read-only-service",
+      "credentials": "optional-SEMANTIC_SCHOLAR_API_KEY-from-process-environment",
+      "termsGate": "SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED=true-required-after-license-review; does-not-grant-rights"
+    },
+    {
+      "id": "zotero-local-api",
+      "role": "bibliography-manager-integration",
+      "version": "user-installed",
+      "source": "http://localhost:23119/api/",
+      "ownership": "adopted-existing-application",
+      "lifecycle": "read-only-loopback; manual-UI-import-through-reviewed-RIS"
+    },
+    {
+      "id": "vscode-python-extension",
+      "role": "editor-extension",
+      "version": "user-managed",
+      "source": "ms-python.python",
+      "ownership": "adopted-existing-application"
+    },
+    {
+      "id": "vscode-jupyter-extension",
+      "role": "editor-extension",
+      "version": "user-managed",
+      "source": "ms-toolsai.jupyter",
+      "ownership": "optional-recommended; host-verification-pending"
+    },
+    {
+      "id": "research-analysis-python-environment",
+      "role": "isolated-notebook-kernel",
+      "version": "locked-in-notebooks/analysis/uv.lock",
+      "source": "uv lock for ipykernel and matplotlib",
+      "ownership": "managed-per-research-workspace",
+      "lifecycle": "separate-from-MCP-worker-and-user-Python"
+    }
+  ]
+}

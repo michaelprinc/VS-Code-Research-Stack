@@ -1,8 +1,8 @@
 # Phase 2 implementation plan — Recommended / Researcher
 
-Status: planned, not implemented. Dependency: G1 and frozen Basic lock. Output: locally validated recommended scientific stack, still without a required vector database or model.
+Status: implementation prototype added 7 October 2026; G1 prerequisite remains open and G2 is not passed. Dependency: G1 and frozen Basic lock. Output: portable Researcher overlay and bounded scholarly metadata workflow, still without a required vector database or model.
 
-Shared obligations: [C-01 through C-12](../architecture-and-contracts.md). Tracker: [Phase 2 checklist](checklist.md). Previous: [Basic](../phase-1-basic/implementation-plan.md). Next: [Complete](../phase-3-complete/implementation-plan.md).
+Frozen prototype artifacts: [specification](../../../specs/phase-2/spec.md), [design](../../../specs/phase-2/design.md), [tasks](../../../specs/phase-2/tasks.md), [acceptance](../../../specs/phase-2/acceptance.md). Shared obligations: [C-01 through C-12](../architecture-and-contracts.md). Tracker: [Phase 2 checklist](checklist.md). Previous: [Basic](../phase-1-basic/implementation-plan.md). Next: [Complete](../phase-3-complete/implementation-plan.md).
 
 ## 1. Scope and stories
 
@@ -27,7 +27,7 @@ Exclude vector RAG, GPU/model dependencies, institutional paywall automation, ar
 | R-09 | Keep credentials and Zotero state separate; prevent unsolicited external writes or notebook execution | T2-04, T2-09 |
 | R-10 | Reproduce Research installation and retain Basic behavior, data and configurations on repair/downgrade | T2-01, T2-10 |
 
-Nonfunctional targets: each provider request has a proposed 30-second deadline, bounded pagination/request counts and cancellation; a retry budget of at most three transient retries with jitter and `Retry-After` handling. Daily-budget exhaustion schedules/reports the next eligible action rather than retrying rapidly. Freeze provider-specific throttle/cache policies in the specification. Never present an outage as “zero matching papers”.
+Original nonfunctional proposal: each provider request has a 30-second deadline, bounded pagination/request counts and cancellation; a retry budget of at most three transient retries with jitter and `Retry-After` handling. The current prototype freezes a stricter 15-second/25-result/one-page policy, one request per second, no automatic retries, and no persistent cache; broader cancellation, pagination, caching and recovery remain open. Daily-budget exhaustion is surfaced as a provider error; never present an outage as “zero matching papers”.
 
 ## 3. Adapter selection and contracts
 

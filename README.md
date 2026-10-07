@@ -1,6 +1,6 @@
-# Research Stack — Phase 1 Basic
+# VS Code Research Stack — Phase 1 Basic and Phase 2 Researcher
 
-This checkout contains the Windows reference implementation prototype for the Basic / Research Starter package. It is designed around portable workspace content, `uv` project configuration, and a local stdio MCP document worker.
+This repository contains the Windows reference implementation prototype for the Basic / Research Starter package and an additive Phase 2 Researcher prototype. Both use portable workspace content, locked `uv` projects, and local stdio MCP workers. **G1 remains open and Phase 2 G2 has not passed; this repository is not yet a supported cross-platform release.**
 
 ## Quick start
 
@@ -14,5 +14,15 @@ uv run --locked research-stack init "<your research workspace path>"
 Open the created workspace in VS Code, inspect `.mcp.json`, trust the workspace only after reviewing the configuration, and use **MCP: List Servers** to start the `research-stack-basic` server. It can read selected PDF/DOCX documents and write new Markdown/DOCX reports. The document workflow has no external account requirement. Copilot, GitHub remote access and NotebookLM import are optional and not included in this prototype's verified integration.
 
 See [setup and operation](docs/implementation/phase-1-basic/setup-and-operation.md), the [Phase 1 specification](specs/phase-1/spec.md), and the live [gate report](evidence/phase-1/gate-report.md).
+
+## Phase 2 Researcher prototype
+
+Add the Phase 2 overlay to a disposable Basic workspace with:
+
+```text
+uv run --locked research-stack add-recommended "<workspace path>"
+```
+
+The overlay adds a separate MCP server for bounded OpenAlex, Crossref and Semantic Scholar metadata searches; exact-DOI citation lookup; loopback read-only Zotero access; and reviewed RIS preparation. It adds five research skills and recommends the VS Code Python and Jupyter extensions. It does not download papers, write to Zotero, or run notebook cells automatically. See the [Phase 2 setup guide](templates/recommended-overlay/research/README.md), [specification](docs/implementation/phase-2-recommended/spec.md), and [G2 evidence report](evidence/phase-2/gate-report.md).
 
 To make a user-mediated NotebookLM bundle, run `uv run --locked research-stack export-bundle "<new output folder>" "<selected source 1>" "<selected source 2>"`. Supported copies are PDF, DOCX, TXT and Markdown. This only prepares files and a checksum index; it does not connect to NotebookLM.

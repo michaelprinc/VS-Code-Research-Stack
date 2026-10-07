@@ -1,4 +1,5 @@
 .venv/
+**/.venv/
 .research-stack-data/
 __pycache__/
 *.py[cod]

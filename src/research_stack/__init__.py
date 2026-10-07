@@ -1,3 +1,3 @@
-"""Research Stack Phase 1 local tooling."""
+"""Research Stack local tooling."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "profileId": "recommended",
+  "prototypeVersion": "0.2.0",
+  "gate": "G2-not-passed",
+  "referenceHost": {
+    "os": "Windows 11 x64",
+    "build": "10.0.26300",
+    "python": "3.12.13",
+    "uv": "0.11.23",
+    "vscode": "1.140.0",
+    "pythonExtension": "ms-python.python@2026.8.0",
+    "jupyterExtension": "ms-toolsai.jupyter@2025.9.1",
+    "zotero": "not-installed-local-api-unavailable"
+  },
+  "locks": {
+    "basicWorker": {"path": "uv.lock", "sha256": "B1C4AE293353C11A4182A607C94CBA994644B11502388925C4B780F4131475E1"},
+    "analysisKernel": {"path": "templates/recommended-overlay/notebooks/analysis/uv.lock", "sha256": "AC12FA3304304C6E2087415C566F0BBDF23A58353E8F1818F49B1088D772E86E"}
+  },
+  "providerSettings": {
+    "openalex": {"credentialConfigured": false, "liveSmoke": "one-record-response"},
+    "crossref": {"credentialConfigured": false, "liveSmoke": "one-record-response; public rate-limit headers observed"},
+    "semanticScholar": {"credentialConfigured": false, "termsAcknowledged": false, "liveSmoke": "pre-terms-gate-keyless-probe-returned-HTTP-429; future-requests-require-explicit-opt-in"}
+  },
+  "verification": {
+    "unitTests": "22-passed",
+    "recommendedMcp": "additive-Basic-upgrade-launched-copied-worker; discovered-5-tools; prepared-synthetic-RIS; Zotero-unavailable-diagnostic; Basic-tools-still-pass",
+    "analysisEnvironment": "locked-sync-passed; ipykernel-7.4.0; matplotlib-3.11.2; deterministic-chart-created",
+    "macos": "untested",
+    "freshVscodeKernelSelection": "untested",
+    "copilotDiscovery": "blocked-by-open-G1"
+  },
+  "secrets": "No provider credentials are stored in this repository or workspace templates."
+}

@@ -1,7 +1,7 @@
 [project]
 name = "research-stack-basic"
-version = "0.1.0"
-description = "Phase 1 local document and research workspace tools for Research Stack"
+version = "0.2.0"
+description = "Portable Phase 1 Basic and Phase 2 Recommended local research workspace tools"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [

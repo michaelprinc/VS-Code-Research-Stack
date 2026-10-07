@@ -52,8 +52,8 @@ No community “Zotero MCP”, “Document MCP”, “OpenAlex MCP”, “Crossr
 | ADR-003 | uv-managed isolated Python workers; CPython 3.12 initial candidate | G1 | Binary wheels, parser fixtures, editor path proof; supported alternative if candidate fails |
 | ADR-004 | Native editor tools before broad filesystem MCP; document bridge for missing capabilities | G1 | Workflow gap assessment and tool permission tests |
 | ADR-005 | Managed provider mode plus explicit portable export, mutually exclusive per toolkit server | G1 prototype; G4 release | No duplicate tools, credential handoff and configuration persistence |
-| ADR-006 | Official scholarly HTTP APIs behind evaluated or authored MCP adapters | G2 | Identity, normalization, quota/error and provenance scenarios |
-| ADR-007 | Zotero local read route; explicit supported import, no direct SQLite manipulation | G2 | Supported desktop version, enabled API and round-trip import/export |
+| ADR-006 | Official scholarly HTTP APIs behind an authored, narrow local MCP adapter | Phase 2 prototype | [ADR-006](decisions/ADR-006-official-research-api-adapters.md); fixture and low-volume live request receipts, with Semantic Scholar keyless route rate-limited |
+| ADR-007 | Zotero fixed loopback read route; user-reviewed RIS import; no direct SQLite manipulation | Phase 2 prototype | [ADR-007](decisions/ADR-007-zotero-local-read-manual-ris.md); fake-server checks only, real Zotero unavailable on reference host |
 | ADR-008 | DuckDB embedded worker with serialized writes and portable evidence exports | G3 | Concurrent-reader/write and backup/migration tests |
 | ADR-009 | Qdrant in a local pinned Linux container on the Windows reference route | G3 | Backend/volume behavior, restart persistence and restoration; alternative backend tested separately |
 | ADR-010 | CPU small multilingual embedding baseline; optional reranker/larger model | G3 | Frozen multilingual retrieval benchmark and resource measurements |
@@ -62,7 +62,7 @@ No community “Zotero MCP”, “Document MCP”, “OpenAlex MCP”, “Crossr
 | ADR-013 | Stable public VS Code APIs; minimum host chosen from tested features | G4 | Minimum/current Stable test pair; fallback for optional contributions |
 | ADR-014 | Authored project templates/skills bundled; vendor binaries/licenses evaluated separately | G4 | SBOM, notices, artifact listing and skill discovery |
 
-Individual ADR records are still pending review. The Phase 1 prototype provides evidence for Windows-first host selection, uv-managed isolation and portable MCP configuration, but these do not become approved ADRs until context, alternatives, consequences and receipts are recorded. A failed hypothesis changes the design and lock; it must not be hidden by weakening an acceptance criterion after the run.
+Individual ADR records for Phases 1–2 capture prototype decisions and their limits. The Phase 1 prototype provides evidence for Windows-first host selection, uv-managed isolation and portable MCP configuration. ADR-006/007 select explicit, limited research routes for further acceptance; they do not approve G1/G2 or a production release. A failed hypothesis changes the design and lock; it must not be hidden by weakening an acceptance criterion after the run.
 
 ## 4. Planning uncertainties
 

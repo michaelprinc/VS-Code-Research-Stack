@@ -13,6 +13,7 @@ from pathlib import Path
 from . import __version__
 from .bundle import export_bundle
 from .documents import DocumentError, extract_document
+from .recommended import add_recommended_workspace
 from .workspace import initialize_workspace
 
 
@@ -41,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser("inspect", help="show redacted host/runtime inventory")
     init = commands.add_parser("init", help="create missing Basic research workspace files")
     init.add_argument("workspace", type=Path)
+    recommended = commands.add_parser("add-recommended", help="add the Researcher profile to an existing Basic workspace")
+    recommended.add_argument("workspace", type=Path)
     read = commands.add_parser("read", help="extract a bounded range from PDF or DOCX")
     read.add_argument("document", type=Path)
     read.add_argument("--start", type=int, default=1)
@@ -54,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
             result = inspect()
         elif args.command == "init":
             result = initialize_workspace(args.workspace)
+        elif args.command == "add-recommended":
+            result = add_recommended_workspace(args.workspace)
         elif args.command == "export-bundle":
             result = export_bundle(args.output, args.sources)
         else:

@@ -1,5 +1,6 @@
 # Local runtime state and generated caches
 .research-toolkit/worker/.venv/
+**/.venv/
 .research-toolkit/worker/__pycache__/
 __pycache__/
 *.py[cod]

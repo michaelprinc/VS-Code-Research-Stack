@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "recommended",
+  "displayName": "Researcher",
+  "extends": "basic",
+  "capabilities": [
+    "literature.openalex.search",
+    "literature.crossref.search",
+    "literature.semantic-scholar.search",
+    "literature.provenance",
+    "zotero.local.read",
+    "zotero.ris.manual-import",
+    "jupyter.user-triggered-analysis",
+    "research.skills"
+  ],
+  "platformPolicy": "platform-neutral",
+  "secretPolicy": "external-user-environment-only",
+  "fullTextPolicy": "no-automatic-download"
+}
