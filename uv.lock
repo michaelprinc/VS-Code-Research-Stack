@@ -621,10 +621,11 @@ wheels = [
 
 [[package]]
 name = "research-stack-basic"
-version = "0.2.0"
+version = "0.3.4"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },
+    { name = "mcp-types" },
     { name = "pypdf" },
     { name = "python-docx" },
 ]
@@ -637,6 +638,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = "==2.2.0" },
+    { name = "mcp-types", specifier = "==2.2.0" },
     { name = "pypdf", specifier = "==6.4.1" },
     { name = "python-docx", specifier = "==1.2.0" },
 ]

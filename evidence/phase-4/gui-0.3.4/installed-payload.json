@@ -1,0 +1,65 @@
+{
+  "artifact": "research-stack-toolkit-0.3.4.vsix",
+  "version": "0.3.4",
+  "workerBundle": {
+    "files": 19,
+    "overlayFiles": 11,
+    "workerVersion": "0.3.4"
+  },
+  "commands": 19,
+  "receipt": {
+    "extensionVersion": "0.3.4",
+    "workerVersion": "0.3.4",
+    "managedPath": ".research-toolkit/managed/worker-0.3.4"
+  },
+  "presets": {
+    "recommendedDefault": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "research-core"
+      },
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "research-core"
+      }
+    ],
+    "readAndCite": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "read-and-cite"
+      }
+    ],
+    "verifyCitations": [
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "verify-citations"
+      }
+    ],
+    "researchLabMax": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "research-lab-max"
+      },
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "research-lab-max"
+      }
+    ],
+    "corpusLab": [
+      {
+        "module": "research_stack.lab_server",
+        "preset": "corpus-lab"
+      }
+    ]
+  },
+  "gui": {
+    "presets": 8,
+    "measuredToolkitTokens": 2220,
+    "widestPresetTokens": 59630,
+    "widestPresetContextPercent": 46.6
+  },
+  "help": {
+    "guides": 32
+  },
+  "result": "passed"
+}

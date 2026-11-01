@@ -29,6 +29,7 @@ class FullPrototypeError(ValueError):
 @dataclass(frozen=True)
 class EvidenceChunk:
     chunk_id: str
+    content_id: str
     source_version_id: str
     source_path: str
     locator: str
@@ -38,6 +39,19 @@ class EvidenceChunk:
 
     def as_dict(self) -> dict[str, str]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class SourceRecord:
+    """One validated selected source, independent of how many chunks it produced."""
+
+    source_path: str
+    source_version_id: str
+    bytes: int
+    text: str
+
+    def as_dict(self) -> dict[str, object]:
+        return {"source_path": self.source_path, "source_version_id": self.source_version_id, "bytes": self.bytes}
 
 
 @dataclass(frozen=True)
@@ -85,28 +99,21 @@ def _split_text(text: str, chunk_chars: int, overlap_chars: int) -> list[tuple[i
     return result
 
 
-def build_corpus(
-    root: Path,
-    relative_paths: list[str],
-    *,
-    chunk_chars: int = 1200,
-    overlap_chars: int = 120,
-) -> list[EvidenceChunk]:
-    """Build an in-memory Markdown/text corpus from explicitly selected files.
+def scan_sources(root: Path, relative_paths: list[str]) -> list[SourceRecord]:
+    """Validate and hash every selected Markdown/text source, including one that yields no chunks.
 
-    Paths must resolve under ``root``. Source files are read but never changed.
-    Returned source references are normalized relative POSIX paths.
+    Paths must resolve under ``root``. Source files are read but never changed. Returned
+    source references are normalized relative POSIX paths. This inventory is what lets an
+    emptied source lose its previous index membership instead of leaving stale evidence.
     """
     if not relative_paths or len(relative_paths) > MAX_SOURCES:
         raise FullPrototypeError(f"SOURCE_COUNT: provide 1..{MAX_SOURCES} explicit files.")
-    if not 100 <= chunk_chars <= MAX_CHUNK_CHARS or not 0 <= overlap_chars < chunk_chars:
-        raise FullPrototypeError("CHUNK_SETTINGS: chunk_chars must be 100..4000 and overlap smaller than the chunk.")
 
     root_path = root.expanduser().resolve()
     if not root_path.is_dir():
         raise FullPrototypeError("ROOT_NOT_FOUND: selected corpus root is not a directory.")
 
-    chunks: list[EvidenceChunk] = []
+    records: list[SourceRecord] = []
     seen: set[str] = set()
     total_bytes = 0
     for relative_path in relative_paths:
@@ -145,24 +152,55 @@ def build_corpus(
             text = raw.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise FullPrototypeError("INVALID_UTF8: source was not modified; convert or exclude it explicitly.") from exc
-        source_id = _sha256(raw)
-        for paragraph_index, chunk_text, char_start, char_end in _split_text(text, chunk_chars, overlap_chars):
-            text_hash = _sha256(chunk_text.encode("utf-8"))
-            locator = f"paragraph={paragraph_index};chars={char_start}-{char_end}"
-            chunker_fingerprint = f"{CHUNKER_ID}:{chunk_chars}:{overlap_chars}"
-            chunk_id = _canonical_id((source_id, chunker_fingerprint, locator, text_hash))
-            chunks.append(
-                EvidenceChunk(
-                    chunk_id=chunk_id,
-                    source_version_id=source_id,
-                    source_path=normalized,
-                    locator=locator,
-                    text=chunk_text,
-                    text_sha256=text_hash,
-                    chunker_id=chunker_fingerprint,
-                )
+        records.append(SourceRecord(source_path=normalized, source_version_id=_sha256(raw), bytes=len(raw), text=text))
+    return records
+
+
+def chunks_for_source(record: SourceRecord, *, chunk_chars: int = 1200, overlap_chars: int = 120) -> list[EvidenceChunk]:
+    """Chunk one validated source. Chunk identity is per source occurrence, content identity is separate."""
+    if not 100 <= chunk_chars <= MAX_CHUNK_CHARS or not 0 <= overlap_chars < chunk_chars:
+        raise FullPrototypeError("CHUNK_SETTINGS: chunk_chars must be 100..4000 and overlap smaller than the chunk.")
+    chunks: list[EvidenceChunk] = []
+    chunker_fingerprint = f"{CHUNKER_ID}:{chunk_chars}:{overlap_chars}"
+    for paragraph_index, chunk_text, char_start, char_end in _split_text(record.text, chunk_chars, overlap_chars):
+        text_hash = _sha256(chunk_text.encode("utf-8"))
+        locator = f"paragraph={paragraph_index};chars={char_start}-{char_end}"
+        content_id = _canonical_id((record.source_version_id, chunker_fingerprint, locator, text_hash))
+        # The path is part of the occurrence identity so identical content at two paths stays two
+        # traceable occurrences; `content_id` keeps the content-only identity for deduplication.
+        chunk_id = _canonical_id((record.source_path, record.source_version_id, chunker_fingerprint, locator, text_hash))
+        chunks.append(
+            EvidenceChunk(
+                chunk_id=chunk_id,
+                content_id=content_id,
+                source_version_id=record.source_version_id,
+                source_path=record.source_path,
+                locator=locator,
+                text=chunk_text,
+                text_sha256=text_hash,
+                chunker_id=chunker_fingerprint,
             )
+        )
     return chunks
+
+
+def build_corpus(
+    root: Path,
+    relative_paths: list[str],
+    *,
+    chunk_chars: int = 1200,
+    overlap_chars: int = 120,
+) -> list[EvidenceChunk]:
+    """Build an in-memory Markdown/text corpus from explicitly selected files.
+
+    Source files are read but never changed. Returned source references are normalized
+    relative POSIX paths.
+    """
+    return [
+        chunk
+        for record in scan_sources(root, relative_paths)
+        for chunk in chunks_for_source(record, chunk_chars=chunk_chars, overlap_chars=overlap_chars)
+    ]
 
 
 def _tokens(text: str) -> list[str]:

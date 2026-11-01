@@ -1,0 +1,19 @@
+{
+  "artifact": "research-stack-toolkit-0.3.0.vsix",
+  "sha256": "2813d7ea49109223aaeb8fbbfb8fd356be81d26b02ca3432efab615060dba7e3",
+  "packageBytes": 11956,
+  "unpackedBytes": 31862,
+  "entries": [
+    "[Content_Types].xml",
+    "extension.vsixmanifest",
+    "extension/extension.js",
+    "extension/media/controls.css",
+    "extension/media/controls.js",
+    "extension/media/toolkit.svg",
+    "extension/package.json",
+    "extension/readme.md",
+    "extension/ui.js"
+  ],
+  "sourceFilesMatch": true,
+  "result": "passed"
+}

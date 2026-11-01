@@ -1,0 +1,517 @@
+
+> research-stack-toolkit@0.3.2 test:host
+> node test/run-host-test.js
+
+
+[main 2026-10-11T19:16:13.283Z] [node-compile-cache] main: packaged cache enabled (status: enabled, configured: C:\Users\micha\AppData\Local\Programs\Microsoft VS Code\2a59476c9b\resources\app\node-compile-cache\main, active: C:\Users\micha\AppData\Local\Programs\Microsoft VS Code\2a59476c9b\resources\app\node-compile-cache\main\v24.21.0-x64-c3a7e8f2)
+[main 2026-10-11T19:16:13.420Z] StorageMainService: creating application shared storage
+[main 2026-10-11T19:16:13.498Z] [shared storage] Creating shared storage database at ':memory:' (wasCreated: true)
+[main 2026-10-11T19:16:13.498Z] [shared storage] Initializing fallback application storage (path: in-memory)
+[main 2026-10-11T19:16:13.499Z] Error: Error mutex already exists
+    at ea.installMutex (file:///C:/Users/micha/AppData/Local/Programs/Microsoft%20VS%20Code/2a59476c9b/resources/app/out/mainImpl.js:159:30235)
+[main 2026-10-11T19:16:13.550Z] [shared storage] Fallback application storage initialized with 3 items
+[main 2026-10-11T19:16:13.550Z] update#setState disabled
+[main 2026-10-11T19:16:13.550Z] update#ctor - updates are disabled by the environment
+[RemoteAgentHost] Reconciling: desired=[], current=[]
+[AgentHost:renderer] Acquiring MessagePort to agent host...
+[main 2026-10-11T19:16:14.356Z] AgentHostProcessManager: agent host started
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey=undefined conversationKey=undefined modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[AgentHost:renderer] MessagePort acquired, creating client...
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Started local extension host with pid 55360.
+[AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Loading development extension at k:\ChatGPT-Work\Projects\Research Stack\toolkit\dist\acceptance-0.3.2-verified\extensions\michaelprinc.research-stack-toolkit-0.3.2
+Extension 'github.copilot-chat' appears in product.json but enables LESS API proposals than the extension wants.
+package.json (LOSES): agentSessionsWorkspace
+agentsWindowConfiguration
+chatDebug
+chatHooks
+envIsConnectionMetered
+extensionsAny
+newSymbolNamesProvider
+interactive
+codeActionAI
+activeComment
+commentReveal
+contribCommentThreadAdditionalMenu
+contribCommentsViewThreadMenus
+contribChatEditorInlineGutterMenu
+documentFiltersExclusive
+embeddings
+findTextInFiles
+findTextInFiles2
+languageModelToolSupportsModel
+findFiles2
+textSearchProvider
+terminalDataWriteEvent
+terminalExecuteCommandEvent
+terminalSelection
+terminalQuickFixProvider
+mappedEditsProvider
+aiRelatedInformation
+aiSettingsSearch
+chatParticipantAdditions
+defaultChatParticipant
+contribSourceControlInputBoxMenu
+authLearnMore
+authIssuers
+testObserver
+aiTextSearchProvider
+chatParticipantPrivate
+chatProvider
+contribDebugCreateConfiguration
+chatReferenceDiagnostic
+textSearchProvider2
+chatReferenceBinaryData
+languageModelSystem
+languageModelCapabilities
+languageModelPricing
+inlineCompletionsAdditions
+chatStatusItem
+chatInputNotification
+taskProblemMatcherStatus
+contribLanguageModelToolSets
+textDocumentChangeReason
+resolvers
+taskExecutionTerminal
+dataChannels
+languageModelThinkingPart
+chatSessionsProvider
+devDeviceId
+contribEditorContentMenu
+chatPromptFiles
+mcpServerDefinitions
+tabInputMultiDiff
+workspaceTrust
+environmentPower
+terminalTitle
+toolInvocationApproveCombination
+chatSessionCustomizationProvider
+product.json (WINS): agentSessionsWorkspace
+agentsWindowConfiguration
+interactive
+terminalDataWriteEvent
+terminalExecuteCommandEvent
+terminalSelection
+terminalQuickFixProvider
+chatParticipantAdditions
+defaultChatParticipant
+embeddings
+chatProvider
+mappedEditsProvider
+aiRelatedInformation
+aiSettingsSearch
+codeActionAI
+findTextInFiles
+findTextInFiles2
+textSearchProvider
+textSearchProvider2
+activeComment
+commentReveal
+contribSourceControlInputBoxMenu
+contribCommentEditorActionsMenu
+contribCommentThreadAdditionalMenu
+contribCommentsViewThreadMenus
+contribChatEditorInlineGutterMenu
+extensionAffinity
+newSymbolNamesProvider
+findFiles2
+chatReferenceDiagnostic
+extensionsAny
+authLearnMore
+testObserver
+aiTextSearchProvider
+documentFiltersExclusive
+chatParticipantPrivate
+contribDebugCreateConfiguration
+inlineCompletionsAdditions
+chatReferenceBinaryData
+languageModelSystem
+languageModelCapabilities
+languageModelThinkingPart
+languageModelToolSupportsModel
+chatStatusItem
+taskProblemMatcherStatus
+contribLanguageModelToolSets
+textDocumentChangeReason
+resolvers
+taskExecutionTerminal
+dataChannels
+chatSessionsProvider
+chatSessionCustomizationProvider
+devDeviceId
+contribEditorContentMenu
+tokenInformation
+toolInvocationApproveCombination
+chatPromptFiles
+mcpServerDefinitions
+tabInputMultiDiff
+workspaceTrust
+chatHooks
+chatDebug
+envIsConnectionMetered
+environmentPower
+terminalTitle
+languageModelPricing
+chatInputNotification
+DELTA: authIssuers
+Proceeding with EXTRA proposals (authIssuers) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.
+[main 2026-10-11T19:16:15.628Z] [AgentHost:stderr] (node:38476) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+
+[RemoteAgentHostProtocol] Sending initialize: address=local clientId=0d982c86-5b03-45a8-a3c7-12759bbbf94f requestId=1
+[RemoteAgentHostProtocol] Initialized: address=local clientId=0d982c86-5b03-45a8-a3c7-12759bbbf94f durationMs=1399
+[AgentHost:renderer] Protocol connection established; clientId=0d982c86-5b03-45a8-a3c7-12759bbbf94f
+[RemoteAgentHost] Reconciling: desired=[], current=[]
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Settings Sync: Account status changed from uninitialized to unavailable
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[CloudSandboxApi] No 'github' session with scopes [read:user, user:email, repo, workflow]
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+Unknown channel: agentHostClientByokLm
+Unknown channel: agentHostClientProxy
+Unknown channel: agentHostClientProxy
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Unknown channel: agentHostClientProxy
+[AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+(node:55360) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NTQzOWRiOTktYTlkNC00MGQzLWIyYzQtNGRiZDIxNWFiNmYx" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+{"test":"actual-vscode-extension-host","stage":"mutate","activationAndCommandMs":107.39409999999998,"warmCommandP95Ms":3.1991999999954714,"warmCalls":100,"packageTransitions":["basic","full","recommended","full"],"concurrentCalls":25,"gui":"packaged renderer ready handshake, help opened, panel reused, commands registered, option persistence verified","inventory":[{"id":"toolkit","version":"0.3.2","readiness":"Ready"},{"id":"vscode-desktop","version":"1.141.0","readiness":"Ready"},{"id":"uv","version":"uv 0.11.23 (3cdf50e09 2026-06-19 x86_64-pc-windows-msvc)","readiness":"Ready"},{"id":"python","version":"3.12.13","readiness":"Ready"},{"id":"mcp-python-sdk","version":"2.2.0","readiness":"Ready"},{"id":"pypdf","version":"6.4.1","readiness":"Ready"},{"id":"python-docx","version":"1.2.0","readiness":"Ready"},{"id":"document-worker","version":"0.3.2","readiness":"Ready"},{"id":"git-for-windows","version":"git version 2.54.0.windows.1","readiness":"Ready"},{"id":"research-stack-recommended-adapter","version":"0.3.2","readiness":"Ready"},{"id":"research-stack-full-markdown-bm25-prototype","version":"0.3.2","readiness":"Ready"}],"setupCheck":{"ok":true,"pdfRead":true,"docxRead":true,"sourceHashesAndLocators":true,"markdownWrite":true,"docxWrite":true,"lexicalSearch":true,"researchAdapter":true,"tools":["read_document","search_local_text","write_docx","write_markdown"],"researchTools":["check_citation","prepare_zotero_import","search","zotero_collections","zotero_item"],"externalProvidersChecked":false,"checkedAt":"2026-10-11T19:16:37.995Z","scope":"Temporary synthetic fixtures through real local stdio MCP"},"selectedRead":{"ok":true,"document":"Selected document é with spaces.docx","kind":"docx","sha256":"1f09c21ce7b076dbdae69331d3002514a181b65dc1842436a85ea35204bf87ef","locators":[{"item":1,"kind":"paragraph","characters":58}],"warnings":[],"characters":58,"preview":"Actual selected document reading check: Výzkum a evidence.","detail":"First five pages/paragraphs read through MCP; source unchanged.","checkedAt":"2026-10-11T19:16:45.952Z","scope":"Selected workspace document"},"providerDefinitions":[{"label":"Research Toolkit Workspace é with spaces: Basic documents & local search","command":"K:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces\\.research-toolkit\\managed\\worker-0.3.2\\.venv\\Scripts\\python.exe","args":["-I","-B","-m","research_stack.mcp_server"],"env":{"RESEARCH_STACK_WORKSPACE":"k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces"},"version":"0.3.2","cwd":{"$mid":1,"fsPath":"k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces","_sep":1,"external":"file:///k%3A/ChatGPT-Work/Projects/Research%20Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace%20%C3%A9%20with%20spaces","path":"/K:/ChatGPT-Work/Projects/Research Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace é with spaces","scheme":"file"}},{"label":"Research Toolkit Workspace é with spaces: Research metadata & RIS","command":"K:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces\\.research-toolkit\\managed\\worker-0.3.2\\.venv\\Scripts\\python.exe","args":["-I","-B","-m","research_stack.recommended_server"],"env":{"RESEARCH_STACK_WORKSPACE":"k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces"},"version":"0.3.2","cwd":{"$mid":1,"fsPath":"k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces","_sep":1,"external":"file:///k%3A/ChatGPT-Work/Projects/Research%20Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace%20%C3%A9%20with%20spaces","path":"/K:/ChatGPT-Work/Projects/Research Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace é with spaces","scheme":"file"}}]}
+[main 2026-10-11T19:17:04.852Z] Extension host with pid 55360 exited with code: 0, signal: unknown.
+Exit code:   0
+
+[main 2026-10-11T19:17:05.340Z] [node-compile-cache] main: packaged cache enabled (status: enabled, configured: C:\Users\micha\AppData\Local\Programs\Microsoft VS Code\2a59476c9b\resources\app\node-compile-cache\main, active: C:\Users\micha\AppData\Local\Programs\Microsoft VS Code\2a59476c9b\resources\app\node-compile-cache\main\v24.21.0-x64-c3a7e8f2)
+[main 2026-10-11T19:17:05.362Z] StorageMainService: creating application shared storage
+[main 2026-10-11T19:17:05.443Z] [shared storage] Creating shared storage database at ':memory:' (wasCreated: true)
+[main 2026-10-11T19:17:05.443Z] [shared storage] Initializing fallback application storage (path: in-memory)
+[main 2026-10-11T19:17:05.447Z] Error: Error mutex already exists
+    at ea.installMutex (file:///C:/Users/micha/AppData/Local/Programs/Microsoft%20VS%20Code/2a59476c9b/resources/app/out/mainImpl.js:159:30235)
+[main 2026-10-11T19:17:05.489Z] [shared storage] Fallback application storage initialized with 3 items
+[main 2026-10-11T19:17:05.489Z] update#setState disabled
+[main 2026-10-11T19:17:05.490Z] update#ctor - updates are disabled by the environment
+[RemoteAgentHost] Reconciling: desired=[], current=[]
+[AgentHost:renderer] Acquiring MessagePort to agent host...
+[main 2026-10-11T19:17:06.284Z] AgentHostProcessManager: agent host started
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey=undefined conversationKey=undefined modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[AgentHost:renderer] MessagePort acquired, creating client...
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Started local extension host with pid 49940.
+Loading development extension at k:\ChatGPT-Work\Projects\Research Stack\toolkit\dist\acceptance-0.3.2-verified\extensions\michaelprinc.research-stack-toolkit-0.3.2
+Extension 'github.copilot-chat' appears in product.json but enables LESS API proposals than the extension wants.
+package.json (LOSES): agentSessionsWorkspace
+agentsWindowConfiguration
+chatDebug
+chatHooks
+envIsConnectionMetered
+extensionsAny
+newSymbolNamesProvider
+interactive
+codeActionAI
+activeComment
+commentReveal
+contribCommentThreadAdditionalMenu
+contribCommentsViewThreadMenus
+contribChatEditorInlineGutterMenu
+documentFiltersExclusive
+embeddings
+findTextInFiles
+findTextInFiles2
+languageModelToolSupportsModel
+findFiles2
+textSearchProvider
+terminalDataWriteEvent
+terminalExecuteCommandEvent
+terminalSelection
+terminalQuickFixProvider
+mappedEditsProvider
+aiRelatedInformation
+aiSettingsSearch
+chatParticipantAdditions
+defaultChatParticipant
+contribSourceControlInputBoxMenu
+authLearnMore
+authIssuers
+testObserver
+aiTextSearchProvider
+chatParticipantPrivate
+chatProvider
+contribDebugCreateConfiguration
+chatReferenceDiagnostic
+textSearchProvider2
+chatReferenceBinaryData
+languageModelSystem
+languageModelCapabilities
+languageModelPricing
+inlineCompletionsAdditions
+chatStatusItem
+chatInputNotification
+taskProblemMatcherStatus
+contribLanguageModelToolSets
+textDocumentChangeReason
+resolvers
+taskExecutionTerminal
+dataChannels
+languageModelThinkingPart
+chatSessionsProvider
+devDeviceId
+contribEditorContentMenu
+chatPromptFiles
+mcpServerDefinitions
+tabInputMultiDiff
+workspaceTrust
+environmentPower
+terminalTitle
+toolInvocationApproveCombination
+chatSessionCustomizationProvider
+product.json (WINS): agentSessionsWorkspace
+agentsWindowConfiguration
+interactive
+terminalDataWriteEvent
+terminalExecuteCommandEvent
+terminalSelection
+terminalQuickFixProvider
+chatParticipantAdditions
+defaultChatParticipant
+embeddings
+chatProvider
+mappedEditsProvider
+aiRelatedInformation
+aiSettingsSearch
+codeActionAI
+findTextInFiles
+findTextInFiles2
+textSearchProvider
+textSearchProvider2
+activeComment
+commentReveal
+contribSourceControlInputBoxMenu
+contribCommentEditorActionsMenu
+contribCommentThreadAdditionalMenu
+contribCommentsViewThreadMenus
+contribChatEditorInlineGutterMenu
+extensionAffinity
+newSymbolNamesProvider
+findFiles2
+chatReferenceDiagnostic
+extensionsAny
+authLearnMore
+testObserver
+aiTextSearchProvider
+documentFiltersExclusive
+chatParticipantPrivate
+contribDebugCreateConfiguration
+inlineCompletionsAdditions
+chatReferenceBinaryData
+languageModelSystem
+languageModelCapabilities
+languageModelThinkingPart
+languageModelToolSupportsModel
+chatStatusItem
+taskProblemMatcherStatus
+contribLanguageModelToolSets
+textDocumentChangeReason
+resolvers
+taskExecutionTerminal
+dataChannels
+chatSessionsProvider
+chatSessionCustomizationProvider
+devDeviceId
+contribEditorContentMenu
+tokenInformation
+toolInvocationApproveCombination
+chatPromptFiles
+mcpServerDefinitions
+tabInputMultiDiff
+workspaceTrust
+chatHooks
+chatDebug
+envIsConnectionMetered
+environmentPower
+terminalTitle
+languageModelPricing
+chatInputNotification
+DELTA: authIssuers
+Proceeding with EXTRA proposals (authIssuers) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.
+[AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+[main 2026-10-11T19:17:07.436Z] [AgentHost:stderr] (node:50396) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+
+[RemoteAgentHostProtocol] Sending initialize: address=local clientId=a71e71c0-2857-4b8f-b639-b548d021d728 requestId=1
+[RemoteAgentHostProtocol] Initialized: address=local clientId=a71e71c0-2857-4b8f-b639-b548d021d728 durationMs=1226
+[AgentHost:renderer] Protocol connection established; clientId=a71e71c0-2857-4b8f-b639-b548d021d728
+[RemoteAgentHost] Reconciling: desired=[], current=[]
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Settings Sync: Account status changed from uninitialized to unavailable
+[CloudSandboxApi] No 'github' session with scopes [read:user, user:email, repo, workflow]
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Unknown channel: agentHostClientByokLm
+Unknown channel: agentHostClientProxy
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Unknown channel: agentHostClientProxy
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I0MjZjYmMtNDdlZS00NTlhLWJhNWYtNzdhNTIzYjY0NDc4" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Unknown channel: agentHostClientProxy
+[AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+(node:49940) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+{"test":"actual-vscode-extension-host","stage":"persist","activationAndCommandMs":84.7034000000001,"warmCommandP95Ms":2.1625999999960186,"warmCalls":100,"packageTransitions":["persisted full","basic"],"concurrentCalls":25,"gui":"packaged renderer ready handshake, help opened, panel reused, commands registered, option persistence verified","inventory":[{"id":"toolkit","version":"0.3.2","readiness":"Ready"},{"id":"vscode-desktop","version":"1.141.0","readiness":"Ready"},{"id":"uv","version":"uv 0.11.23 (3cdf50e09 2026-06-19 x86_64-pc-windows-msvc)","readiness":"Ready"},{"id":"python","version":"3.12.13","readiness":"Ready"},{"id":"mcp-python-sdk","version":"2.2.0","readiness":"Ready"},{"id":"pypdf","version":"6.4.1","readiness":"Ready"},{"id":"python-docx","version":"1.2.0","readiness":"Ready"},{"id":"document-worker","version":"0.3.2","readiness":"Ready"},{"id":"git-for-windows","version":"git version 2.54.0.windows.1","readiness":"Ready"},{"id":"research-stack-recommended-adapter","version":"0.3.2","readiness":"Ready"},{"id":"research-stack-full-markdown-bm25-prototype","version":"0.3.2","readiness":"Ready"}],"setupCheck":{"ok":true,"pdfRead":true,"docxRead":true,"sourceHashesAndLocators":true,"markdownWrite":true,"docxWrite":true,"lexicalSearch":true,"researchAdapter":true,"tools":["read_document","search_local_text","write_docx","write_markdown"],"researchTools":["check_citation","prepare_zotero_import","search","zotero_collections","zotero_item"],"externalProvidersChecked":false,"checkedAt":"2026-10-11T19:17:19.048Z","scope":"Temporary synthetic fixtures through real local stdio MCP"},"selectedRead":{"ok":true,"document":"Selected document é with spaces.docx","kind":"docx","sha256":"e0e7c5f4d547de54100138f71a617a3d2d12d962e368ee2c8f372fed49f1ebd7","locators":[{"item":1,"kind":"paragraph","characters":58}],"warnings":[],"characters":58,"preview":"Actual selected document reading check: Výzkum a evidence.","detail":"First five pages/paragraphs read through MCP; source unchanged.","checkedAt":"2026-10-11T19:17:30.416Z","scope":"Selected workspace document"},"providerDefinitions":[{"label":"Research Toolkit Workspace é with spaces: Basic documents & local search","command":"K:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces\\.research-toolkit\\managed\\worker-0.3.2\\.venv\\Scripts\\python.exe","args":["-I","-B","-m","research_stack.mcp_server"],"env":{"RESEARCH_STACK_WORKSPACE":"k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces"},"version":"0.3.2","cwd":{"$mid":1,"fsPath":"k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces","_sep":1,"external":"file:///k%3A/ChatGPT-Work/Projects/Research%20Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace%20%C3%A9%20with%20spaces","path":"/K:/ChatGPT-Work/Projects/Research Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace é with spaces","scheme":"file"}},{"label":"Research Toolkit Workspace é with spaces: Research metadata & RIS","command":"K:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces\\.research-toolkit\\managed\\worker-0.3.2\\.venv\\Scripts\\python.exe","args":["-I","-B","-m","research_stack.recommended_server"],"env":{"RESEARCH_STACK_WORKSPACE":"k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces"},"version":"0.3.2","cwd":{"$mid":1,"fsPath":"k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace é with spaces","_sep":1,"external":"file:///k%3A/ChatGPT-Work/Projects/Research%20Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace%20%C3%A9%20with%20spaces","path":"/K:/ChatGPT-Work/Projects/Research Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace é with spaces","scheme":"file"}}]}
+[main 2026-10-11T19:17:45.553Z] Extension host with pid 49940 exited with code: 0, signal: unknown.
+Exit code:   0

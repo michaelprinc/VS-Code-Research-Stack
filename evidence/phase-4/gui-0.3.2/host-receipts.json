@@ -1,0 +1,326 @@
+[
+  {
+    "test": "actual-vscode-extension-host",
+    "stage": "mutate",
+    "activationAndCommandMs": 107.39409999999998,
+    "warmCommandP95Ms": 3.1991999999954714,
+    "warmCalls": 100,
+    "packageTransitions": [
+      "basic",
+      "full",
+      "recommended",
+      "full"
+    ],
+    "concurrentCalls": 25,
+    "gui": "packaged renderer ready handshake, help opened, panel reused, commands registered, option persistence verified",
+    "inventory": [
+      {
+        "id": "toolkit",
+        "version": "0.3.2",
+        "readiness": "Ready"
+      },
+      {
+        "id": "vscode-desktop",
+        "version": "1.141.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "uv",
+        "version": "uv 0.11.23 (3cdf50e09 2026-06-19 x86_64-pc-windows-msvc)",
+        "readiness": "Ready"
+      },
+      {
+        "id": "python",
+        "version": "3.12.13",
+        "readiness": "Ready"
+      },
+      {
+        "id": "mcp-python-sdk",
+        "version": "2.2.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "pypdf",
+        "version": "6.4.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "python-docx",
+        "version": "1.2.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "document-worker",
+        "version": "0.3.2",
+        "readiness": "Ready"
+      },
+      {
+        "id": "git-for-windows",
+        "version": "git version 2.54.0.windows.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "research-stack-recommended-adapter",
+        "version": "0.3.2",
+        "readiness": "Ready"
+      },
+      {
+        "id": "research-stack-full-markdown-bm25-prototype",
+        "version": "0.3.2",
+        "readiness": "Ready"
+      }
+    ],
+    "setupCheck": {
+      "ok": true,
+      "pdfRead": true,
+      "docxRead": true,
+      "sourceHashesAndLocators": true,
+      "markdownWrite": true,
+      "docxWrite": true,
+      "lexicalSearch": true,
+      "researchAdapter": true,
+      "tools": [
+        "read_document",
+        "search_local_text",
+        "write_docx",
+        "write_markdown"
+      ],
+      "researchTools": [
+        "check_citation",
+        "prepare_zotero_import",
+        "search",
+        "zotero_collections",
+        "zotero_item"
+      ],
+      "externalProvidersChecked": false,
+      "checkedAt": "2026-10-11T19:16:37.995Z",
+      "scope": "Temporary synthetic fixtures through real local stdio MCP"
+    },
+    "selectedRead": {
+      "ok": true,
+      "document": "Selected document \u00e9 with spaces.docx",
+      "kind": "docx",
+      "sha256": "1f09c21ce7b076dbdae69331d3002514a181b65dc1842436a85ea35204bf87ef",
+      "locators": [
+        {
+          "item": 1,
+          "kind": "paragraph",
+          "characters": 58
+        }
+      ],
+      "warnings": [],
+      "characters": 58,
+      "preview": "Actual selected document reading check: V\u00fdzkum a evidence.",
+      "detail": "First five pages/paragraphs read through MCP; source unchanged.",
+      "checkedAt": "2026-10-11T19:16:45.952Z",
+      "scope": "Selected workspace document"
+    },
+    "providerDefinitions": [
+      {
+        "label": "Research Toolkit Workspace \u00e9 with spaces: Basic documents & local search",
+        "command": "K:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces\\.research-toolkit\\managed\\worker-0.3.2\\.venv\\Scripts\\python.exe",
+        "args": [
+          "-I",
+          "-B",
+          "-m",
+          "research_stack.mcp_server"
+        ],
+        "env": {
+          "RESEARCH_STACK_WORKSPACE": "k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces"
+        },
+        "version": "0.3.2",
+        "cwd": {
+          "$mid": 1,
+          "fsPath": "k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces",
+          "_sep": 1,
+          "external": "file:///k%3A/ChatGPT-Work/Projects/Research%20Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace%20%C3%A9%20with%20spaces",
+          "path": "/K:/ChatGPT-Work/Projects/Research Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace \u00e9 with spaces",
+          "scheme": "file"
+        }
+      },
+      {
+        "label": "Research Toolkit Workspace \u00e9 with spaces: Research metadata & RIS",
+        "command": "K:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces\\.research-toolkit\\managed\\worker-0.3.2\\.venv\\Scripts\\python.exe",
+        "args": [
+          "-I",
+          "-B",
+          "-m",
+          "research_stack.recommended_server"
+        ],
+        "env": {
+          "RESEARCH_STACK_WORKSPACE": "k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces"
+        },
+        "version": "0.3.2",
+        "cwd": {
+          "$mid": 1,
+          "fsPath": "k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces",
+          "_sep": 1,
+          "external": "file:///k%3A/ChatGPT-Work/Projects/Research%20Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace%20%C3%A9%20with%20spaces",
+          "path": "/K:/ChatGPT-Work/Projects/Research Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace \u00e9 with spaces",
+          "scheme": "file"
+        }
+      }
+    ]
+  },
+  {
+    "test": "actual-vscode-extension-host",
+    "stage": "persist",
+    "activationAndCommandMs": 84.7034000000001,
+    "warmCommandP95Ms": 2.1625999999960186,
+    "warmCalls": 100,
+    "packageTransitions": [
+      "persisted full",
+      "basic"
+    ],
+    "concurrentCalls": 25,
+    "gui": "packaged renderer ready handshake, help opened, panel reused, commands registered, option persistence verified",
+    "inventory": [
+      {
+        "id": "toolkit",
+        "version": "0.3.2",
+        "readiness": "Ready"
+      },
+      {
+        "id": "vscode-desktop",
+        "version": "1.141.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "uv",
+        "version": "uv 0.11.23 (3cdf50e09 2026-06-19 x86_64-pc-windows-msvc)",
+        "readiness": "Ready"
+      },
+      {
+        "id": "python",
+        "version": "3.12.13",
+        "readiness": "Ready"
+      },
+      {
+        "id": "mcp-python-sdk",
+        "version": "2.2.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "pypdf",
+        "version": "6.4.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "python-docx",
+        "version": "1.2.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "document-worker",
+        "version": "0.3.2",
+        "readiness": "Ready"
+      },
+      {
+        "id": "git-for-windows",
+        "version": "git version 2.54.0.windows.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "research-stack-recommended-adapter",
+        "version": "0.3.2",
+        "readiness": "Ready"
+      },
+      {
+        "id": "research-stack-full-markdown-bm25-prototype",
+        "version": "0.3.2",
+        "readiness": "Ready"
+      }
+    ],
+    "setupCheck": {
+      "ok": true,
+      "pdfRead": true,
+      "docxRead": true,
+      "sourceHashesAndLocators": true,
+      "markdownWrite": true,
+      "docxWrite": true,
+      "lexicalSearch": true,
+      "researchAdapter": true,
+      "tools": [
+        "read_document",
+        "search_local_text",
+        "write_docx",
+        "write_markdown"
+      ],
+      "researchTools": [
+        "check_citation",
+        "prepare_zotero_import",
+        "search",
+        "zotero_collections",
+        "zotero_item"
+      ],
+      "externalProvidersChecked": false,
+      "checkedAt": "2026-10-11T19:17:19.048Z",
+      "scope": "Temporary synthetic fixtures through real local stdio MCP"
+    },
+    "selectedRead": {
+      "ok": true,
+      "document": "Selected document \u00e9 with spaces.docx",
+      "kind": "docx",
+      "sha256": "e0e7c5f4d547de54100138f71a617a3d2d12d962e368ee2c8f372fed49f1ebd7",
+      "locators": [
+        {
+          "item": 1,
+          "kind": "paragraph",
+          "characters": 58
+        }
+      ],
+      "warnings": [],
+      "characters": 58,
+      "preview": "Actual selected document reading check: V\u00fdzkum a evidence.",
+      "detail": "First five pages/paragraphs read through MCP; source unchanged.",
+      "checkedAt": "2026-10-11T19:17:30.416Z",
+      "scope": "Selected workspace document"
+    },
+    "providerDefinitions": [
+      {
+        "label": "Research Toolkit Workspace \u00e9 with spaces: Basic documents & local search",
+        "command": "K:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces\\.research-toolkit\\managed\\worker-0.3.2\\.venv\\Scripts\\python.exe",
+        "args": [
+          "-I",
+          "-B",
+          "-m",
+          "research_stack.mcp_server"
+        ],
+        "env": {
+          "RESEARCH_STACK_WORKSPACE": "k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces"
+        },
+        "version": "0.3.2",
+        "cwd": {
+          "$mid": 1,
+          "fsPath": "k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces",
+          "_sep": 1,
+          "external": "file:///k%3A/ChatGPT-Work/Projects/Research%20Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace%20%C3%A9%20with%20spaces",
+          "path": "/K:/ChatGPT-Work/Projects/Research Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace \u00e9 with spaces",
+          "scheme": "file"
+        }
+      },
+      {
+        "label": "Research Toolkit Workspace \u00e9 with spaces: Research metadata & RIS",
+        "command": "K:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces\\.research-toolkit\\managed\\worker-0.3.2\\.venv\\Scripts\\python.exe",
+        "args": [
+          "-I",
+          "-B",
+          "-m",
+          "research_stack.recommended_server"
+        ],
+        "env": {
+          "RESEARCH_STACK_WORKSPACE": "k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces"
+        },
+        "version": "0.3.2",
+        "cwd": {
+          "$mid": 1,
+          "fsPath": "k:\\ChatGPT-Work\\Projects\\Research Stack\\toolkit\\dist\\acceptance-0.3.2-verified\\Workspace \u00e9 with spaces",
+          "_sep": 1,
+          "external": "file:///k%3A/ChatGPT-Work/Projects/Research%20Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace%20%C3%A9%20with%20spaces",
+          "path": "/K:/ChatGPT-Work/Projects/Research Stack/toolkit/dist/acceptance-0.3.2-verified/Workspace \u00e9 with spaces",
+          "scheme": "file"
+        }
+      }
+    ]
+  }
+]

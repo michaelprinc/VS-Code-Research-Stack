@@ -1,0 +1,30 @@
+[
+  {
+    "test": "actual-vscode-extension-host",
+    "stage": "mutate",
+    "activationAndCommandMs": 92.17999999999984,
+    "warmCommandP95Ms": 0.7368999999998778,
+    "warmCalls": 100,
+    "packageTransitions": [
+      "basic",
+      "full",
+      "recommended",
+      "full"
+    ],
+    "concurrentCalls": 25,
+    "gui": "packaged renderer ready handshake, help opened, panel reused, commands registered, option persistence verified"
+  },
+  {
+    "test": "actual-vscode-extension-host",
+    "stage": "persist",
+    "activationAndCommandMs": 73.96929999999998,
+    "warmCommandP95Ms": 0.6799000000000888,
+    "warmCalls": 100,
+    "packageTransitions": [
+      "persisted full",
+      "basic"
+    ],
+    "concurrentCalls": 25,
+    "gui": "packaged renderer ready handshake, help opened, panel reused, commands registered, option persistence verified"
+  }
+]

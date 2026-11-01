@@ -60,11 +60,52 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 
 def normalize_doi(value: str | None) -> str | None:
+    """Normalize a DOI while keeping balanced punctuation that belongs to the identifier.
+
+    Trailing citation delimiters are removed; a closing bracket is kept when its opening
+    bracket is present, so ``10.1234/example(2026)`` is not cut into ``10.1234/example(2026``.
+    """
     if not value:
         return None
-    doi = re.sub(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", "", value.strip(), flags=re.I)
-    doi = html.unescape(doi).strip().rstrip(".,;)").lower()
+    doi = re.sub(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", "", str(value).strip(), flags=re.I)
+    doi = html.unescape(doi).strip().lower()
+    while doi:
+        last = doi[-1]
+        if last in ".,;":
+            doi = doi[:-1]
+            continue
+        if last == ")" and doi.count("(") < doi.count(")"):
+            doi = doi[:-1]
+            continue
+        break
+    doi = doi.rstrip()
     return doi if re.fullmatch(r"10\.\d{4,9}/\S+", doi) else None
+
+
+def _dict_list(value: Any) -> list[dict[str, Any]]:
+    """Keep only the well-formed entries of a provider list; malformed entries are dropped."""
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _first_text(value: Any) -> str | None:
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, str) and item:
+                return item
+    return None
+
+
+def _first_date_part(value: Any) -> int | None:
+    if not isinstance(value, dict):
+        return None
+    parts = value.get("date-parts")
+    if isinstance(parts, list) and parts and isinstance(parts[0], list) and parts[0] and isinstance(parts[0][0], int):
+        return parts[0][0]
+    return None
 
 
 class _TextExtractor(HTMLParser):
@@ -155,25 +196,28 @@ def _field(value: Any, provider: str, upstream_id: str, fetched_at: str, query_h
 def _normalize(provider: str, raw: dict[str, Any], fetched_at: str, query_hash: str) -> dict[str, Any]:
     if provider == "openalex":
         upstream_id = str(raw.get("id", ""))
-        authors = [a.get("author", {}).get("display_name") for a in raw.get("authorships", []) if a.get("author", {}).get("display_name")]
-        location = raw.get("primary_location") or {}
-        source = location.get("source") or {}
+        authors = [entry["author"].get("display_name") for entry in _dict_list(raw.get("authorships"))
+                   if isinstance(entry.get("author"), dict) and entry["author"].get("display_name")]
+        location = raw.get("primary_location") if isinstance(raw.get("primary_location"), dict) else {}
+        source = location.get("source") if isinstance(location.get("source"), dict) else {}
         doi = normalize_doi(raw.get("doi"))
-        values = {"title": raw.get("title"), "authors": authors, "year": raw.get("publication_year"), "date": raw.get("publication_date"), "venue": source.get("display_name"), "publicationType": raw.get("type"), "abstract": _abstract_from_inverted_index(raw.get("abstract_inverted_index")), "url": upstream_id or None, "openAccessUrl": (raw.get("open_access") or {}).get("oa_url"), "license": None}
+        open_access = raw.get("open_access") if isinstance(raw.get("open_access"), dict) else {}
+        values = {"title": _first_text(raw.get("title")), "authors": authors, "year": raw.get("publication_year") if isinstance(raw.get("publication_year"), int) else None, "date": raw.get("publication_date") if isinstance(raw.get("publication_date"), (list, str)) else None, "venue": source.get("display_name"), "publicationType": raw.get("type"), "abstract": _abstract_from_inverted_index(raw.get("abstract_inverted_index") if isinstance(raw.get("abstract_inverted_index"), dict) else None), "url": upstream_id or None, "openAccessUrl": open_access.get("oa_url"), "license": None}
     elif provider == "crossref":
         upstream_id = str(raw.get("DOI", ""))
-        authors = [" ".join(filter(None, (a.get("given"), a.get("family")))) for a in raw.get("author", [])]
+        authors = [" ".join(filter(None, (a.get("given"), a.get("family")))) for a in _dict_list(raw.get("author"))]
         authors = [a for a in authors if a]
-        title = (raw.get("title") or [None])[0]
+        title = _first_text(raw.get("title"))
         doi = normalize_doi(raw.get("DOI"))
-        links = raw.get("link") or []
-        values = {"title": title, "authors": authors, "year": ((raw.get("published-print") or raw.get("published-online") or raw.get("created") or {}).get("date-parts") or [[None]])[0][0], "date": None, "venue": (raw.get("container-title") or [None])[0], "publicationType": raw.get("type"), "abstract": _plain_text(raw.get("abstract")), "url": raw.get("URL"), "openAccessUrl": next((x.get("URL") for x in links if "pdf" in x.get("content-type", "").lower()), None), "license": None}
+        links = _dict_list(raw.get("link"))
+        values = {"title": title, "authors": authors, "year": _first_date_part(raw.get("published-print")) or _first_date_part(raw.get("published-online")) or _first_date_part(raw.get("created")), "date": None, "venue": _first_text(raw.get("container-title")), "publicationType": raw.get("type"), "abstract": _plain_text(raw.get("abstract")) if isinstance(raw.get("abstract"), str) else None, "url": raw.get("URL"), "openAccessUrl": next((x.get("URL") for x in links if isinstance(x.get("content-type"), str) and "pdf" in x["content-type"].lower()), None), "license": None}
     else:
         upstream_id = str(raw.get("paperId", ""))
-        external = raw.get("externalIds") or {}
+        external = raw.get("externalIds") if isinstance(raw.get("externalIds"), dict) else {}
         doi = normalize_doi(external.get("DOI"))
-        types = raw.get("publicationTypes") or []
-        values = {"title": raw.get("title"), "authors": [a.get("name") for a in raw.get("authors", []) if a.get("name")], "year": raw.get("year"), "date": raw.get("publicationDate"), "venue": raw.get("venue"), "publicationType": types[0] if types else None, "abstract": raw.get("abstract"), "url": raw.get("url"), "openAccessUrl": (raw.get("openAccessPdf") or {}).get("url"), "license": None}
+        types = [item for item in (raw.get("publicationTypes") if isinstance(raw.get("publicationTypes"), list) else []) if isinstance(item, str)]
+        open_pdf = raw.get("openAccessPdf") if isinstance(raw.get("openAccessPdf"), dict) else {}
+        values = {"title": _first_text(raw.get("title")), "authors": [a.get("name") for a in _dict_list(raw.get("authors")) if a.get("name")], "year": raw.get("year") if isinstance(raw.get("year"), int) else None, "date": raw.get("publicationDate"), "venue": _first_text(raw.get("venue")), "publicationType": types[0] if types else None, "abstract": raw.get("abstract") if isinstance(raw.get("abstract"), str) else None, "url": raw.get("url"), "openAccessUrl": open_pdf.get("url"), "license": open_pdf.get("license") if isinstance(open_pdf.get("license"), str) else None}
 
     record_id = f"doi:{doi}" if doi else f"{provider}:{upstream_id or query_hash[:16]}"
     normalized: dict[str, Any] = {"id": record_id, "doi": _field(doi, provider, upstream_id, fetched_at, query_hash), "sourceIds": {provider: upstream_id} if upstream_id else {}, "attribution": [], "warnings": []}
@@ -193,6 +237,21 @@ def _normalize(provider: str, raw: dict[str, Any], fetched_at: str, query_hash: 
     return normalized
 
 
+def _crossref_headers() -> dict[str, str]:
+    """The configured Crossref request policy, used by search and by DOI lookup alike."""
+    token = os.environ.get("CROSSREF_PLUS_API_TOKEN")
+    headers = {"Crossref-Plus-API-Token": f"Bearer {token}"} if token else {}
+    mailto = os.environ.get("CROSSREF_MAILTO")
+    headers["User-Agent"] = f"ResearchStack/{__version_label()} (mailto:{mailto})" if mailto else f"ResearchStack/{__version_label()}"
+    return headers
+
+
+def __version_label() -> str:
+    from . import __version__
+
+    return __version__
+
+
 def _request_for(provider: str, query: str, limit: int) -> tuple[str, dict[str, str]]:
     encoded = urllib.parse.urlencode({"search": query, "per_page": limit, "select": "id,doi,title,authorships,publication_year,publication_date,primary_location,abstract_inverted_index,open_access"})
     if provider == "openalex":
@@ -205,11 +264,7 @@ def _request_for(provider: str, query: str, limit: int) -> tuple[str, dict[str, 
         mailto = os.environ.get("CROSSREF_MAILTO")
         if mailto:
             params["mailto"] = mailto
-        token = os.environ.get("CROSSREF_PLUS_API_TOKEN")
-        headers = {"Crossref-Plus-API-Token": f"Bearer {token}"} if token else {}
-        if mailto:
-            headers["User-Agent"] = f"ResearchStack/0.2.0 (mailto:{mailto})"
-        return f"https://api.crossref.org/works?{urllib.parse.urlencode(params)}", headers
+        return f"https://api.crossref.org/works?{urllib.parse.urlencode(params)}", _crossref_headers()
     if provider == "semantic_scholar":
         params = {"query": query, "limit": limit, "fields": "paperId,title,authors,year,publicationDate,venue,abstract,externalIds,url,openAccessPdf"}
         headers = {"x-api-key": os.environ["SEMANTIC_SCHOLAR_API_KEY"]} if os.environ.get("SEMANTIC_SCHOLAR_API_KEY") else {}
@@ -233,7 +288,30 @@ def _search_one(provider: str, query: str, limit: int) -> tuple[list[dict[str, A
         raise ResearchError("PROVIDER_SCHEMA_UNEXPECTED", f"{provider} response did not contain a result list.")
     fetched_at = datetime.now(UTC).isoformat()
     query_hash = _query_hash(provider, query)
-    return [_normalize(provider, row, fetched_at, query_hash) for row in rows[:limit] if isinstance(row, dict)], {"provider": provider, "reportedCount": meta.get("count", meta.get("totalResults")), "returned": min(len(rows), limit), "rateLimit": response_headers.get("x-rate-limit-limit"), "rateLimitInterval": response_headers.get("x-rate-limit-interval")}
+    normalized: list[dict[str, Any]] = []
+    skipped_rows = 0
+    for row in rows[:limit]:
+        if not isinstance(row, dict):
+            skipped_rows += 1
+            continue
+        try:
+            record = _normalize(provider, row, fetched_at, query_hash)
+        except Exception:
+            # One malformed row must not discard the provider's other results.
+            skipped_rows += 1
+            continue
+        if not record["title"]["value"] and not record["doi"]["value"]:
+            # A row with neither a title nor a DOI is unusable for a researcher: it is isolated
+            # and reported instead of being shown as a result.
+            skipped_rows += 1
+            continue
+        normalized.append(record)
+    outcome = {"provider": provider, "state": "ok", "reportedCount": meta.get("count", meta.get("totalResults")),
+               "returned": len(normalized), "skippedRows": skipped_rows,
+               "rateLimit": response_headers.get("x-rate-limit-limit"), "rateLimitInterval": response_headers.get("x-rate-limit-interval")}
+    if skipped_rows:
+        outcome["warnings"] = [f"PROVIDER_ROW_SKIPPED: {skipped_rows} malformed row(s) from {provider} were isolated; the remaining rows are returned."]
+    return normalized, outcome
 
 
 def _merge_exact_doi(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -255,13 +333,29 @@ def _merge_exact_doi(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if incoming["value"] is None:
                 continue
             existing_sources = existing["provenance"] if isinstance(existing["provenance"], list) else [existing["provenance"]]
+            observations = existing.get("observations") or [{"value": existing["value"], "provenance": existing["provenance"]}]
             if existing["value"] is None:
                 current[field] = incoming
-            elif existing["value"] != incoming["value"]:
-                current[field] = {"value": existing["value"], "provenance": [*existing_sources, incoming["provenance"]], "conflicts": [existing["value"], incoming["value"]]}
+            elif existing["value"] == incoming["value"]:
+                current[field] = {"value": existing["value"], "provenance": [*existing_sources, incoming["provenance"]], "observations": observations}
             else:
-                current[field]["provenance"] = [*existing_sources, incoming["provenance"]]
+                # Documented selection rule: the first observed value stays displayed, and every
+                # distinct provider observation is retained so no provider's evidence disappears.
+                observations = [*observations, {"value": incoming["value"], "provenance": incoming["provenance"]}]
+                current[field] = {"value": existing["value"], "provenance": [*existing_sources, incoming["provenance"]],
+                                  "observations": observations, "conflicts": [item["value"] for item in observations]}
+    for record in merged.values():
+        _recompute_derived(record)
     return list(merged.values())
+
+
+def _recompute_derived(record: dict[str, Any]) -> None:
+    """Derived state follows the merged values, not the provider that happened to arrive first."""
+    abstract = (record.get("abstract") or {}).get("value")
+    record["evidenceScope"] = "abstract-only" if abstract else "metadata-only"
+    open_access_url = (record.get("openAccessUrl") or {}).get("value")
+    license_value = (record.get("license") or {}).get("value")
+    record["access"] = {"status": "link-reported" if open_access_url else "unknown", "url": open_access_url, "license": license_value, "retrieved": False}
 
 
 def search_literature(provider: str, query: str, limit: int = 10) -> dict[str, Any]:
@@ -291,7 +385,30 @@ def search_literature(provider: str, query: str, limit: int = 10) -> dict[str, A
             errors.append({"provider": selected, **exc.as_dict()})
             if provider != "all":
                 raise
-    return {"queryHash": hashlib.sha256(query.encode("utf-8")).hexdigest(), "records": _merge_exact_doi(records), "providers": outcomes, "errors": errors, "warnings": ["Records are merged only by normalized exact DOI; title similarity is never treated as identity.", "Open-access links are reported but no files are downloaded; a reported link is not a verified license."], "resultState": "partial" if errors else "complete"}
+    attempted = len(providers)
+    succeeded = len(outcomes)
+    merged = _merge_exact_doi(records)
+    if succeeded == 0:
+        result_state = "unavailable"
+    elif succeeded < attempted:
+        result_state = "partial"
+    elif not merged:
+        result_state = "empty"
+    else:
+        result_state = "complete"
+    warnings = [
+        "Records are merged only by normalized exact DOI; title similarity is never treated as identity.",
+        "Open-access links are reported but no files are downloaded; a reported link is not a verified license.",
+    ]
+    if result_state == "unavailable":
+        warnings.append("No provider answered. This is an outage or a configuration problem, not an empty result set.")
+    if result_state == "empty":
+        warnings.append("Every provider answered and returned no matching record.")
+    for outcome in outcomes:
+        if outcome.get("skippedRows"):
+            warnings.extend(outcome.get("warnings", []))
+    return {"queryHash": hashlib.sha256(query.encode("utf-8")).hexdigest(), "records": merged, "providers": outcomes, "errors": errors,
+            "providersAttempted": attempted, "providersSucceeded": succeeded, "warnings": warnings, "resultState": result_state}
 
 
 def validate_citation(doi_value: str) -> dict[str, Any]:
@@ -300,7 +417,7 @@ def validate_citation(doi_value: str) -> dict[str, Any]:
         return {"status": "unresolved", "input": doi_value, "reason": "Input is not a syntactically valid DOI. This does not establish whether a work exists."}
     url = f"https://api.crossref.org/works/{urllib.parse.quote(doi, safe='/') }"
     try:
-        payload, _ = _provider_request("crossref", url, {})
+        payload, _ = _provider_request("crossref", url, _crossref_headers())
     except ResearchError as exc:
         if exc.code == "PROVIDER_NOT_FOUND":
             return {"status": "unresolved", "doi": doi, "reason": "Crossref has no matching record. This is not proof that the DOI or work is invalid; it may be registered elsewhere or metadata may be incomplete."}

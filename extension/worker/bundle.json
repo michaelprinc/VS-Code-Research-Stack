@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "workerVersion": "0.3.6",
+  "extensionVersion": "0.3.6",
+  "files": {
+    "pyproject.toml": "27f3a0b88adb7fbbd9b299b9d3cfd25bf95aebe5a2c1d92166f25237a08e5520",
+    "uv.lock": "7a28c41f64fe2d2eed10cec003430fb12e44f7900d5ec8e5d4aab9e9ec3aed90",
+    ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
+    "README.md": "d3b4d51f6fa197cfd81373b0bbc3bdbdcbbceb4b6420e61d2286ad3952ea31e6",
+    "src/research_stack/__init__.py": "4f7601e723ababadb7616df4ee2174236fc62b1fe1beca8af3c356e01b12ddcf",
+    "src/research_stack/bundle.py": "d2af7d187210ca68cfd535dad83f0951d505f5b2e9417e5f94c65a82910da349",
+    "src/research_stack/cli.py": "a317e88a495595c85a5d3593be6ef626f7e4b64bbf7b409a66351bd75f3a9987",
+    "src/research_stack/documents.py": "f162cbeafb4ec5d7dec834dc8c4433a55b557fbf9563559a68fe0bb1fbaad90e",
+    "src/research_stack/full.py": "e18df8c91c52236a7f2155b5c1c9dc80cbb1ac490571b7156ec6930e7677258f",
+    "src/research_stack/lab_server.py": "b08be1ffb272c4ea5b6c97b3efd64fa568099218398062ec6c117d0c4847cbe7",
+    "src/research_stack/mcp_server.py": "d257fa9147363b3d02e60a6fab4c02e3896edd18d71773e45fb4691cec03e928",
+    "src/research_stack/paths.py": "04196825bf98e6aa0df3a6b6b90ec15deb6e1d3f21ba3a2efba54d4418459e50",
+    "src/research_stack/presets.py": "480f6b9b48986ff63651f9dd8e755ef80284c320964d13ac205b50b27ba72a27",
+    "src/research_stack/recommended.py": "0c5c7ab223e9695db73a82d3d78c109f5471232b32f43bc0b2c141c67d7d4b7a",
+    "src/research_stack/recommended_server.py": "c9fff3f263828eea368a8bf17ab9ae4e1590da1d623594e5a719acd3418d2aad",
+    "src/research_stack/records.py": "db2668cbe6f0a31d9a123aa5cc9dad4abdbc54e53064e91a77daa8f0e17af52a",
+    "src/research_stack/research.py": "1e7d6991c6fe4ba0b957d1ba035cebfd4a63a8283885d072bb266b08fcd3520d",
+    "src/research_stack/tool_meta.py": "ad57f9f008b9a3247db65b1899e6a93930b99104f1397212bf7bd370547b36fa",
+    "src/research_stack/workspace.py": "08328f1ab5451667889e1aef6c8f454a0f0aa8b6ae5f32040a34f44a2dd3d266"
+  },
+  "overlayFiles": {
+    ".github/skills/citation-check/SKILL.md": "ecb417c125c444d35f588ddf35143331e041b34c40f99637e1c0d7df957c500e",
+    ".github/skills/evidence-extraction/SKILL.md": "124ff3cd49e6efcf2f04311e21f6d6978ee166c25d203df4aba82c4736fc9bbf",
+    ".github/skills/literature-search/SKILL.md": "d657645cb3aa210ede74311791c45a1f3cca29e058246d331f42ea9d2910a64c",
+    ".github/skills/paper-review/SKILL.md": "968c09ddad5c00277342d0d22d597dce622058a6240307ac67a8c16250568015",
+    ".github/skills/research-summary/SKILL.md": "0c9e254e8960ebd9bbe8657a233d343b28f764f200df259eddb67cdfbcaf5a0c",
+    ".research-toolkit/recommended-profile.json": "43b0238b8d022cd099b43608864740465ef27be520831d5f742ed33b317add56",
+    "notebooks/analysis/.python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
+    "notebooks/analysis/pyproject.toml": "4e4206387a9eba3f63d52fac38ee8e4529928c55267a4304519f90c72baa6ca0",
+    "notebooks/analysis/uv.lock": "ac12fa3304304c6e2087415c566f0bbdf23a58353e8f1818f49b1088d772e86e",
+    "notebooks/phase-2-metadata-proof.ipynb": "6bdcd53aab2297ef7513b0f151daa7641a480388d723996cff3b383c087e9569",
+    "research/README.md": "2cd44d3e6dc41990c278169a945b219acc9d83cae2ff14456c722e8ac43ba8b8"
+  }
+}

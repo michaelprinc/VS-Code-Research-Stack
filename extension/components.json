@@ -1,0 +1,748 @@
+{
+  "schemaVersion": 2,
+  "components": [
+    {
+      "id": "toolkit",
+      "title": "Research Stack Toolkit",
+      "group": "Editor",
+      "kind": "editor",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Manage package preferences, inspect components and find onboarding guides.",
+      "guide": "guides/toolkit.md",
+      "officialUrl": "https://github.com/michaelprinc/VS-Code-Research-Stack",
+      "reviewedAt": "2026-11-01",
+      "install": {
+        "mode": "editor",
+        "step": null,
+        "verify": "extensionHost",
+        "toolkitVersion": null
+      },
+      "nextAction": "Update the toolkit VSIX and reload the editor; component setup then reports the new version."
+    },
+    {
+      "id": "vscode-desktop",
+      "title": "VS Code Desktop",
+      "group": "Editor",
+      "kind": "editor",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Host research files and editor integrations.",
+      "guide": "guides/vscode-desktop.md",
+      "officialUrl": "https://code.visualstudio.com/docs",
+      "reviewedAt": "2026-11-01",
+      "install": {
+        "mode": "host",
+        "step": null,
+        "verify": "editorHost",
+        "toolkitVersion": null
+      },
+      "nextAction": "Update VS Code Desktop on the reference host."
+    },
+    {
+      "id": "uv",
+      "title": "uv environment manager",
+      "group": "Basic",
+      "kind": "tool",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Create reproducible locked Python environments.",
+      "guide": "guides/uv.md",
+      "officialUrl": "https://docs.astral.sh/uv/guides/projects/",
+      "reviewedAt": "2026-11-01",
+      "install": {
+        "mode": "host",
+        "step": null,
+        "verify": "hostTool",
+        "toolkitVersion": null
+      },
+      "nextAction": "Install uv with its guide, restart the editor, then run component setup.",
+      "minimumVersion": "0.5.0",
+      "evidence": ""
+    },
+    {
+      "id": "python",
+      "title": "Workspace Python runtime",
+      "group": "Basic",
+      "kind": "runtime",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Run document tools in an isolated virtual environment.",
+      "guide": "guides/python.md",
+      "officialUrl": "https://docs.python.org/3/tutorial/venv.html",
+      "reviewedAt": "2026-10-31",
+      "install": {
+        "mode": "managed",
+        "step": "worker",
+        "verify": "probe",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup for this package."
+    },
+    {
+      "id": "mcp-python-sdk",
+      "title": "Python MCP SDK",
+      "group": "Basic",
+      "kind": "library",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Provide the Python server protocol implementation.",
+      "guide": "guides/mcp-python-sdk.md",
+      "officialUrl": "https://github.com/modelcontextprotocol/python-sdk",
+      "reviewedAt": "2026-11-01",
+      "install": {
+        "mode": "managed",
+        "step": "worker",
+        "verify": "probe",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup for this package."
+    },
+    {
+      "id": "pypdf",
+      "title": "PDF tools (pypdf)",
+      "group": "Basic",
+      "kind": "library",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Extract bounded text from supported PDFs.",
+      "guide": "guides/pypdf.md",
+      "officialUrl": "https://pypdf.readthedocs.io/en/stable/user/extract-text.html",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "managed",
+        "step": "worker",
+        "verify": "probe",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup for this package."
+    },
+    {
+      "id": "python-docx",
+      "title": "Word tools (python-docx)",
+      "group": "Basic",
+      "kind": "library",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Read DOCX sources and prepare Word reports.",
+      "guide": "guides/python-docx.md",
+      "officialUrl": "https://python-docx.readthedocs.io/en/latest/",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "managed",
+        "step": "worker",
+        "verify": "probe",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup for this package."
+    },
+    {
+      "id": "document-worker",
+      "title": "Basic document worker",
+      "group": "Basic",
+      "kind": "worker",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Serve document reads and report creation through local MCP.",
+      "guide": "guides/document-worker.md",
+      "officialUrl": "https://github.com/michaelprinc/VS-Code-Research-Stack",
+      "reviewedAt": "2026-11-01",
+      "install": {
+        "mode": "managed",
+        "step": "worker",
+        "verify": "functionalCheck",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup, then the MCP reading check."
+    },
+    {
+      "id": "mcp-config",
+      "title": "Workspace MCP configuration",
+      "group": "Basic",
+      "kind": "config",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Connect reviewed local workers to your MCP client.",
+      "guide": "guides/mcp-config.md",
+      "officialUrl": "https://code.visualstudio.com/docs/agent-customization/mcp-servers",
+      "reviewedAt": "2026-10-31",
+      "install": {
+        "mode": "managed",
+        "step": "worker",
+        "verify": "provider",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup; authorize the servers in the editor chat."
+    },
+    {
+      "id": "git-for-windows",
+      "title": "Git",
+      "group": "Basic",
+      "kind": "tool",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Track selected research files and source changes.",
+      "guide": "guides/git-for-windows.md",
+      "officialUrl": "https://git-scm.com/docs/gittutorial",
+      "reviewedAt": "2026-11-01",
+      "install": {
+        "mode": "host",
+        "step": null,
+        "verify": "hostTool",
+        "toolkitVersion": null
+      },
+      "nextAction": "Install Git with its guide; repository setup is separate."
+    },
+    {
+      "id": "github-copilot",
+      "title": "GitHub Copilot editor integration",
+      "group": "Editor",
+      "kind": "editor",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Use reviewed tools through an optional assistant client.",
+      "guide": "guides/github-copilot.md",
+      "officialUrl": "https://docs.github.com/en/copilot/how-tos/copilot-in-your-ide/customize-copilot/extend-copilot-with-tools-and-context/extend-copilot-chat-with-mcp",
+      "reviewedAt": "2026-10-31",
+      "install": {
+        "mode": "editor",
+        "step": null,
+        "verify": "extension",
+        "toolkitVersion": null
+      },
+      "nextAction": "Install/sign in to Copilot in the editor and enable agent mode."
+    },
+    {
+      "id": "github-remote-mcp",
+      "title": "GitHub remote MCP",
+      "group": "Optional",
+      "kind": "service",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Use explicitly authorized remote repository tools.",
+      "guide": "guides/github-remote-mcp.md",
+      "officialUrl": "https://github.com/github/github-mcp-server",
+      "reviewedAt": "2026-11-01",
+      "install": {
+        "mode": "external",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "Configure the remote server in your MCP client; the toolkit does not provision it."
+    },
+    {
+      "id": "notebooklm",
+      "title": "Manual NotebookLM handoff",
+      "group": "Optional",
+      "kind": "manual",
+      "profiles": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "summary": "Prepare selected files for manual source import.",
+      "guide": "guides/notebooklm.md",
+      "officialUrl": "https://support.google.com/gemininotebook/answer/16215270",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "external",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "Prepare a bundle with the CLI, then import the files yourself."
+    },
+    {
+      "id": "research-stack-recommended-adapter",
+      "title": "Research metadata adapter",
+      "group": "Research",
+      "kind": "adapter",
+      "profiles": [
+        "recommended",
+        "full"
+      ],
+      "summary": "Expose literature metadata and citation tools in a separate server.",
+      "guide": "guides/research-stack-recommended-adapter.md",
+      "officialUrl": "https://github.com/michaelprinc/VS-Code-Research-Stack",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "managed",
+        "step": "research-overlay",
+        "verify": "functionalCheck",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup with the Recommended or Full package."
+    },
+    {
+      "id": "openalex-rest-api",
+      "title": "OpenAlex",
+      "group": "Research",
+      "kind": "service",
+      "profiles": [
+        "recommended",
+        "full"
+      ],
+      "summary": "Search scholarly metadata through the authored adapter.",
+      "guide": "guides/openalex-rest-api.md",
+      "officialUrl": "https://help.openalex.org/api/",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "external",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "No install step: check provider reachability from the metadata tools."
+    },
+    {
+      "id": "crossref-rest-api",
+      "title": "Crossref",
+      "group": "Research",
+      "kind": "service",
+      "profiles": [
+        "recommended",
+        "full"
+      ],
+      "summary": "Look up DOI and bibliographic metadata.",
+      "guide": "guides/crossref-rest-api.md",
+      "officialUrl": "https://www.crossref.org/documentation/retrieve-metadata/rest-api/",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "external",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "No install step: check provider reachability from the metadata tools."
+    },
+    {
+      "id": "semantic-scholar-academic-graph",
+      "title": "Semantic Scholar",
+      "group": "Research",
+      "kind": "service",
+      "profiles": [
+        "recommended",
+        "full"
+      ],
+      "summary": "Use optional Academic Graph metadata search.",
+      "guide": "guides/semantic-scholar-academic-graph.md",
+      "officialUrl": "https://api.semanticscholar.org/api-docs/",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "external",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "No install step: check provider reachability from the metadata tools."
+    },
+    {
+      "id": "zotero-local-api",
+      "title": "Zotero local integration",
+      "group": "Research",
+      "kind": "service",
+      "profiles": [
+        "recommended",
+        "full"
+      ],
+      "summary": "Read bibliography metadata and prepare reviewed manual RIS import.",
+      "guide": "guides/zotero-local-api.md",
+      "officialUrl": "https://www.zotero.org/support/dev/web_api/v3/local_api",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "external",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "Start Zotero with its localhost API enabled, then re-check."
+    },
+    {
+      "id": "vscode-python-extension",
+      "title": "VS Code Python extension",
+      "group": "Research",
+      "kind": "editor",
+      "profiles": [
+        "recommended",
+        "full"
+      ],
+      "summary": "Select and work with project interpreters.",
+      "guide": "guides/vscode-python-extension.md",
+      "officialUrl": "https://code.visualstudio.com/docs/python/environments",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "editor",
+        "step": null,
+        "verify": "extension",
+        "toolkitVersion": null
+      },
+      "nextAction": "Install the Python extension from the editor marketplace."
+    },
+    {
+      "id": "vscode-jupyter-extension",
+      "title": "VS Code Jupyter extension",
+      "group": "Research",
+      "kind": "editor",
+      "profiles": [
+        "recommended",
+        "full"
+      ],
+      "summary": "Open notebooks and select a research kernel.",
+      "guide": "guides/vscode-jupyter-extension.md",
+      "officialUrl": "https://code.visualstudio.com/docs/datascience/jupyter-notebooks",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "editor",
+        "step": null,
+        "verify": "extension",
+        "toolkitVersion": null
+      },
+      "nextAction": "Install the Jupyter extension from the editor marketplace."
+    },
+    {
+      "id": "research-analysis-python-environment",
+      "title": "Notebook analysis environment",
+      "group": "Research",
+      "kind": "environment",
+      "profiles": [
+        "recommended",
+        "full"
+      ],
+      "summary": "Isolate notebook dependencies from the MCP worker.",
+      "guide": "guides/research-analysis-python-environment.md",
+      "officialUrl": "https://docs.astral.sh/uv/guides/integration/jupyter/",
+      "reviewedAt": "2026-11-01",
+      "install": {
+        "mode": "managed",
+        "step": "notebook-env",
+        "verify": "notebookEnv",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Tick the notebook analysis step in component setup, then run one notebook cell."
+    },
+    {
+      "id": "research-stack-full-markdown-bm25-prototype",
+      "title": "Local lexical search prototype",
+      "group": "Lab",
+      "kind": "prototype",
+      "profiles": [
+        "full"
+      ],
+      "summary": "Inspect the in-memory Markdown/text retrieval foundation.",
+      "guide": "guides/research-stack-full-markdown-bm25-prototype.md",
+      "officialUrl": "https://github.com/michaelprinc/VS-Code-Research-Stack",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "managed",
+        "step": "worker",
+        "verify": "functionalCheck",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup; the prototype ships inside the managed worker."
+    },
+    {
+      "id": "qdrant-local-service",
+      "title": "Qdrant vector database",
+      "group": "Lab",
+      "kind": "planned",
+      "profiles": [
+        "full"
+      ],
+      "summary": "Planned vector-store integration.",
+      "guide": "guides/qdrant-local-service.md",
+      "officialUrl": "https://qdrant.tech/documentation/quickstart/",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "planned",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "Not implemented in the toolkit; see the guide before choosing a vector store."
+    },
+    {
+      "id": "cpu-embedding-runtime-and-model",
+      "title": "Embedding runtime and model",
+      "group": "Lab",
+      "kind": "planned",
+      "profiles": [
+        "full"
+      ],
+      "summary": "Planned CPU vector encoding.",
+      "guide": "guides/cpu-embedding-runtime-and-model.md",
+      "officialUrl": "https://huggingface.co/docs/transformers/index",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "planned",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "Not implemented in the toolkit; no model is downloaded."
+    },
+    {
+      "id": "duckdb-research-record-store",
+      "title": "DuckDB record store",
+      "group": "Lab",
+      "kind": "planned",
+      "profiles": [
+        "full"
+      ],
+      "summary": "Planned persistent source/claim/evidence storage.",
+      "guide": "guides/duckdb-research-record-store.md",
+      "officialUrl": "https://duckdb.org/docs/stable/",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "planned",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "Not implemented in the toolkit; the shipped record store is the stdlib SQLite store."
+    },
+    {
+      "id": "playwright-browser-capability",
+      "title": "Playwright browser integration",
+      "group": "Optional",
+      "kind": "planned",
+      "profiles": [
+        "full"
+      ],
+      "summary": "Optional planned research browser capability.",
+      "guide": "guides/playwright-browser-capability.md",
+      "officialUrl": "https://github.com/microsoft/playwright-mcp",
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "planned",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "Not bundled; configure a reviewed browser server yourself if needed."
+    },
+    {
+      "id": "institutional-provider-adapters",
+      "title": "Institutional access adapters",
+      "group": "Optional",
+      "kind": "planned",
+      "profiles": [
+        "full"
+      ],
+      "summary": "Provider-specific access remains unselected.",
+      "guide": "guides/institutional-provider-adapters.md",
+      "officialUrl": null,
+      "reviewedAt": "2026-10-11",
+      "install": {
+        "mode": "planned",
+        "step": null,
+        "verify": "none",
+        "toolkitVersion": null
+      },
+      "nextAction": "No provider selected; see the guide for the review path."
+    },
+    {
+      "id": "research-corpus-index",
+      "title": "Workspace corpus index",
+      "group": "Lab",
+      "kind": "store",
+      "profiles": [
+        "full"
+      ],
+      "summary": "Persistent, reviewable index of selected Markdown/text sources with stable chunk identities.",
+      "guide": "guides/research-corpus-index.md",
+      "officialUrl": "https://github.com/michaelprinc/VS-Code-Research-Stack",
+      "reviewedAt": "2026-10-31",
+      "install": {
+        "mode": "managed",
+        "step": "lab-store",
+        "verify": "labStore",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup with the Full package, then index selected sources."
+    },
+    {
+      "id": "research-record-store",
+      "title": "Research record store",
+      "group": "Lab",
+      "kind": "store",
+      "profiles": [
+        "full"
+      ],
+      "summary": "Local SQLite store for claims and their evidence links, with previewed maintenance.",
+      "guide": "guides/research-record-store.md",
+      "officialUrl": "https://github.com/michaelprinc/VS-Code-Research-Stack",
+      "reviewedAt": "2026-10-31",
+      "install": {
+        "mode": "managed",
+        "step": "lab-store",
+        "verify": "labStore",
+        "toolkitVersion": "0.3.4"
+      },
+      "nextAction": "Run component setup with the Full package, then record claims through the corpus tools."
+    }
+  ],
+  "installSteps": [
+    {
+      "id": "worker",
+      "label": "Isolated locked worker (Python 3.12)",
+      "description": "Copies the reviewed worker source and lock into .research-toolkit/managed/worker-<version>, syncs it with uv and verifies real MCP reading, reports, local search and RIS preparation.",
+      "packages": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "optional": false,
+      "downloads": true,
+      "requires": [
+        "uv on PATH or researchStack.uvPath"
+      ],
+      "components": [
+        "python",
+        "mcp-python-sdk",
+        "pypdf",
+        "python-docx",
+        "document-worker",
+        "research-stack-full-markdown-bm25-prototype",
+        "mcp-config"
+      ],
+      "prerequisites": [],
+      "hostTools": [
+        "uv"
+      ],
+      "timeoutSeconds": 900
+    },
+    {
+      "id": "research-overlay",
+      "label": "Research overlay files",
+      "description": "Adds the reviewed research/ notes, five research skills and the recommended profile file. Existing workspace files are never overwritten.",
+      "packages": [
+        "recommended",
+        "full"
+      ],
+      "optional": false,
+      "downloads": false,
+      "requires": [],
+      "components": [
+        "research-stack-recommended-adapter"
+      ],
+      "prerequisites": [],
+      "hostTools": [],
+      "timeoutSeconds": 60
+    },
+    {
+      "id": "notebook-env",
+      "label": "Notebook analysis environment",
+      "description": "Creates notebooks/analysis with a locked Python 3.12 environment (ipykernel, matplotlib). This step downloads packages and is optional.",
+      "packages": [
+        "recommended",
+        "full"
+      ],
+      "optional": true,
+      "downloads": true,
+      "requires": [
+        "uv on PATH or researchStack.uvPath",
+        "worker step"
+      ],
+      "components": [
+        "research-analysis-python-environment"
+      ],
+      "prerequisites": [
+        "worker"
+      ],
+      "hostTools": [
+        "uv"
+      ],
+      "timeoutSeconds": 900
+    },
+    {
+      "id": "lab-store",
+      "label": "Corpus index and record store",
+      "description": "Initialises .research-toolkit/store/research.sqlite3 with the reviewed schema for the corpus index, claims and evidence links. No third-party database is installed.",
+      "packages": [
+        "full"
+      ],
+      "optional": false,
+      "downloads": false,
+      "requires": [
+        "worker step"
+      ],
+      "components": [
+        "research-corpus-index",
+        "research-record-store"
+      ],
+      "prerequisites": [
+        "worker"
+      ],
+      "hostTools": [],
+      "timeoutSeconds": 120
+    }
+  ],
+  "packages": {
+    "basic": {
+      "label": "Basic",
+      "steps": [
+        "worker"
+      ],
+      "gate": "G1 not passed",
+      "support": "prototype"
+    },
+    "recommended": {
+      "label": "Recommended Research",
+      "steps": [
+        "worker",
+        "research-overlay",
+        "notebook-env"
+      ],
+      "gate": "G2 not passed",
+      "support": "prototype"
+    },
+    "full": {
+      "label": "Full",
+      "steps": [
+        "worker",
+        "research-overlay",
+        "notebook-env",
+        "lab-store"
+      ],
+      "gate": "G3 not passed",
+      "support": "prototype foundation"
+    }
+  }
+}

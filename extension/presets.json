@@ -1,0 +1,346 @@
+{
+  "schemaVersion": 1,
+  "budget": {
+    "clientCeiling": 128,
+    "accuracyBand": 50,
+    "ceilingWarning": 96,
+    "vendorTokensPerTool": 640,
+    "contextWindowReference": 128000,
+    "note": "128 is the number of tools the Copilot agent-mode client can enable at once. Tool definitions are loaded into every request, so the token estimate below is a recurring cost, not a one-off cost. Counts marked estimated are vendor-documented figures, not measurements taken by this extension. Every shipped preset stays at or below 12 toolkit tools and leaves at least 20 tools of headroom.",
+    "toolkitCeilingPerPreset": 12,
+    "minimumHeadroom": 20
+  },
+  "servers": [
+    {
+      "module": "research_stack.mcp_server",
+      "label": "Basic documents & local search",
+      "tools": [
+        "read_document",
+        "read_text_source",
+        "search_local_text",
+        "write_markdown",
+        "write_docx"
+      ]
+    },
+    {
+      "module": "research_stack.recommended_server",
+      "label": "Research metadata & RIS",
+      "tools": [
+        "search_literature",
+        "check_citation",
+        "zotero_collections",
+        "zotero_item",
+        "prepare_zotero_import"
+      ]
+    },
+    {
+      "module": "research_stack.lab_server",
+      "label": "Corpus index & record store",
+      "tools": [
+        "index_corpus",
+        "unindex_corpus",
+        "search_corpus",
+        "evidence_read",
+        "claims_read",
+        "claims_write",
+        "claims_export",
+        "store_status",
+        "store_maintenance"
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "id": "read-and-cite",
+      "label": "Read and cite a document",
+      "goal": "Open one workspace PDF, DOCX or Markdown file, read bounded text with page or paragraph locators, and write a cited Markdown or DOCX report.",
+      "tips": [
+        "Smallest surface: four tools, so the assistant almost always picks the right one.",
+        "Use this when you are working on a single source, not searching a corpus."
+      ],
+      "packages": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "defaultFor": [
+        "basic"
+      ],
+      "tools": [
+        "read_document",
+        "read_text_source",
+        "write_markdown",
+        "write_docx"
+      ],
+      "thirdParty": [],
+      "requires": [
+        "Managed worker installed in this workspace"
+      ]
+    },
+    {
+      "id": "find-in-notes",
+      "label": "Search my own notes",
+      "goal": "Find passages across the Markdown and text files you select in this workspace, then reopen the matching passage with its paragraph provenance.",
+      "tips": [
+        "Search results are local BM25 hits with file and line provenance; no index file is written.",
+        "read_text_source reopens a hit with adjacent paragraphs; read_document handles PDF and DOCX instead."
+      ],
+      "packages": [
+        "basic",
+        "recommended",
+        "full"
+      ],
+      "defaultFor": [],
+      "tools": [
+        "search_local_text",
+        "read_text_source",
+        "read_document"
+      ],
+      "thirdParty": [],
+      "requires": [
+        "Managed worker installed in this workspace"
+      ]
+    },
+    {
+      "id": "verify-citations",
+      "label": "Verify a citation",
+      "goal": "Check that a DOI resolves against Crossref and compare candidate references from the OpenAlex, Crossref and Semantic Scholar providers.",
+      "tips": [
+        "An unresolved DOI is not proof that a citation is wrong; it means Crossref did not return it.",
+        "Network access to the public metadata APIs is required."
+      ],
+      "packages": [
+        "recommended",
+        "full"
+      ],
+      "defaultFor": [],
+      "tools": [
+        "search_literature",
+        "check_citation"
+      ],
+      "thirdParty": [],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "Network access to public metadata APIs"
+      ]
+    },
+    {
+      "id": "zotero-handoff",
+      "label": "Prepare a Zotero import",
+      "goal": "Collect references, read your Zotero collections and items, and create a new RIS file under research/imports/ for a manual import you review.",
+      "tips": [
+        "Nothing is written to Zotero: the toolkit only creates a RIS file you import yourself.",
+        "Zotero must be running with its localhost API enabled for the collection and item tools."
+      ],
+      "packages": [
+        "recommended",
+        "full"
+      ],
+      "defaultFor": [],
+      "tools": [
+        "search_literature",
+        "check_citation",
+        "zotero_collections",
+        "zotero_item",
+        "prepare_zotero_import"
+      ],
+      "thirdParty": [],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "Zotero localhost API for the Zotero tools"
+      ]
+    },
+    {
+      "id": "research-core",
+      "label": "Read, search, cite and write",
+      "goal": "The complete document and metadata surface in one preset: local document reading and search, scholarly metadata, Zotero reading, and cited report writing. No corpus index or record store.",
+      "tips": [
+        "Recommended default: nine tools, well inside the range where tool selection stays reliable.",
+        "Choose corpus-lab or research-workflow when you need the stored index and claims."
+      ],
+      "packages": [
+        "recommended",
+        "full"
+      ],
+      "defaultFor": [
+        "recommended"
+      ],
+      "tools": [
+        "read_document",
+        "read_text_source",
+        "search_local_text",
+        "write_markdown",
+        "write_docx",
+        "search_literature",
+        "check_citation",
+        "zotero_collections",
+        "zotero_item",
+        "prepare_zotero_import"
+      ],
+      "thirdParty": [],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "Network access for the metadata tools",
+        "Zotero localhost API for the Zotero tools"
+      ]
+    },
+    {
+      "id": "research-workflow",
+      "label": "Full research workflow (index, evidence, claims)",
+      "goal": "The continuous Full journey in one preset: read a source, index the sources you select, retrieve a passage, resolve the evidence behind it, record a claim linked to that evidence, and write a cited report.",
+      "tips": [
+        "Full default: eleven toolkit tools, inside the 12-tool release budget and far below the 128-tool client ceiling.",
+        "The index and claims live in .research-toolkit/store/research.sqlite3 in this workspace; source files are never modified.",
+        "Lexical BM25 only: no embeddings, no vector search and no third-party database are installed by this preset."
+      ],
+      "packages": [
+        "full"
+      ],
+      "defaultFor": [
+        "full"
+      ],
+      "tools": [
+        "read_document",
+        "read_text_source",
+        "write_markdown",
+        "write_docx",
+        "search_literature",
+        "check_citation",
+        "index_corpus",
+        "search_corpus",
+        "evidence_read",
+        "claims_read",
+        "claims_write"
+      ],
+      "thirdParty": [],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "Corpus index and record store step completed"
+      ]
+    },
+    {
+      "id": "research-lab",
+      "label": "Documents, citations and third-party evidence",
+      "goal": "The document and citation surface plus the GitHub and Playwright servers many research workflows use for repository and browser evidence. No corpus index or record store.",
+      "tips": [
+        "Third-party counts are vendor-published estimates, not measurements taken by this extension.",
+        "Above about 50 enabled tools, assistants start choosing less reliably.",
+        "For the stored index and claims use research-workflow or corpus-lab instead."
+      ],
+      "packages": [
+        "full"
+      ],
+      "defaultFor": [],
+      "tools": [
+        "read_document",
+        "read_text_source",
+        "search_local_text",
+        "write_markdown",
+        "write_docx",
+        "search_literature",
+        "check_citation",
+        "zotero_collections",
+        "zotero_item",
+        "prepare_zotero_import"
+      ],
+      "thirdParty": [
+        {
+          "id": "github-readonly",
+          "label": "GitHub MCP, read-only toolsets",
+          "toolsEstimate": 12,
+          "note": "GITHUB_TOOLSETS=context,repos,issues,pull_requests,users with --read-only."
+        },
+        {
+          "id": "playwright-core",
+          "label": "Playwright MCP, core toolset",
+          "toolsEstimate": 24,
+          "note": "Core browser toolset without network, storage, testing, vision or devtools caps."
+        }
+      ],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "GitHub and Playwright MCP servers configured by you"
+      ]
+    },
+    {
+      "id": "research-lab-max",
+      "label": "Maximum research lab (128-tool budget)",
+      "goal": "Widest supported surface: the document and citation toolkit plus GitHub, Playwright and a Zotero community server, kept under the 128-tool client ceiling with headroom for future tools.",
+      "tips": [
+        "This preset is close to the client ceiling; prefer a narrower preset for routine tasks.",
+        "Headroom is deliberate: new toolkit verbs in 0.3.5 must not push the surface over 128."
+      ],
+      "packages": [
+        "full"
+      ],
+      "defaultFor": [],
+      "tools": [
+        "read_document",
+        "read_text_source",
+        "search_local_text",
+        "write_markdown",
+        "write_docx",
+        "search_literature",
+        "check_citation",
+        "zotero_collections",
+        "zotero_item",
+        "prepare_zotero_import"
+      ],
+      "thirdParty": [
+        {
+          "id": "github-default",
+          "label": "GitHub MCP, default toolsets",
+          "toolsEstimate": 52,
+          "note": "Default toolsets context, repos, issues, pull_requests and users."
+        },
+        {
+          "id": "playwright-core",
+          "label": "Playwright MCP, core toolset",
+          "toolsEstimate": 24,
+          "note": "Core browser toolset without optional caps."
+        },
+        {
+          "id": "zotero-community",
+          "label": "Zotero community MCP server",
+          "toolsEstimate": 15,
+          "note": "Community server; count varies with its release."
+        }
+      ],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "GitHub, Playwright and Zotero MCP servers configured by you"
+      ]
+    },
+    {
+      "id": "corpus-lab",
+      "label": "Index, search and record claims",
+      "goal": "Index the Markdown and text sources you select, search that stored corpus with file/paragraph provenance, resolve evidence, and keep each claim linked to the exact chunks that support it.",
+      "tips": [
+        "The index and claims live in .research-toolkit/store/research.sqlite3 in this workspace; source files are never modified.",
+        "unindex_corpus and store_maintenance are marked destructive: a restore is staged as a candidate first and vacuum needs confirmation.",
+        "Lexical BM25 only: no embeddings, no vector search and no third-party database are installed by this preset."
+      ],
+      "packages": [
+        "full"
+      ],
+      "defaultFor": [],
+      "tools": [
+        "index_corpus",
+        "unindex_corpus",
+        "search_corpus",
+        "evidence_read",
+        "claims_read",
+        "claims_write",
+        "claims_export",
+        "store_status",
+        "store_maintenance",
+        "read_text_source"
+      ],
+      "thirdParty": [],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "Corpus index and record store step completed"
+      ]
+    }
+  ]
+}

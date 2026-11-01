@@ -1,8 +1,8 @@
 {
   "name": "research-stack-toolkit",
   "displayName": "Research Stack Toolkit (Phase 4 Preview)",
-  "description": "A VS Code preview for switching between Research Stack package preferences.",
-  "version": "0.2.0",
+  "description": "Set up package components, verify real MCP reading and research tools, and keep components updated.",
+  "version": "0.3.6",
   "publisher": "michaelprinc",
   "repository": {
     "type": "git",
@@ -11,12 +11,19 @@
   "engines": {
     "vscode": "^1.140.0"
   },
-  "categories": ["Other", "Education"],
-  "extensionKind": ["ui"],
+  "categories": [
+    "Other",
+    "Education"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
   "main": "./extension.js",
   "activationEvents": [
     "onCommand:researchToolkit.showPhaseReadiness",
-    "onCommand:researchToolkit.switchPackage"
+    "onCommand:researchToolkit.switchPackage",
+    "onStartupFinished",
+    "onView:researchToolkit.overview"
   ],
   "contributes": {
     "configuration": {
@@ -24,11 +31,75 @@
       "properties": {
         "researchStack.selectedPackage": {
           "type": "string",
-          "enum": ["basic", "recommended", "full"],
-          "enumItemLabels": ["Basic", "Recommended Research", "Full"],
+          "enum": [
+            "basic",
+            "recommended",
+            "full"
+          ],
+          "enumItemLabels": [
+            "Basic",
+            "Recommended Research",
+            "Full"
+          ],
           "default": "recommended",
           "scope": "application",
-          "description": "Selected Research Stack package preference. This does not install or configure components."
+          "description": "Selected Research Stack package. It decides which component steps setup offers and which tools presets are available; nothing is installed silently."
+        },
+        "researchStack.toolsPreset": {
+          "type": "string",
+          "enum": [
+            "package-default",
+            "read-and-cite",
+            "find-in-notes",
+            "verify-citations",
+            "zotero-handoff",
+            "research-core",
+            "research-workflow",
+            "research-lab",
+            "research-lab-max",
+            "corpus-lab"
+          ],
+          "enumItemLabels": [
+            "Follow the package default",
+            "Read and cite a document",
+            "Search my own notes",
+            "Verify a citation",
+            "Prepare a Zotero import",
+            "Read, search, cite and write",
+            "Full research workflow (index, evidence, claims)",
+            "Documents, citations and third-party evidence",
+            "Maximum research lab (128-tool budget)",
+            "Index, search and record claims"
+          ],
+          "default": "package-default",
+          "scope": "application-overridable",
+          "description": "Which tools your assistant is offered, chosen by the goal you are working on rather than by MCP server. 'package-default' follows the preset recommended for the selected package. Set it in your user profile or override it per workspace folder. Nothing is installed or removed."
+        },
+        "researchStack.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Show a status-bar shortcut with your saved package preference."
+        },
+        "researchStack.openControlPanelOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "Open the Research Toolkit control panel when VS Code starts."
+        },
+        "researchStack.uvPath": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "description": "Absolute path to the uv executable to use, when it is not on the editor process PATH. Leave empty to use PATH and the documented install locations."
+        },
+        "researchStack.setupTimeoutSeconds": {
+          "type": "number",
+          "default": 900,
+          "minimum": 60,
+          "maximum": 3600,
+          "scope": "application",
+          "description": "How long a component step may run before it is reported as timed out. The first run can download a managed Python 3.12 and the locked packages."
         }
       }
     },
@@ -42,13 +113,203 @@
         "command": "researchToolkit.switchPackage",
         "title": "Research Toolkit: Switch Package",
         "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.selectToolsPreset",
+        "title": "Select Tools Preset",
+        "category": "Research Toolkit",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "researchToolkit.openControlPanel",
+        "title": "Open Control Panel",
+        "category": "Research Toolkit",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "researchToolkit.openSettings",
+        "title": "Open Settings",
+        "category": "Research Toolkit",
+        "icon": "$(settings)"
+      },
+      {
+        "command": "researchToolkit.openHelp",
+        "title": "Help & Getting Started",
+        "category": "Research Toolkit",
+        "icon": "$(book)"
+      },
+      {
+        "command": "researchToolkit.copyReadiness",
+        "title": "Copy Readiness",
+        "category": "Research Toolkit",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "researchToolkit.refresh",
+        "title": "Refresh Controls",
+        "category": "Research Toolkit",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "researchToolkit.checkComponents",
+        "title": "Check Components",
+        "category": "Research Toolkit",
+        "icon": "$(inspect)"
+      },
+      {
+        "command": "researchToolkit.openComponentGuide",
+        "title": "Open Component Guide",
+        "category": "Research Toolkit",
+        "icon": "$(book)"
+      },
+      {
+        "command": "researchToolkit.openComponentDocs",
+        "title": "Open Latest Component Documentation",
+        "category": "Research Toolkit",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "researchToolkit.setupLocalComponents",
+        "title": "Set Up Local Components",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.runReadingCheck",
+        "title": "Run MCP Reading Check",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.readSelectedDocument",
+        "title": "Read Selected PDF / DOCX",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.updateComponents",
+        "title": "Update Outdated Or Repair Component Steps",
+        "category": "Research Toolkit",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "researchToolkit.refreshComponentStatus",
+        "title": "Refresh Component Status",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.rollbackRuntime",
+        "title": "Roll Back Managed Runtime",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.selectComponentStep",
+        "title": "Run One Component Step",
+        "category": "Research Toolkit",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "researchToolkit.installComponent",
+        "title": "Install One Component",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.diagnoseToolLimit",
+        "title": "Diagnose Tool Limit",
+        "category": "Research Toolkit",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "researchToolkit.copyPresetSummary",
+        "title": "Copy Tools Preset Summary",
+        "category": "Research Toolkit",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "researchToolkit.retryFailedSteps",
+        "title": "Retry Failed Component Steps",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.clearSetupLock",
+        "title": "Clear Interrupted Setup Lock",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.openSetupLog",
+        "title": "Open Setup Log",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.copyInstallationDiagnostics",
+        "title": "Copy Installation Diagnostics",
+        "category": "Research Toolkit"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "researchToolkit",
+          "title": "Research Toolkit",
+          "icon": "media/toolkit.svg"
+        }
+      ]
+    },
+    "views": {
+      "researchToolkit": [
+        {
+          "id": "researchToolkit.overview",
+          "name": "Toolkit Controls"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "researchToolkit.openControlPanel",
+          "when": "view == researchToolkit.overview",
+          "group": "navigation@1"
+        },
+        {
+          "command": "researchToolkit.refresh",
+          "when": "view == researchToolkit.overview",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "researchToolkit.local",
+        "label": "Research Toolkit local components"
       }
     ]
   },
   "capabilities": {
-    "untrustedWorkspaces": { "supported": true },
-    "virtualWorkspaces": { "supported": true }
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": true
+    }
   },
-  "files": ["extension.js", "README.md", "package.json"],
+  "files": [
+    "README.md",
+    "components.json",
+    "diagnostics.js",
+    "extension.js",
+    "functional_check.py",
+    "guides",
+    "hosttools.js",
+    "installer.js",
+    "media",
+    "package.json",
+    "preflight.js",
+    "presets.json",
+    "probe.py",
+    "runner.js",
+    "runtime.js",
+    "setuplog.js",
+    "status.js",
+    "steps.js",
+    "ui.js",
+    "worker"
+  ],
   "license": "UNLICENSED"
 }

@@ -163,3 +163,124 @@ def test_recommended_profile_delta_matches_schema() -> None:
     schema = json.loads((root / "schemas/recommended-profile.schema.json").read_text(encoding="utf-8"))
     profile = json.loads((root / "templates/recommended-overlay/.research-toolkit/recommended-profile.json").read_text(encoding="utf-8"))
     jsonschema.Draft202012Validator(schema).validate(profile)
+
+
+def test_doi_keeps_balanced_punctuation_and_strips_citation_delimiters() -> None:
+    """F12: a DOI that legitimately ends in a closing bracket must not be truncated."""
+    assert research.normalize_doi("10.1234/example(2026)") == "10.1234/example(2026)"
+    assert research.normalize_doi("10.1234/example[2026]") == "10.1234/example[2026]"
+    assert research.normalize_doi("10.1234/example).") == "10.1234/example"
+    assert research.normalize_doi("https://doi.org/10.1234/a.b, ") == "10.1234/a.b"
+    assert research.normalize_doi("10.1234/abc;") == "10.1234/abc"
+    assert research.normalize_doi("10.1234/abc)") == "10.1234/abc"
+    assert research.normalize_doi("10.1234/a(b)c)") == "10.1234/a(b)c"
+
+
+def test_providerNullAuthors_still_produces_a_valid_record(monkeypatch: pytest.MonkeyPatch) -> None:
+    """F12: a provider returning null authors, a null title list or a null year must not crash the search."""
+    def response(url: str, headers: dict[str, str] | None = None):
+        if "api.openalex.org" in url:
+            return ({"results": [{"id": "https://openalex.org/W9", "doi": None, "title": None, "authorships": None,
+                                  "publication_year": None, "primary_location": None}], "meta": {"count": 1}}, {})
+        if "api.crossref.org" in url:
+            return ({"message": {"items": [{"DOI": "10.1234/nulls", "title": None, "author": None, "published-print": None, "abstract": None}]}}, {})
+        return ({"data": [{"paperId": "S2-9", "title": "Null authors paper", "authors": None, "year": None,
+                           "externalIds": {"DOI": "10.1234/nulls"}, "openAccessPdf": None}], "total": 1}, {})
+
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED", "true")
+    monkeypatch.setattr(research, "_request_json", response)
+    result = research.search_literature("all", "null tolerant", 5)
+    assert result["resultState"] == "complete" and result["providersSucceeded"] == 3
+    record = next(item for item in result["records"] if item["doi"]["value"] == "10.1234/nulls")
+    assert record["authors"]["value"] == [] and record["title"]["value"] == "Null authors paper"
+    assert record["year"]["value"] is None and record["evidenceScope"] == "metadata-only"
+    assert record["authors"]["provenance"], "the record still states where the empty author list came from"
+
+
+def test_malformed_provider_rows_are_isolated_and_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """F12: one unusable row must not discard the usable rows, and must not be silent."""
+    def response(url: str, headers: dict[str, str] | None = None):
+        return ({"message": {"items": [
+            {"DOI": "10.1234/good", "title": ["Usable record"]},
+            "a string instead of an object",
+            {"DOI": 12345, "title": [None]},
+        ], "total-results": 3}}, {})
+
+    monkeypatch.setattr(research, "_request_json", response)
+    result = research.search_literature("crossref", "mixed rows", 5)
+    assert result["resultState"] == "complete" and len(result["records"]) == 1
+    assert result["providers"][0]["skippedRows"] == 2
+    assert any("PROVIDER_ROW_SKIPPED" in warning for warning in result["warnings"])
+
+
+def test_allProvidersFail_is_unavailable_not_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """F12: an outage must never be presented as 'no results found'."""
+    def failing(provider: str, _query: str, _limit: int):
+        raise research.ResearchError("PROVIDER_UNAVAILABLE", f"{provider} did not answer")
+
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED", "true")
+    monkeypatch.setattr(research, "_search_one", failing)
+    result = research.search_literature("all", "topic", 5)
+    assert result["resultState"] == "unavailable"
+    assert result["providersAttempted"] == 3 and result["providersSucceeded"] == 0
+    assert result["records"] == [] and len(result["errors"]) == 3
+    assert any("not an empty result set" in warning for warning in result["warnings"])
+
+    def empty(provider: str, _query: str, _limit: int):
+        return [], {"provider": provider, "returned": 0}
+
+    monkeypatch.setattr(research, "_search_one", empty)
+    answered = research.search_literature("all", "topic", 5)
+    assert answered["resultState"] == "empty" and answered["providersSucceeded"] == 3
+    assert any("returned no matching record" in warning for warning in answered["warnings"])
+
+
+def test_merge_keeps_every_provider_observation_and_recomputes_derived_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """F12: merging must retain conflicting values and recompute derived fields from the merged record."""
+    def response(url: str, headers: dict[str, str] | None = None):
+        if "api.openalex.org" in url:
+            return ({"results": [{"id": "https://openalex.org/W7", "doi": "10.1234/merge", "title": "OpenAlex title",
+                                  "authorships": [{"author": {"display_name": "First Author"}}], "publication_year": 2023,
+                                  "primary_location": {"open_access": {"is_oa": False, "oa_url": None}}}], "meta": {"count": 1}}, {})
+        if "api.crossref.org" in url:
+            return ({"message": {"items": [{"DOI": "10.1234/merge", "title": ["Crossref title"],
+                                            "author": [{"given": "Second", "family": "Author"}], "published-print": {"date-parts": [[2024]]}}]}}, {})
+        return ({"data": [{"paperId": "S2-7", "title": "Semantic Scholar title", "authors": [{"name": "Third Author"}], "year": 2024,
+                           "externalIds": {"DOI": "10.1234/merge"},
+                           "openAccessPdf": {"url": "https://example.org/fulltext", "license": "CC-BY-4.0"}}], "total": 1}, {})
+
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED", "true")
+    monkeypatch.setattr(research, "_request_json", response)
+    result = research.search_literature("all", "merge behaviour", 5)
+    record = next(item for item in result["records"] if item["doi"]["value"] == "10.1234/merge")
+    assert record["title"]["value"] == "OpenAlex title"
+    assert record["title"]["conflicts"] == ["OpenAlex title", "Crossref title", "Semantic Scholar title"]
+    assert len(record["title"]["observations"]) == 3
+    assert len(record["title"]["provenance"]) == 3
+    assert record["sourceIds"].keys() == {"openalex", "crossref", "semantic_scholar"}
+    assert record["evidenceScope"] == "metadata-only", "derived state follows the merged record, not the first provider"
+    assert record["openAccessUrl"]["value"] == "https://example.org/fulltext", "a later provider's open-access link is not lost"
+    assert record["access"]["status"] == "link-reported" and record["access"]["license"] == "CC-BY-4.0"
+
+
+def test_crossref_validation_uses_the_same_identifying_headers_as_search(monkeypatch: pytest.MonkeyPatch) -> None:
+    """F12: Crossref asks for a contact address on both paths; an anonymous validation call is a defect."""
+    seen: list[dict[str, str]] = []
+
+    def response(url: str, headers: dict[str, str] | None = None):
+        seen.append({"url": url, "headers": dict(headers or {})})
+        if "/works/10.1234/x" in url:
+            return ({"message": {"DOI": "10.1234/x", "title": ["Validated"], "author": [{"given": "Ada", "family": "Author"}],
+                                 "published-print": {"date-parts": [[2024]]}}}, {})
+        return ({"message": {"items": [{"DOI": "10.1234/x", "title": ["Validated"]}], "total-results": 1}}, {})
+
+    monkeypatch.setenv("CROSSREF_MAILTO", "researcher@example.org")
+    monkeypatch.setattr(research, "_request_json", response)
+    result = research.validate_citation("https://doi.org/10.1234/x")
+    assert result["status"] == "record-found" and result["record"]["doi"]["value"] == "10.1234/x"
+    assert seen and seen[0]["url"].startswith("https://api.crossref.org/works/")
+    assert "mailto:researcher@example.org" in seen[0]["headers"]["User-Agent"]
+
+    seen.clear()
+    research.search_literature("crossref", "same headers", 3)
+    assert "mailto:researcher@example.org" in seen[0]["headers"]["User-Agent"], "search and DOI lookup share one request policy"

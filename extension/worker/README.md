@@ -1,0 +1,61 @@
+# VS Code Research Stack — Phase 1 Basic, Phase 2 Researcher, Phase 3 Research Lab
+
+This repository contains the Windows reference implementation prototype for the Basic / Research Starter package and an additive Phase 2 Researcher prototype. Both use portable workspace content, locked `uv` projects, and local stdio MCP workers. **G1 remains open and Phase 2 G2 has not passed; this repository is not yet a supported cross-platform release.**
+
+## Quick start
+
+```text
+uv python install 3.12
+uv sync --locked --python 3.12
+uv run --locked research-stack inspect
+uv run --locked research-stack init "<your research workspace path>"
+```
+
+Open the created workspace in VS Code, inspect `.mcp.json`, trust the workspace only after reviewing the configuration, and use **MCP: List Servers** to start the `research-stack-basic` server. It can read selected PDF/DOCX documents and write new Markdown/DOCX reports. The document workflow has no external account requirement. Copilot, GitHub remote access and NotebookLM import are optional and not included in this prototype's verified integration.
+
+See [setup and operation](docs/implementation/phase-1-basic/setup-and-operation.md), the [Phase 1 specification](specs/phase-1/spec.md), and the live [gate report](evidence/phase-1/gate-report.md).
+
+## Phase 2 Researcher prototype
+
+Add the Phase 2 overlay to a disposable Basic workspace with:
+
+```text
+uv run --locked research-stack add-recommended "<workspace path>"
+```
+
+The overlay adds a separate MCP server for bounded OpenAlex, Crossref and Semantic Scholar metadata searches; exact-DOI citation lookup; loopback read-only Zotero access; and reviewed RIS preparation. It adds five research skills and recommends the VS Code Python and Jupyter extensions. It does not download papers, write to Zotero, or run notebook cells automatically. See the [Phase 2 setup guide](templates/recommended-overlay/research/README.md), [specification](docs/implementation/phase-2-recommended/spec.md), and [G2 evidence report](evidence/phase-2/gate-report.md).
+
+To make a user-mediated NotebookLM bundle, run `uv run --locked research-stack export-bundle "<new output folder>" "<selected source 1>" "<selected source 2>"`. Supported copies are PDF, DOCX, TXT and Markdown. This only prepares files and a checksum index; it does not connect to NotebookLM.
+
+For the Full package's local corpus index and record store, run `uv run --locked research-stack init-lab --workspace "<research workspace>"`. It creates `.research-toolkit/store/research.sqlite3` (standard library only) and `.research-toolkit/lab-state.json`, and never modifies your source files. The same step is available in the control panel.
+
+## Phase 3 Research Lab foundation
+
+Phase 3 adds a dependency-free prototype for explicit UTF-8 Markdown/text corpus selection, stable source/chunk identities, provenance-bearing BM25 results and cross-platform Full-profile settings/catalog contracts. It does not yet provide vector or hybrid search, persistent storage, embeddings, a Research-RAG MCP or backup/recovery. Qdrant, DuckDB, embedding models, Playwright and institutional connectors remain unvalidated candidates. G1/G2 are prerequisites and G3 has not passed. See the [Phase 3 specification](specs/phase-3/spec.md), [implementation plan](docs/implementation/phase-3-complete/implementation-plan.md), [checklist](docs/implementation/phase-3-complete/checklist.md), and [evidence report](evidence/phase-3/gate-report.md).
+
+## Phase 4 VSIX preview
+
+The **0.3.6 GUI preview** under `extension/` makes component installation **reliable and visible**: setup checks the machine before it writes anything, keeps going when one step fails, and reports one plain-language verdict for the whole run. `extension/components.json` (schemaVersion 2) declares, for each of the 29 components, who installs it, which step provides it, how it is verified and what to do next; `extension/installer.js` runs only the steps the selected package needs, in order, and records each one in `.research-toolkit/managed/worker-0.3.6/installation.json`. Host-tool lookup (`extension/hosttools.js`) searches `researchStack.uvPath`, absolute `PATH` entries, the documented per-platform install locations and the managed toolkit folder, then version-probes what it finds; `extension/preflight.js` checks workspace trust, a local desktop workspace, the required host tools, the managed paths and the setup lock before any step runs; `extension/runner.js` is the extension's single `execFile` boundary; `extension/setuplog.js` and `extension/status.js` persist and word the result in `.research-toolkit/logs/`. A failing step no longer aborts the plan: independent steps continue and steps that depended on it are recorded as `blocked`. In the control panel, the new **Installation status** card names the outcome — from `Installation complete — N component step(s) verified.` to `Installation incomplete …`, `Installation failed …`, `Setup blocked …`, `Setup cancelled …` or `No component setup has run in this workspace yet` — with each step's last attempt, duration and error, and offers **Retry Failed Component Steps**, **Clear Interrupted Setup Lock**, **Open Setup Log** and **Copy Installation Diagnostics** alongside **Set up package components**, **Update or repair component steps**, **Check component status**, **Refresh component status** and per-component Install/Update buttons. Runs are resumable, serialized under one setup lock, and never overwrite existing files: a step counts as installed only while the files it produced are still present. Choose a workspace, run the setup, then use **Run MCP reading check** or **Read selected PDF / DOCX**. Reading, reports, local text search and RIS preparation are verified through real MCP; existing project packages and MCP files are preserved. Start with [onboarding](extension/guides/onboarding.md) and the generated [component guide hub](extension/guides/index.md); every component has an independent guide and current official documentation link. Run **Research Toolkit: Open Control Panel** or use the beaker icon in VS Code. Full now ships a real slice: a persistent workspace corpus index and a standard-library SQLite research record store (schema 2) under `.research-toolkit/store/`, served by a third managed MCP server with nine verbs (`index_corpus`, `unindex_corpus`, `search_corpus`, `evidence_read`, `claims_read`, `claims_write`, `claims_export`, `store_status`, `store_maintenance`). The Full default preset **Full research workflow** carries the whole journey — read a source, index it, search it, reopen the passage, resolve the evidence, record a claim with its evidence links, and export it as a validated report reference. No preset ships more than 12 toolkit tools and the widest keeps at least 20 tools of headroom under the 128-tool client ceiling. Package, tools-preset and interface preferences persist in the active VS Code profile (a preset can also be saved for one workspace folder) and remain synchronized with commands and Settings. Package choices and tool presets do not install or remove components; a preset only decides which tools the managed workers register, and its details view shows the tool count against the ceiling plus a context estimate measured from the installed worker's real tool schemas. G1, G2 and G3 remain open: the readiness line reports setup completeness, not gate status. See the [user guide](extension/README.md), [changelog](extension/CHANGELOG.md), [preview specification](specs/phase-4/spec.md), the [0.3.6 install-reliability specification](specs/phase-6/spec.md) and [artifact evidence](evidence/phase-4/gate-report.md). G1–G3 remain open and G4 has not passed. The built `.vsix` is a local deliverable.
+
+### Install and build the 0.3.6 VSIX
+
+Build from `toolkit/extension/` (needs `uv` and Node 20+):
+
+```text
+npm ci
+npm test
+npm run package          # guide hub -> worker bundle -> dist/research-stack-toolkit-0.3.6.vsix
+npm run verify-package   # allow-list, hash, size and source-drift audit
+npm run check:payload    # extract the VSIX and run the shipped controller: bundle hashes,
+                         # 25 commands, preset-driven MCP server definitions, GUI state, guides
+```
+
+Install it in VS Code Desktop with **Extensions: Install from VSIX…**, choose `toolkit/dist/research-stack-toolkit-0.3.6.vsix`, and reload when asked. For an isolated command-line install in a disposable profile:
+
+```text
+code --install-extension dist/research-stack-toolkit-0.3.6.vsix \
+  --extensions-dir "<isolated extensions dir>" --user-data-dir "<isolated data dir>"
+code --list-extensions --show-versions --extensions-dir "<isolated extensions dir>"
+```
+
+The second command should report `michaelprinc.research-stack-toolkit@0.3.6`. The extension activates on startup, shows a beaker icon in the Activity Bar, and needs no npm runtime dependencies. In a trusted local workspace use **Set up package components** (needs `uv` on `PATH` or through `researchStack.uvPath`; creates `.research-toolkit/managed/worker-0.3.6` with a locked Python 3.12 environment, plus the steps your package offers), then read the **Installation status** card and run **Run MCP reading check**. Setup attempts are recorded in `.research-toolkit/logs/`, which the bootstrap workspace's `.gitignore` ignores. The extension supplies all three MCP servers through its definition provider and passes the saved tools preset to them, so no `.mcp.json` or `.vscode/mcp.json` edit is required. Older 0.2.x/0.3.x package and interface preferences are preserved on upgrade; the managed worker path is versioned, so a previous worker stays untouched until you set up the new one. Automated receipts for the 0.3.4 build are in [evidence/phase-4/gui-0.3.4/](evidence/phase-4/gui-0.3.4/README.md) and are kept as history; the 0.3.5 suites, functional check, VSIX audit and re-run review probes are recorded in [evidence/quality-v0.3.5-2026-10-31/](../evidence/quality-v0.3.5-2026-10-31/README.md). The reference-host installation, Extension Host and browser renderer receipts for 0.3.6 are still outstanding, and G1–G4 remain open.

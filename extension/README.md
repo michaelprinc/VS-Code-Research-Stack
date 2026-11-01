@@ -1,15 +1,125 @@
-# Research Stack Toolkit — Phase 4 Preview
+# Research Stack Toolkit 0.3.6 — Reliable Component Installation, a Visible Installation Status & a Continuous Research Workflow
 
-This private VSIX preview provides two commands: **Research Toolkit: Switch Package** and **Research Toolkit: Show Phase Readiness**. The switch command offers Basic, Recommended Research, and Full and saves the choice in the current VS Code profile.
+Install the components each package actually needs from the VS Code control panel, read **one plain-language verdict for the last component setup** — what completed, what failed, and what to do next — verify real MCP reading, see actual component versions and readiness, and choose a **tools preset shaped by the goal you are working on** so your assistant is offered fewer, better-matched tools.
 
-Package switching currently changes only the saved VS Code profile preference. The preference is shared by windows using that profile. It does not install, remove, or configure any Research Stack components. It does not download files, start services, access networks, update components, or manage research data. Basic and Research remain prototypes with G1/G2 open; Full is a Phase 3 foundation with G3 open. This preview does not represent completion of Phase 4 or a supported Research Stack profile.
+Start with the [onboarding walkthrough](guides/onboarding.md) or [guide hub](guides/index.md). The hub is assembled from **29 individual component guides**, each with setup, a first task, readiness interpretation, troubleshooting and a maintained official documentation link.
 
-The package is tested against VS Code Desktop 1.140.0 on Windows 11 x64. The manifest's `engines.vscode` floor is a package compatibility declaration, not evidence that every host/version has been tested. macOS, web, remote, clean-host and minimum-version support remain unverified.
+## Install and open
 
-## Install
+1. Run **Extensions: Install from VSIX...** in VS Code and choose `research-stack-toolkit-0.3.6.vsix`.
+2. Click the **Research Toolkit** beaker icon in the Activity Bar, then **Open Control Panel**. You can also click the **Research: …** status-bar item or run **Research Toolkit: Open Control Panel** from the Command Palette.
+3. Select the research folder under **Workspace to inspect**, then click **Check components**. Search the list to find a component and inspect its installation, actual version, readiness, evidence and **next action**.
+4. In **Component setup for this package**, review the steps this package offers and click **Set up package components**. Setup starts with a preflight — workspace trust, a local desktop workspace, the host tools the plan needs, the managed paths and the setup lock — and nothing is written or downloaded until that preflight passes. Each step is recorded in the workspace receipt, so a later run resumes instead of repeating finished work.
+5. Read the **Installation status** card. It names the overall outcome of the last component setup and each step, with the failing or blocked step, its exit code where there was one, and the action that clears it. The verdict is read from the workspace record, so it is still there after you close the panel or reload the window.
+6. Click **Read selected PDF / DOCX** to verify a source inside the workspace and see text, locators and its hash.
+7. Use **Guide** for its bundled setup steps or **Latest docs** for current official instructions. Choose and save a package preference and a tools preset independently of installation.
+8. Under **Tools preset**, pick the goal you are working on, open **Context usage and tools in the selected preset**, and save. The preset changes which tools your assistant is offered; it installs nothing.
 
-Use VS Code's **Extensions: Install from VSIX...** command and select `research-stack-toolkit-0.2.0.vsix`. Open the Command Palette and run **Research Toolkit: Switch Package** to change the preference saved in the active VS Code profile. Run **Research Toolkit: Show Phase Readiness** to view the selected preference and open gates. Do not use this preview to install or update runtime components.
+Your existing 0.2.0/0.3.0 package and interface preferences are retained. Preferences belong to the active VS Code user profile. Component observations are scoped to the selected folder/current editor and retained in this session with a check timestamp; rerun checks after environment changes or restart.
 
-## Package boundary
+## Component setup, step by step
 
-Only the extension manifest, JavaScript entry point and this README belong in the VSIX. The package contains no Python environment, corpus, credential, database, model, browser or container image. The local source and package-integrity receipt are maintained in the project repository.
+The install plan is declarative: `components.json` (schemaVersion 2) states, for every component, who installs it, which step provides it, how it is verified and what you should do next. The extension runs only the steps your package needs, in order, and records each one in `.research-toolkit/managed/worker-0.3.6/installation.json`.
+
+| Package | Steps offered | What they install |
+|---|---|---|
+| Basic | Isolated document worker | Locked Python 3.12 worker environment plus the five document tools (`read_document`, `read_text_source`, `search_local_text`, `write_markdown`, `write_docx`), verified by real MCP reading checks |
+| Recommended Research | Worker, reviewed research overlay, notebook analysis environment (optional) | Adds the scholarly metadata/Zotero adapter, the reviewed `.github/skills`, profile and `research/` files, and a locked `notebooks/analysis` environment |
+| Full | Worker, research overlay, notebook environment (optional), corpus index and record store | Adds the workspace corpus index and SQLite research record store under `.research-toolkit/store/` (schema 2: sources, source versions, chunks, claims, evidence links, claim events) |
+
+* **Set up package components** runs the missing steps. **Update or repair component steps** re-runs the steps an earlier toolkit release recorded **and** the steps this release recorded but whose produced files are gone. **Retry Failed Component Steps** re-runs the steps whose last attempt failed or was blocked, together with the steps those failures blocked, and keeps the work that completed. **Check component status** runs the bounded host/library checks; **Refresh component status** re-reads the plan and re-verifies the produced files without running the functional MCP check.
+* A step is reported as `installed` only when its produced files are still present. A recorded step whose files were deleted is reported as **needs repair** and is re-run, not presented as complete.
+* The **Installation status** card names the outcome of the last component setup and each step, in one of these words: `Installation complete — N component step(s) verified.`, `Installation incomplete — N step(s) verified, M need attention (step ids).`, `Installation failed — <step>: <error>.`, `Setup blocked — <reason>.`, `Setup cancelled — N step(s) already completed were kept.` or `No component setup has run in this workspace yet`. A success verdict is only given when the files each step was supposed to produce were re-checked on disk after the run; for the worker step that means `.venv/bin/python` on Linux/macOS, `.venv/Scripts/python.exe` on Windows, and the managed `src/research_stack/mcp_server.py`.
+* Setup runs a preflight before any component command: workspace trust, a local (non-remote) desktop workspace, the required host tools from the component registry, the managed path being a real directory rather than a link, a writable workspace, and the setup-lock state. A blocked preflight writes a status record with the outcome `blocked` and runs nothing.
+* `uv` is resolved in a fixed order: `researchStack.uvPath`, then absolute `PATH` entries, then the documented install locations for the platform (Windows: `%USERPROFILE%\.local\bin`, `%LOCALAPPDATA%\Programs\uv`, `%APPDATA%\Python\Python312\Scripts`, `%APPDATA%\Python\Scripts`, scoop shims, WinGet Links and `C:\Program Files\uv`; macOS/Linux: `/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin`, `~/.local/bin`, `~/.cargo/bin` and `$XDG_BIN_HOME`), then the workspace's managed toolkit folder. A found tool is version-probed with `uv --version`; a tool whose version command fails, or whose version is older than the registry minimum (uv 0.5.0), is reported as unusable rather than as installed. An executable inside the workspace is refused as a host tool. If uv is not found, setup is blocked before anything is written, and the message names the locations searched and the `researchStack.uvPath` remedy.
+* A failing step no longer aborts the whole plan. Independent steps continue, steps that depend on the failure are recorded as `blocked` with the step that blocked them, and every attempt is recorded. A transient failure — a timeout, output over the capture limit, or network-flavoured tool output — is retried once; a launch failure (`ENOENT`), a cancellation or an explicit refusal is not retried.
+* An optional step you did not install is reported as a deliberate omission, not as an unmet requirement.
+* Each component row in the panel and in the sidebar has **Install** / **Update** where the toolkit can install it; rows the toolkit cannot install state who does (editor, host tool, external service, or planned).
+* A step that needs another step pulls that step in and says why, instead of failing the click or half-installing: the record store needs the worker.
+* Existing files are never overwritten. Overlay files are created once, hash-verified against the bundle, and classified on re-run as unchanged or **changed by you and preserved**; a linked or junctioned path is refused rather than followed.
+* A cancelled or failed run leaves the completed steps recorded, so the next run resumes at the first missing step. The receipt and the active-runtime pointer are written atomically, and one setup lock covers the whole plan so two windows cannot interleave steps. A lock is classified **stale** only when it is older than the setup window, or older than 60 seconds with a dead owner process; **Clear Interrupted Setup Lock** removes only such a lock and refuses a live one.
+* Two steps reach the network, and only those two: the **isolated document worker** step syncs its locked Python 3.12 environment, and the optional **notebook analysis environment** step syncs the reviewed `notebooks/analysis` project (`uv sync --locked`). No other step downloads anything, and no step starts a kernel. Both honour `researchStack.setupTimeoutSeconds` (default 900 s, allowed 60–3600 s), because a first run can fetch a managed Python 3.12 and the locked packages. Setup runs with a reviewed uv environment: pinned Python 3.12, copy link mode, no progress spinners, no user config file, and a workspace-contained project environment. The notebook step first classifies what is already in `notebooks/analysis` — reviewed project, compatible existing project, or neither — refuses a linked environment, and records that `ipykernel` and `matplotlib` import in the environment it created.
+* Setup evidence stays in the workspace: `.research-toolkit/logs/last-setup.json` is the status record the panel reads when it reopens, and `.research-toolkit/logs/setup-<timestamp>.jsonl` is the append-only attempt log. The bootstrap workspace's `.gitignore` ignores `.research-toolkit/logs/` alongside the existing derived-data rules. **Open Setup Log** opens the newest log file, and **Copy Installation Diagnostics** copies the verdict, the host tools, the preflight results, the per-step attempts and the log file path to the clipboard.
+* **Roll back managed runtime** lists the managed runtimes this workspace holds, re-verifies the candidate with the real reading check, and only then points the workspace back at it. The runtime an earlier release installed stays on disk.
+
+## Controls
+
+| Option | What it does |
+|---|---|
+| Set up package components | Run the missing component steps for the selected package in plan order and record each one |
+| Update or repair component steps | Re-run the steps an earlier toolkit release recorded, plus recorded steps whose produced files are missing, after a confirmation dialog |
+| Check component status | Re-read the plan and component inventory through the bounded host/library checks, without installing anything |
+| Refresh component status | Re-read the plan and re-verify the files each recorded step produced, without running the MCP reading check |
+| Roll back managed runtime | List the managed runtimes in this workspace, re-verify a candidate with the reading check, and point the workspace back at it |
+| Installation status | Shows the outcome of the last component setup, each step with its last attempt, duration and error, the host tools setup resolved, and the action that clears the failing or blocked step |
+| Retry failed steps | **Retry Failed Component Steps**: re-run the steps whose last attempt failed or was blocked, with their prerequisites, keeping completed work |
+| Clear interrupted setup lock | **Clear Interrupted Setup Lock**: remove only a lock classified as stale; a live lock is refused and nothing is removed |
+| Open setup log | **Open Setup Log**: open the newest `.research-toolkit/logs/setup-<timestamp>.jsonl` attempt log for reading |
+| Copy installation diagnostics | **Copy Installation Diagnostics**: copy the verdict, host tools, preflight results, per-step attempts and the log file path to the clipboard |
+| Install / Update (per component) | Run the single step that provides that component, with its prerequisites |
+| Run MCP reading check | Repeat temporary synthetic PDF/DOCX protocol tests, hashes/locators, corpus and record-store checks |
+| Read selected PDF / DOCX | Read the first five pages/paragraphs of one workspace source; show a local preview, locators and hash; preserve the source |
+| Check components | Inspect actual local versions; test libraries and the installed managed worker through real MCP |
+| Workspace to inspect | Choose one folder in a multi-root workspace; results never imply all folders share an environment |
+| Find a component | Filter by component name, group or status |
+| Guide / Latest docs | Open individual bundled onboarding or the maintained official source; provider-unselected rows have no fabricated URL |
+| Package preference | Saves Basic, Recommended Research (default), or Full; also available through **Switch Package** and Settings |
+| Tools preset | Saves the goal-shaped tool preset your assistant is offered; also available through **Select Tools Preset** and Settings. Shows tool counts and a context estimate, and can be saved for the whole workspace |
+| Copy preset summary | Copies the selected preset's tools, servers, totals and measured token figures |
+| Diagnose tool limit | Explains the client ceiling, what this toolkit contributes and which narrower presets are available |
+| uv path | `researchStack.uvPath`: an absolute path to uv when it is not on the editor process PATH. Leave it empty to use PATH and the documented install locations |
+| Setup timeout | `researchStack.setupTimeoutSeconds`: how long a downloading setup step may run before it is reported as timed out (default 900 s, 60–3600 s) |
+| Show package in the status bar | Shows or hides the shortcut; on by default |
+| Open this panel when VS Code starts | Opens the control panel on startup; off by default |
+| Show readiness / Copy readiness | Opens or copies the saved package, component-setup and phase gate status |
+| Refresh | Refreshes preferences/context; use Check components to rerun runtime observations |
+| Open extension settings | Opens the filtered VS Code Settings editor |
+| Help & getting started | Opens the generated guide hub and onboarding walkthrough inside VS Code |
+
+## Choose a goal, not a server
+
+Assistant clients cap how many tools one session may enable — Copilot agent mode refuses more than **128 enabled tools**, and selection reliability starts dropping well before that, around **30–50 tools**. Tool definitions are re-sent with every request, so a wide tool surface is a recurring context cost, not a one-off cost. The toolkit therefore lets you trade surface for focus, and no preset ships more than **12 toolkit tools**.
+
+| Preset | Goal | Toolkit tools | External tools (estimated) | Total |
+|---|---|---|---|---|
+| Read and cite a document | One PDF/DOCX/Markdown → cited report | 4 | 0 | 4 |
+| Search my own notes | Find passages in your Markdown/text and reopen them | 3 | 0 | 3 |
+| Verify a citation | DOI resolution and reference comparison | 2 | 0 | 2 |
+| Prepare a Zotero import | Collect references → RIS file you import | 5 | 0 | 5 |
+| Read, search, cite and write | Full document + metadata surface, no index (Recommended default) | 10 | 0 | 10 |
+| **Full research workflow** | Read → index → retrieve → resolve evidence → record a claim → report (**Full default**) | 11 | 0 | 11 |
+| Documents, citations and third-party evidence | Document/citation tools + GitHub read-only + Playwright core | 10 | 36 | 46 |
+| Maximum research lab | Widest supported surface under the ceiling | 10 | 91 | 101 |
+| Index, search and record claims | Your own corpus → stored claims with evidence links (Full only) | 10 | 0 | 10 |
+
+Basic offers the first two presets, Recommended Research offers the first five, and Full offers all nine. Each package has exactly one default preset; a saved preset that the selected package does not offer falls back to that default and the panel says so. The panel also distinguishes the preset you **saved** from the one currently **applied** to the assistant's tool list. Recently used presets are offered first. The preset reaches the managed workers as `RESEARCH_STACK_TOOL_PRESET`, so only the tools serving that goal are registered and a server the goal does not use is not offered.
+
+**Context estimate.** After component setup, the receipt stores the measured size of every discovered tool definition (name + title + description + input schema; characters ÷ 4, plus 40 tokens of framing per tool). Every figure states its basis: **measured from this worker's tools/list**, **partial** (some tools measured, the rest at the vendor figure), or **vendor estimate at 640 tokens per tool definition**. External counts are published vendor toolset figures, never presented as measurements taken by this extension.
+
+Every shipped tool also publishes a title and read-only/destructive/idempotent annotations, and the workers answer `tools/list` with a 300-second private cache hint, so a client does not re-fetch the same definitions on every turn.
+
+## Read the inventory correctly
+
+**Installed** means the running editor/extension, editor registry, setup receipt or selected Python environment supplied installation evidence. **Ready** means the specific check in the row succeeded (host running, version command, SDK import, library test, real MCP fixture read/report or corpus/record-store round trip). **Files prepared** and **Configuration present** do not establish an installed or running MCP server. **Not verified** identifies a client/kernel/account/service first task still required. **Not detected** means absent from inspected locations, not a machine-wide absence. **Planned / Not bundled** describes toolkit integration status even when unrelated software exists elsewhere.
+
+The readiness text now states setup completeness as well as gates: `Package setup for Full: 3 of 4 component steps installed, 1 recorded but needing repair (files it produced are missing), 1 optional step(s) deliberately not installed · G3 not passed.` That line describes what this workspace has installed and observed; it does not close a gate.
+
+Host-tool rows report where the tool was resolved from and the version its version command reported, or the categories searched when nothing was found. A tool that exists but does not answer `--version`, or that is older than the registry minimum, is reported as detected with a failed check — not as installed, and not used by setup.
+
+The extension shows its actual running version. Python worker and dependency versions come from the inspected environment, not catalog requirements or your selected package. Editor-extension presence does not prove authentication or kernel execution. The running managed worker is verified through real local MCP fixture tests. No external provider or Zotero endpoint is contacted during those checks. The [walkthrough](guides/onboarding.md) shows how to complete each first functional task.
+
+## Preview scope
+
+Selecting a package or a tools preset saves a preference. Neither installs, removes, nor configures components; a preset only changes which tools the toolkit registers when its managed servers start. Setup runs only when you start it. Basic/Research remain prototypes with G1/G2 open; Full is a foundation with G3 open, and its shipped slice is now real: a persistent workspace corpus index and a standard-library SQLite record store (schema 2) with nine verbs — `index_corpus`, `unindex_corpus`, `search_corpus`, `evidence_read`, `claims_read`, `claims_write`, `claims_export`, `store_status`, `store_maintenance` — where the everyday workflow verbs are separated from the destructive maintenance verbs. Vector search, embedding models, DuckDB/Qdrant, HTTP index services, external account/service provisioning, notebook kernel setup and automatic updates remain separate. Successful reading checks prove the tested local protocol workflow and do not close every profile gate or establish assistant authorization. 0.3.6 does not install uv itself, does not run setup silently or in the background, does not execute notebook kernels, does not connect to external providers, and does not build the extraction-to-index bridge. This version does not complete G4.
+
+The private VSIX contains the controller, install-plan engine, diagnostic script/probe, GUI assets, registry, Markdown guides, reviewed worker source/locks and reviewed overlay templates, with no production npm dependencies or prebuilt Python environment. The panel accepts validated component IDs, validated step ids, boolean settings and fixed actions. Every external tool run goes through one reviewed module, `extension/runner.js`: a single `execFile` boundary with `windowsHide: true`, `shell: false`, an 8-second default timeout for probes, an 8 MiB output cap and bounded report text. Host-tool lookup is `extension/hosttools.js`, preflight is `extension/preflight.js`, step bodies are `extension/steps.js`, status wording is `extension/status.js`, and log/status persistence is `extension/setuplog.js`. No command is read from MCP configuration. Setup explicitly syncs only the toolkit-owned environments. Reading checks explicitly start temporary local stdio MCP servers; selected-document reads require a file choice inside the workspace. See the [onboarding check disclosure](guides/onboarding.md) and [VS Code webview guide](https://code.visualstudio.com/api/extension-guides/webview).
+
+## Keep guides useful as components grow
+
+Each component has its own Markdown guide and registry entry. Packaging generates the hub and validates guide sections/links, and the VSIX audit verifies every guide against its source. Guide text is a release snapshot with a review date; Latest docs opens the official maintained source on request. No background download or automatic freshness claim is made. Read [documentation maintenance](guides/maintenance.md) to add/update a component without rewriting the control panel.
+
+The 0.3.2 reference test host is Windows 11 x64 / VS Code Desktop 1.141.0. The 0.3.6 install engine, host-tool resolution, preflight, setup log and installation status are covered on this Linux development host by the automated node test suite (the fourteen test files `npm test` runs, including `test/hosttools.test.js`, `test/runner.test.js`, `test/preflight.test.js`, `test/setuplog.test.js`, `test/status.test.js`, `test/steps.test.js`, `test/module-boundaries.test.js` and `test/gui-status.test.js`) and the Python suite; the real Extension Host and browser renderer receipts for 0.3.6 are still to be produced on that reference host. The declared 1.140.0 floor is not retested for this release. macOS, web, remote and other editor versions remain unverified. This is a local private preview.
+
+## Build and verify from source
+
+From `extension/`, run `npm ci`, `npm test`, `npm run package`, then `npm run verify-package` and `npm run check:payload`. The repository also includes real Extension Host tests (`npm run test:host`) and a browser renderer test (`node test/browser.test.js`). The latter uses development-only Playwright, resolved from your test environment; set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` when using an existing Chromium executable. No browser is shipped in the VSIX.

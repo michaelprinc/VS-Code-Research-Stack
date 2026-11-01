@@ -19,6 +19,7 @@ async function main() {
       extensionDevelopmentPath: extensionPath,
       extensionTestsPath: path.resolve(__dirname, "host.test.js"),
       launchArgs: [
+        ...(process.env.VSCODE_TEST_WORKSPACE ? [process.env.VSCODE_TEST_WORKSPACE] : []),
         "--disable-extensions",
         "--disable-gpu",
         "--disable-workspace-trust",

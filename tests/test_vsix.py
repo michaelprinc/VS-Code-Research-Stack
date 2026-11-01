@@ -27,8 +27,16 @@ def _write_vsix(path: Path, *, include_extra: bool = False) -> Path:
         "extension.vsixmanifest": b"<PackageManifest />",
         "extension/readme.md": b"preview",
         "extension/extension.js": b"module.exports = {};",
+        "extension/ui.js": b"module.exports = {};",
+        "extension/media/controls.js": b"// controls",
+        "extension/media/controls.css": b"body {}",
+        "extension/media/toolkit.svg": b"<svg />",
         "extension/package.json": json.dumps(manifest).encode(),
     }
+    extension_root = Path(__file__).resolve().parents[1] / "extension"
+    for name in EXPECTED - set(members):
+        relative = name.removeprefix("extension/")
+        members[name] = (extension_root / relative).read_bytes()
     assert set(members) == EXPECTED
     if include_extra:
         members["extension/.env"] = b"secret"
@@ -40,6 +48,12 @@ def _write_vsix(path: Path, *, include_extra: bool = False) -> Path:
     (source_root / "vsix-manifest.json").write_bytes(members["extension/package.json"])
     (source_root / "extension.js").write_bytes(members["extension/extension.js"])
     (source_root / "README.md").write_bytes(members["extension/readme.md"])
+    (source_root / "media").mkdir(exist_ok=True)
+    for member in EXPECTED:
+        if member.startswith("extension/") and member not in ("extension/package.json", "extension/readme.md"):
+            destination = source_root / member.removeprefix("extension/")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(members[member])
     return source_root
 
 
@@ -86,3 +100,15 @@ def test_vsix_verifier_detects_payload_drift_from_source(tmp_path: Path) -> None
 
     with pytest.raises(ValueError, match="does not match project source"):
         verify(tampered_package, source_root)
+
+
+@pytest.mark.parametrize("member", ["extension/media/controls.js", "extension/media/controls.css", "extension/ui.js", "extension/components.json", "extension/guides/pypdf.md"])
+def test_vsix_verifier_audits_gui_assets(tmp_path: Path, member: str) -> None:
+    original = tmp_path / "original.vsix"
+    source_root = _write_vsix(original)
+    altered = tmp_path / "altered.vsix"
+    with zipfile.ZipFile(original) as source, zipfile.ZipFile(altered, "w") as target:
+        for name in source.namelist():
+            target.writestr(name, b"tampered asset" if name == member else source.read(name))
+    with pytest.raises(ValueError, match="does not match project source"):
+        verify(altered, source_root)

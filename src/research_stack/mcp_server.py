@@ -8,10 +8,44 @@ from pathlib import Path
 
 from mcp.server import MCPServer
 
-from .documents import DocumentError, extract_document, write_docx_report, write_markdown_report
+from .documents import (
+    DocumentError,
+    extract_document,
+    read_text_document,
+    resolve_evidence,
+    validate_sources,
+    write_docx_report,
+    write_markdown_report,
+)
+from .full import build_corpus, search_bm25
 from .paths import PathPolicyError, resolve_under
+from .presets import register_tools
+from .tool_meta import TOOL_LIST_CACHE_HINTS, annotations
 
-server = MCPServer("research-stack-basic")
+server = MCPServer("research-stack-basic", cache_hints=TOOL_LIST_CACHE_HINTS)
+
+TOOL_TITLES = {
+    "search_local_text": "Search selected workspace notes",
+    "read_document": "Read a workspace PDF or DOCX",
+    "read_text_source": "Read a workspace Markdown or text source",
+    "write_markdown": "Write a cited Markdown report",
+    "write_docx": "Write a cited DOCX report",
+}
+
+TOOL_ANNOTATIONS = {
+    "read_document": annotations(read_only=True),
+    "read_text_source": annotations(read_only=True),
+    "search_local_text": annotations(read_only=True),
+    "write_docx": annotations(read_only=False, destructive=False, idempotent=False, open_world_hint=False),
+    "write_markdown": annotations(read_only=False, destructive=False, idempotent=False, open_world_hint=False),
+}
+
+
+def search_local_text(paths: list[str], query: str, limit: int = 10) -> dict[str, object]:
+    """Search explicitly selected workspace Markdown/text files with provenance-bearing local BM25 results."""
+    chunks = build_corpus(configured_root(), paths)
+    return {"hits": [hit.as_dict() for hit in search_bm25(chunks, query, limit=limit)], "method": "bm25", "persistentIndex": False,
+            "reopenWith": "read_text_source(path, locator=<hit locator>)"}
 
 
 def configured_root() -> Path:
@@ -24,54 +58,51 @@ def configured_root() -> Path:
     return root
 
 
-@server.tool()
 def read_document(path: str, start: int = 1, count: int = 50) -> dict[str, object]:
-    """Read a selected PDF or DOCX under the configured workspace; returns text and page/paragraph locators."""
+    """Read a selected PDF or DOCX under the configured workspace; returns text, locators and coverage."""
     source = resolve_under(configured_root(), path, must_exist=True)
     return extract_document(source, start=start, count=count).as_dict()
 
 
-@server.tool()
-def write_markdown(title: str, body: str, output_path: str, sources: list[dict[str, str]]) -> dict[str, str]:
-    """Create a new Markdown report under outputs/ and cite each source with its locator/reference and SHA-256."""
-    root = configured_root()
+def read_text_source(path: str, start: int = 1, count: int = 20, locator: str | None = None, context: int = 1) -> dict[str, object]:
+    """Read a selected Markdown/text file under the workspace, or reopen a search hit by its locator."""
+    source = resolve_under(configured_root(), path, must_exist=True)
+    return read_text_document(source, start=start, count=count, locator=locator, context=context).as_dict()
+
+
+def _write_report(root: Path, output_path: str, writer, title: str, body: str, sources: list[dict[str, str]], evidence_chunk_ids: list[str] | None) -> dict[str, str]:
     output = resolve_under(root, output_path, must_exist=False)
     allowed = (root / "outputs").resolve()
     try:
         output.relative_to(allowed)
     except ValueError as exc:
-        raise PathPolicyError("OUTPUT_OUTSIDE_APPROVED_ROOT: write_markdown accepts only outputs/ paths.") from exc
+        raise PathPolicyError("OUTPUT_OUTSIDE_APPROVED_ROOT: report writers accept only outputs/ paths.") from exc
+    if output.parent.exists():
+        from .paths import assert_no_redirect
+
+        assert_no_redirect(root, output)
     if len(body) > 100_000:
         raise DocumentError("BODY_TOO_LARGE: report body limit is 100000 characters.")
-    if len(sources) > 100:
-        raise DocumentError("TOO_MANY_SOURCES: maximum is 100 citations.")
-    for source in sources:
-        if not {"label", "reference", "sha256"}.issubset(source):
-            raise DocumentError("INVALID_SOURCE: each source requires label, reference and sha256.")
-    return write_markdown_report(output, title, body, sources)
+    evidence = resolve_evidence(root, list(evidence_chunk_ids or []))
+    validated = validate_sources(list(sources or []), root=root)
+    return writer(output, title, body, validated, evidence=evidence)
 
 
-@server.tool()
-def write_docx(title: str, body: str, output_path: str, sources: list[dict[str, str]]) -> dict[str, str]:
-    """Create a new DOCX report under outputs/ with source references; existing files are never overwritten."""
-    root = configured_root()
-    output = resolve_under(root, output_path, must_exist=False)
-    allowed = (root / "outputs").resolve()
-    try:
-        output.relative_to(allowed)
-    except ValueError as exc:
-        raise PathPolicyError("OUTPUT_OUTSIDE_APPROVED_ROOT: write_docx accepts only outputs/ paths.") from exc
-    if len(body) > 100_000:
-        raise DocumentError("BODY_TOO_LARGE: report body limit is 100000 characters.")
-    if len(sources) > 100:
-        raise DocumentError("TOO_MANY_SOURCES: maximum is 100 citations.")
-    for source in sources:
-        if not {"label", "reference", "sha256"}.issubset(source):
-            raise DocumentError("INVALID_SOURCE: each source requires label, reference and sha256.")
-    return write_docx_report(output, title, body, sources)
+def write_markdown(title: str, body: str, output_path: str, sources: list[dict[str, str]], evidence_chunk_ids: list[str] | None = None) -> dict[str, str]:
+    """Create a new Markdown report under outputs/; every citation and stored evidence id is validated first."""
+    return _write_report(configured_root(), output_path, write_markdown_report, title, body, sources, evidence_chunk_ids)
+
+
+def write_docx(title: str, body: str, output_path: str, sources: list[dict[str, str]], evidence_chunk_ids: list[str] | None = None) -> dict[str, str]:
+    """Create a new DOCX report under outputs/ with the same validated citations and structure as Markdown."""
+    return _write_report(configured_root(), output_path, write_docx_report, title, body, sources, evidence_chunk_ids)
+
+
+DOCUMENT_TOOLS = (search_local_text, read_document, read_text_source, write_markdown, write_docx)
 
 
 def main() -> None:
+    register_tools(server, DOCUMENT_TOOLS, TOOL_TITLES, TOOL_ANNOTATIONS)
     # MCP SDK routes protocol output through stdio; never print application logs to stdout.
     server.run(transport="stdio")
 

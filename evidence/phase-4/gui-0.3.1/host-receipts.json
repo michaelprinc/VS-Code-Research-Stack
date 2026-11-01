@@ -1,0 +1,144 @@
+[
+  {
+    "test": "actual-vscode-extension-host",
+    "stage": "mutate",
+    "activationAndCommandMs": 21.743399999999838,
+    "warmCommandP95Ms": 1.1659999999992579,
+    "warmCalls": 100,
+    "packageTransitions": [
+      "basic",
+      "full",
+      "recommended",
+      "full"
+    ],
+    "concurrentCalls": 25,
+    "gui": "packaged renderer ready handshake, help opened, panel reused, commands registered, option persistence verified",
+    "inventory": [
+      {
+        "id": "toolkit",
+        "version": "0.3.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "vscode-desktop",
+        "version": "1.141.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "uv",
+        "version": "uv 0.11.23 (3cdf50e09 2026-06-19 x86_64-pc-windows-msvc)",
+        "readiness": "Ready"
+      },
+      {
+        "id": "python",
+        "version": "3.12.13",
+        "readiness": "Ready"
+      },
+      {
+        "id": "mcp-python-sdk",
+        "version": "2.2.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "pypdf",
+        "version": "6.4.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "python-docx",
+        "version": "1.2.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "document-worker",
+        "version": "0.2.0",
+        "readiness": "Not verified"
+      },
+      {
+        "id": "git-for-windows",
+        "version": "git version 2.54.0.windows.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "research-stack-recommended-adapter",
+        "version": "0.2.0",
+        "readiness": "Not verified"
+      },
+      {
+        "id": "research-stack-full-markdown-bm25-prototype",
+        "version": "0.2.0",
+        "readiness": "Not verified"
+      }
+    ]
+  },
+  {
+    "test": "actual-vscode-extension-host",
+    "stage": "persist",
+    "activationAndCommandMs": 125.3429000000001,
+    "warmCommandP95Ms": 0.6965000000000146,
+    "warmCalls": 100,
+    "packageTransitions": [
+      "persisted full",
+      "basic"
+    ],
+    "concurrentCalls": 25,
+    "gui": "packaged renderer ready handshake, help opened, panel reused, commands registered, option persistence verified",
+    "inventory": [
+      {
+        "id": "toolkit",
+        "version": "0.3.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "vscode-desktop",
+        "version": "1.141.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "uv",
+        "version": "uv 0.11.23 (3cdf50e09 2026-06-19 x86_64-pc-windows-msvc)",
+        "readiness": "Ready"
+      },
+      {
+        "id": "python",
+        "version": "3.12.13",
+        "readiness": "Ready"
+      },
+      {
+        "id": "mcp-python-sdk",
+        "version": "2.2.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "pypdf",
+        "version": "6.4.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "python-docx",
+        "version": "1.2.0",
+        "readiness": "Ready"
+      },
+      {
+        "id": "document-worker",
+        "version": "0.2.0",
+        "readiness": "Not verified"
+      },
+      {
+        "id": "git-for-windows",
+        "version": "git version 2.54.0.windows.1",
+        "readiness": "Ready"
+      },
+      {
+        "id": "research-stack-recommended-adapter",
+        "version": "0.2.0",
+        "readiness": "Not verified"
+      },
+      {
+        "id": "research-stack-full-markdown-bm25-prototype",
+        "version": "0.2.0",
+        "readiness": "Not verified"
+      }
+    ]
+  }
+]

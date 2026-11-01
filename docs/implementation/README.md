@@ -1,6 +1,6 @@
 # Research Toolkit: four-phase implementation roadmap
 
-Planning baseline: 7 October 2026. Language: English. Phase 1 G1 remains open on Windows 11 x64; Phase 2 has an additive implementation prototype but G2 is blocked; Phases 3–4 remain planned.
+Planning baseline: 7 October 2026. Language: English. Phase 1 G1 remains open on Windows 11 x64; Phase 2 has an additive implementation prototype but G2 is blocked; Phases 3–4 remain planned. Rows 5 and 6 are release-level plans for the 0.3.5 and 0.3.6 previews against Phase 4, not new profiles or new gates.
 
 ## Objective and boundary
 
@@ -18,6 +18,10 @@ The starting input is the user-supplied Czech architecture proposal, titled “A
 | 2 | Recommended / Researcher: literature APIs, Zotero, Jupyter, research skills | [Implementation plan](phase-2-recommended/implementation-plan.md) | [Checklist](phase-2-recommended/checklist.md) | G2: reproducible literature-to-analysis workflow with graceful provider failures |
 | 3 | Complete / Research Lab: local RAG, Qdrant, embeddings, BM25, reranking, DuckDB, provenance, browser and institutional connectors | [Implementation plan](phase-3-complete/implementation-plan.md) | [Checklist](phase-3-complete/checklist.md) | G3: local research pipeline, recovery, and selected advanced capabilities validated |
 | 4 | Complete VSIX: wizard, capability resolver, installation/configuration, diagnostics, lifecycle and updates | [Implementation plan](phase-4-vsix/implementation-plan.md) | [Checklist](phase-4-vsix/checklist.md) | G4: installable VSIX repeats the validated procedures on a clean workstation |
+| 5 (0.3.5) | Stabilization of the 0.3.4 preview plus one continuous Full research workflow — **not a new profile**; the 0.3.4 row above stays as the historical plan for that release | [Phase 5 specification and tasks](../../specs/phase-5/tasks.md) | [Phase 5 acceptance](../../specs/phase-5/acceptance.md) | No new gate: closes review findings F01–F18; G1–G4 remain open |
+| 6 (0.3.6) | Component install reliability and installation status reporting — host-tool resolution, preflight, bounded execution, plan continuation, recorded attempts and the control-panel verdict; **not a new profile** | [Phase 6 specification and tasks](../../specs/phase-6/tasks.md) | [Phase 6 acceptance](../../specs/phase-6/acceptance.md) | No new gate: closes the 0.3.5 install findings D1–D8; G1–G4 remain open |
+
+Phase 6 (0.3.6) is specified in `specs/phase-6/`: [spec.md](../../specs/phase-6/spec.md) records the observed failure and requirements R6-01…R6-39, [design.md](../../specs/phase-6/design.md) records the binding decisions D6-01…D6-07, [tasks.md](../../specs/phase-6/tasks.md) maps the stages, [acceptance.md](../../specs/phase-6/acceptance.md) names the proof for each case, and [checklists/](../../specs/phase-6/checklists/) holds the per-stage checklists. Its implementation report is reserved at `docs/implementation/phase-6-install-reliability/implementation-report-0.3.6.md`.
 
 Read the [shared architecture and contracts](architecture-and-contracts.md) before any phase and consult [source review and decision register](source-review-and-decisions.md) when selecting versions or adapters.
 

@@ -14,12 +14,12 @@ from . import __version__
 from .bundle import export_bundle
 from .documents import DocumentError, extract_document
 from .recommended import add_recommended_workspace
-from .workspace import initialize_workspace
+from .workspace import initialize_workspace, init_lab_workspace
 
 
 def inspect() -> dict[str, object]:
     packages = {}
-    for package in ("mcp", "pypdf", "python-docx"):
+    for package in ("mcp", "mcp-types", "pypdf", "python-docx"):
         try:
             packages[package] = importlib.metadata.version(package)
         except importlib.metadata.PackageNotFoundError:
@@ -44,6 +44,8 @@ def main(argv: list[str] | None = None) -> int:
     init.add_argument("workspace", type=Path)
     recommended = commands.add_parser("add-recommended", help="add the Researcher profile to an existing Basic workspace")
     recommended.add_argument("workspace", type=Path)
+    lab = commands.add_parser("init-lab", help="initialise the workspace corpus index and research record store")
+    lab.add_argument("--workspace", type=Path, required=True)
     read = commands.add_parser("read", help="extract a bounded range from PDF or DOCX")
     read.add_argument("document", type=Path)
     read.add_argument("--start", type=int, default=1)
@@ -59,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
             result = initialize_workspace(args.workspace)
         elif args.command == "add-recommended":
             result = add_recommended_workspace(args.workspace)
+        elif args.command == "init-lab":
+            result = init_lab_workspace(args.workspace)
         elif args.command == "export-bundle":
             result = export_bundle(args.output, args.sources)
         else:

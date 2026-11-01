@@ -1,0 +1,43 @@
+# Phase 5 acceptance — 0.3.5 stabilization
+
+Revision: 0.3.5-preview. These tests do not close G1–G4 and do not replace the outstanding reference-host receipts.
+
+| Test | Procedure | Pass condition |
+|---|---|---|
+| T5-01 Containment | Plant a symlink and (on Windows) a junction at the store directory, the store file, the backup directory, the lab-state parent, the notebook `.venv` and a CLI template destination; run the store step, the CLI workspace init and the notebook step | Each operation refuses before writing, names the offending path, and nothing appears outside the workspace |
+| T5-02 Evidence durability | Index a source, link a claim to a chunk, mark it `supported`, change the source, re-index, then read the claim | The old chunk is retained and resolvable, the link reports `current: false`/`stale: true`, retrieval no longer returns the stale chunk, and the claim reports that its assessment is recorded rather than proven |
+| T5-03 Duplicate content | Index two files with identical bytes at different paths | Indexing succeeds; two occurrence rows exist with distinct `chunk_id`, equal `content_id`, and correct per-source accounting |
+| T5-04 Empty source | Index a file, empty it, re-index it | The previous chunks are no longer current and no longer searchable; the source row records zero chunks; the response states the empty outcome |
+| T5-05 Backup | Take two backups at the same controlled timestamp with a write between them | Two distinct files, each integrity-checked, with schema version, counts and SHA-256 recorded; nothing overwritten |
+| T5-06 Restore | Restore a backup into a workspace whose live store has changed, first unconfirmed then confirmed | Unconfirmed run leaves the live store untouched and reports the candidate; confirmed run activates the candidate and preserves the previous live store as a named file |
+| T5-07 Schema lifecycle | Set `schema_version` to an unsupported value and re-initialize; then set it to a supported older value | Unsupported → `STORE_SCHEMA_UNSUPPORTED` with no mutation; supported older → explicit migration to the current version |
+| T5-08 Read-only reads | Delete a metadata row, then read claims; run `reindex_preview` in a workspace with no store | Reads leave the file byte-identical; the preview reports no store and creates none |
+| T5-09 Error envelope | Index a missing path, trigger a constraint and a busy case through the lab MCP verbs | Every case returns the documented error envelope with a stable code, not a raw SQLite or protocol error |
+| T5-10 Claim discovery | Store an open claim and a supported claim, then read `status="supported"` with `limit=1`; page past 200 claims | Filtering happens before limiting; pagination returns every claim with a cursor |
+| T5-11 Claim identity | Create the same statement twice in one second; retry with an idempotency key | No integrity failure; the retry returns the existing claim marked idempotent |
+| T5-12 Evidence semantics | Attach supporting and contradicting links with rationale, replace them, remove one, then read the claim history | Roles and rationale persist, removal works, and the event history shows each mutation |
+| T5-13 Dependency closure | Request `lab-store` alone after a full install, and again in a fresh workspace; run a partial update with one outdated step | Installed prerequisites are accepted; missing ones are added and reported; only steps needing work run |
+| T5-14 Artifact-aware status | Delete the managed interpreter after a recorded install; omit the optional notebook step | Status reports `needs-repair` with the missing artifact named; repair re-runs only that step; an omitted optional step is reported as a deliberate omission |
+| T5-15 Overlay conflicts | Hand-edit an overlay file, re-run the step | The file is preserved byte-for-byte, classified `modified-preserved`, and the step does not claim a clean upgrade |
+| T5-16 Status vs check | Run the quick component-status action after an external change to the receipt | The plan receipt is re-read and artifacts re-verified without starting the MCP functional check |
+| T5-17 Upgrade lifecycle | Place a 0.3.4 receipt in a workspace, run 0.3.5 setup, then simulate a failed candidate | The prior receipt is discovered, the candidate is verified before activation, the active pointer names one runtime, and rollback re-activates the previous verified runtime |
+| T5-18 Notebook ownership | Run the notebook step over (a) the reviewed project, (b) an unrelated valid project, (c) a compatible custom project | (a) owned and synced; (b) refused before any package management; (c) accepted as a compatible existing project; the interpreter and required imports are verified in the accepted cases |
+| T5-19 Atomic state | Interrupt a plan and inspect the receipt; run two plans concurrently | The receipt is always valid JSON, the lock covers the whole plan, and completed steps survive |
+| T5-20 Derived-data hygiene | Complete the store step in a fresh workspace | The workspace ignore rules cover `.research-toolkit/store/` and its backups, and the store step reports what the store contains |
+| T5-21 Continuous workflow | Enumerate presets and their tools | `research-workflow` is the Full default with 11 toolkit tools covering read/index/search/resolve/claim/export; ≥20 tools of headroom; every preset's stated goal matches its tools |
+| T5-22 Notes reopening | Search Markdown, then read the hit with `read_text_source` using the returned locator | The passage and adjacent context are returned; no `UNSUPPORTED_FORMAT` |
+| T5-23 Evidence resolution | Call `evidence_read` with ids returned by `search_corpus` and ids from a claim read | Each id resolves to path, locator, text hash and freshness; unknown ids are reported, not invented |
+| T5-24 Report validation | Attempt a report citing a missing file with a malformed hash; then export claims from the store into a report | The invalid citation is refused with an actionable error; the exported report carries store-resolved references; DOCX renders headings/lists/tables, not flat paragraphs |
+| T5-25 Coverage honesty | Read a long document with a bounded range | The response states total pages/items, the range returned and whether output is truncated |
+| T5-26 Annotation audit | Inspect `tools/list` annotations for every verb | Remove/index modes, maintenance verbs and network tools carry annotations matching their real effects; read verbs are read-only |
+| T5-27 DOCX order | Extract a paragraph/table/paragraph document | Text appears in document order with table/row locators |
+| T5-28 DOI normalization | Normalize `10.1234/example(2026)`, `doi:10.1234/a.`, `https://dx.doi.org/10.1234/b)` | Balanced punctuation preserved, delimiters removed, invalid values still rejected |
+| T5-29 Merge retention | Merge three provider records with three different titles and abstracts | All three values with provenance remain; the displayed value follows the documented rule; `evidenceScope` reflects the merged abstract |
+| T5-30 Malformed rows | Feed a provider row with `author: null` and a non-dict entry | The malformed row is skipped with a warning; the remaining rows are returned |
+| T5-31 Provider states | Simulate total outage, one provider failing, and all providers succeeding with zero records | States are `unavailable`, `partial` and `empty` respectively; DOI lookup uses the configured Crossref request policy |
+| T5-32 Preset identity | Change the preset with a fixed runtime version | The MCP definition version changes with the preset/tool fingerprint, and the panel distinguishes saved from applied state |
+| T5-33 Single dispatch | Send a setup click and an update click through the panel message path | Exactly one message per click; no unsupported-action error |
+| T5-34 Scope binding | Measure a surface in folder A, switch to folder B with no managed runtime | The prior measurement is cleared; partial coverage is labelled mixed, external counts labelled as estimates |
+| T5-35 Preset scope | Save a preset with the workspace option in a multi-root workspace and open the preset Quick Pick | The value is stored at the selected folder scope, reads honour that scope, and recently used presets appear first |
+| T5-36 Current acceptance tests | Run the Node and Python suites, including the host and browser acceptance files, on a standard unprivileged account | No assertion references an older release or an obsolete plan shape; link fixtures use junctions |
+| T5-37 Documentation truth | Inspect the READMEs, guides and evidence hub | Current version everywhere, corpus preset dependency stated, downloader claim accurate, historical status marked historical |

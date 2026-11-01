@@ -13,3 +13,15 @@ papers/*
 
 # NotebookLM handoff bundles may contain source text.
 notebooklm-export/
+
+# Derived research data. The corpus index and record store hold copied source text, claim
+# statements and evidence links; backups are copies of the same data. None of it is shareable
+# just because the workspace is a repository.
+.research-toolkit/store/
+.research-toolkit/backups/
+.research-toolkit/lab-state.json
+.research-toolkit/managed/.setup.lock
+
+# Setup status and attempt logs record which component steps ran, which host tools were
+# used and what failed. They name workspace paths, so they stay local too.
+.research-toolkit/logs/
