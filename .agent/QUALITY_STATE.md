@@ -86,6 +86,18 @@ evidence (63 items) with verification-status footers naming the residual limits.
 [specs/phase-5/checklists/](../specs/phase-5/checklists/) (161 items). `evidence/phase-4/gate-report.md` keeps
 the 0.3.2 and 0.3.5 receipts historical and names the 0.3.6 receipts.
 
+## Release record — 2 November 2026
+
+- Committed as `235df2e3` ("Release Research Stack Toolkit 0.3.6", 201 files) and tagged **v0.3.6**
+  (annotated, naming the artifact digest and the open gates). The commit also carries the previously
+  uncommitted 0.3.3–0.3.5 work; the working tree is clean.
+- The six `dist/acceptance-*` verification trees (~227 MB, 0.3.0–0.3.2) were archived outside the repository
+  to `archive/research-stack-acceptance/acceptance-trees-2026-11-02.tar.gz` (9,073 entries, sha256
+  `1613fc5aa845ee981d0c42ea36bbc5cacd2c37899b4d3681ebbd5b288809caad`, restore notes in that folder's
+  `README.md`) and removed from `dist/`. `dist/` is now 1.1 MB.
+- After the commit, `scripts/verify_vsix.py` was re-run against the artifact: `result: "passed"`,
+  `sourceFilesMatch: true` — the tagged tree is the tree the audit checked.
+
 ## Next highest-value action
 
 1. Run the 0.3.6 acceptance path on a real host: `npm run test:host`, `node test/browser.test.js`, a real
