@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "pairs": {
+    "extension/worker/pyproject.toml": {
+      "lock": "extension/worker/uv.lock",
+      "lockRevision": 5,
+      "ok": true,
+      "rootVersion": "0.3.7"
+    },
+    "pyproject.toml": {
+      "lock": "uv.lock",
+      "lockRevision": 5,
+      "ok": true,
+      "rootVersion": "0.3.7"
+    },
+    "templates/recommended-overlay/notebooks/analysis/pyproject.toml": {
+      "lock": "templates/recommended-overlay/notebooks/analysis/uv.lock",
+      "lockRevision": 3,
+      "ok": true,
+      "rootVersion": "0.1.0"
+    }
+  },
+  "problems": []
+}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import importlib.util
 import zipfile
@@ -16,7 +17,16 @@ EXPECTED = _VERIFIER.EXPECTED
 verify = _VERIFIER.verify
 
 
-def _write_vsix(path: Path, *, include_extra: bool = False) -> Path:
+def _drift(lock_text: str) -> str:
+    """Wind the lock's root package version back to the one 0.3.6 recorded."""
+    import re
+
+    pattern = re.compile(r'(name = "research-stack-basic"\nversion = ")[^"]+(")')
+    assert pattern.search(lock_text), "the packaged lock has no root package entry to wind back"
+    return pattern.sub(r"\g<1>0.3.4\g<2>", lock_text, count=1)
+
+
+def _write_vsix(path: Path, *, include_extra: bool = False, stale_worker_lock: bool = False) -> Path:
     manifest = {
         "name": "research-stack-toolkit",
         "version": "0.1.0",
@@ -38,6 +48,16 @@ def _write_vsix(path: Path, *, include_extra: bool = False) -> Path:
         relative = name.removeprefix("extension/")
         members[name] = (extension_root / relative).read_bytes()
     assert set(members) == EXPECTED
+    if stale_worker_lock:
+        # The 0.3.6 packaging mistake: the lock beside the manifest records another version.
+        # Both the member and the mirrored source carry it, and the bundle manifest is re-hashed,
+        # so the payload and bundle-hash gates stay clean and only the packaged-pair check can
+        # catch it — which is exactly how a real stale build reaches those gates today.
+        drifted = _drift(members["extension/worker/uv.lock"].decode()).encode("utf-8")
+        members["extension/worker/uv.lock"] = drifted
+        bundle = json.loads(members["extension/worker/bundle.json"])
+        bundle["files"]["uv.lock"] = hashlib.sha256(drifted).hexdigest()
+        members["extension/worker/bundle.json"] = json.dumps(bundle, indent=2).encode("utf-8")
     if include_extra:
         members["extension/.env"] = b"secret"
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -112,3 +132,23 @@ def test_vsix_verifier_audits_gui_assets(tmp_path: Path, member: str) -> None:
             target.writestr(name, b"tampered asset" if name == member else source.read(name))
     with pytest.raises(ValueError, match="does not match project source"):
         verify(altered, source_root)
+
+
+def test_vsix_verifier_refuses_a_packaged_worker_whose_lock_is_stale(tmp_path: Path) -> None:
+    """T7-07: the 0.3.6 artifact would have been caught before it reached a user's machine.
+
+    The tampered lock is in the package *and* in the mirrored source, so the payload comparison
+    passes and only the packaged-pair check can refuse the build.
+    """
+    package = tmp_path / "stale-lock.vsix"
+    source_root = _write_vsix(package, stale_worker_lock=True)
+
+    with pytest.raises(ValueError, match="packaged lockfile is stale"):
+        verify(package, source_root)
+
+
+def test_vsix_verifier_accepts_the_packaged_pair_as_this_release_ships_it(tmp_path: Path) -> None:
+    package = tmp_path / "current.vsix"
+    source_root = _write_vsix(package)
+    result = verify(package, source_root)
+    assert result["result"] == "passed"

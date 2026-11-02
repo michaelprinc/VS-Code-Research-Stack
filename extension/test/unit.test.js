@@ -12,7 +12,7 @@ test("manifest exposes GUI and package commands with matching contributions and 
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "vsix-manifest.json"), "utf8"));
   const releaseVersion = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8")).version;
   assert.equal(manifest.version, releaseVersion, "the packaged manifest and the extension manifest are the same release");
-  assert.match(manifest.version, /^\d+\.\d+\.\d+$/, "the release version is a plain semantic version");
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/, "the release version is a version vsce can package: one to three numbers");
   assert.equal(manifest.main, "./extension.js");
   assert.ok(manifest.activationEvents.includes("onStartupFinished"));
   assert.ok(manifest.contributes.commands.some((item) => item.command === "researchToolkit.openControlPanel"));
@@ -23,9 +23,9 @@ test("manifest exposes GUI and package commands with matching contributions and 
   assert.equal(manifest.devDependencies, undefined);
   assert.equal(manifest.scripts, undefined);
   assert.equal(manifest.private, undefined);
-  const shippedAllowlist = ["README.md", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "media", "package.json", "preflight.js", "presets.json", "probe.py", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "worker"].sort();
+  const shippedAllowlist = ["README.md", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "lockfile.js", "media", "package.json", "preflight.js", "presets.json", "probe.py", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "worker"].sort();
   assert.deepEqual([...manifest.files].sort(), shippedAllowlist,
-    "the shipped allowlist names every module the controller requires, including the 0.3.6 setup modules");
+    "the shipped allowlist names every module the controller requires, including the 0.3.6 setup modules and the 0.3.7 lock reader");
   assert.deepEqual(manifest.contributes.configuration.properties["researchStack.toolsPreset"].enum, ["package-default", "read-and-cite", "find-in-notes", "verify-citations", "zotero-handoff", "research-core", "research-workflow", "research-lab", "research-lab-max", "corpus-lab"]);
   assert.equal(manifest.contributes.configuration.properties["researchStack.toolsPreset"].default, "package-default");
   assert.equal(manifest.contributes.configuration.properties["researchStack.toolsPreset"].scope, "application-overridable", "a preset can be overridden per workspace folder");

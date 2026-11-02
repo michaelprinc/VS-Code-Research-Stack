@@ -24,6 +24,9 @@ VSIX_MANIFEST = ROOT / "extension" / "vsix-manifest.json"
 RUNTIME_JS = ROOT / "extension" / "runtime.js"
 WORKER_BUNDLE = ROOT / "extension" / "worker" / "bundle.json"
 
+# `@vscode/vsce` validates the extension manifest with `semver.valid`, and the VS Code Marketplace
+# accepts "one to three numbers" (microsoft/vscode-vsce #415, closed as designed). A four-part version
+# such as 0.3.6.1 cannot be packaged at all, so the release identity is three-part and stays strict.
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 
 
@@ -105,3 +108,30 @@ def test_worker_bundle_records_the_extension_version() -> None:
     )
     assert bundle.get("workerVersion") == _runtime_constant("WORKER_VERSION")
     assert bundle.get("schemaVersion") == 2
+
+
+def test_managed_folder_pattern_accepts_this_release() -> None:
+    """`discoverRuntimes` must see the folder this release names, or the runtime becomes invisible."""
+    match = re.search(r"const WORKER_FOLDER_PATTERN = (/[^/]+/);", _read(RUNTIME_JS))
+    assert match is not None, "extension/runtime.js does not declare const WORKER_FOLDER_PATTERN"
+    pattern = re.compile(match.group(1)[1:-1])
+    worker_version = _runtime_constant("WORKER_VERSION")
+    assert pattern.fullmatch(f"worker-{worker_version}"), (
+        f"WORKER_FOLDER_PATTERN {match.group(1)} does not accept this release's managed folder "
+        f"worker-{worker_version}; discovery, activation and rollback would skip the current runtime"
+    )
+    for folder in ("worker-0.3.6", "worker-0.3.7", "worker-0.4.0"):
+        assert pattern.fullmatch(folder), f"{folder} must be discoverable"
+    # A four-part name is not a runtime this toolkit can produce: vsce refuses to package such a
+    # version, so accepting it here would only hide a manifest that cannot be built.
+    assert pattern.fullmatch("worker-0.3.6.1") is None, "a four-part managed folder is not a shippable runtime"
+    assert pattern.fullmatch("worker-0.3") is None, "a partial version is not a runtime"
+
+
+def test_release_version_is_one_vsce_can_package() -> None:
+    """`semver.valid` in `@vscode/vsce` accepts at most three numbers; a fourth makes packaging fail."""
+    version = _toml_version()
+    assert VERSION_PATTERN.fullmatch(version), (
+        f"{version!r} is not a version vsce can package: the extension manifest must be one to three "
+        "numbers (microsoft/vscode-vsce #415). `npm run package` would stop here."
+    )

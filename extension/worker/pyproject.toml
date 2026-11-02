@@ -1,6 +1,6 @@
 [project]
 name = "research-stack-basic"
-version = "0.3.6"
+version = "0.3.7"
 description = "Portable Phase 1 Basic and Phase 2 Recommended local research workspace tools"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"

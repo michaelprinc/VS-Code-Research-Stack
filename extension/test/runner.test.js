@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const os = require("node:os");
-const { runProcess, runFile, retryable, stderrTail, describe, setupEnvironment, MAX_BUFFER_BYTES, REPORT_LIMIT, asRunProcess } = require("../runner");
+const { runProcess, runFile, retryable, stderrTail, describe, setupEnvironment, conflictingUvVariables, scrubbedUvVariables, CONFLICTING_UV_VARIABLES, REVIEWED_UV_ENVIRONMENT, MAX_BUFFER_BYTES, REPORT_LIMIT, asRunProcess } = require("../runner");
 
 const node = process.execPath;
 
@@ -246,3 +246,79 @@ test("uv's transient stderr shape is attempted twice and both attempts are recor
   }
 });
 
+
+test("the reviewed uv environment removes host variables that would change the command's meaning (R7-11)", () => {
+  const host = {
+    PATH: "/usr/bin", HOME: "/home/researcher",
+    UV_INDEX_URL: "https://mirror.example.org/simple/", UV_DEFAULT_INDEX: "https://mirror.example.org/simple",
+    UV_LOCKED: "1", UV_FROZEN: "1", UV_OFFLINE: "1", UV_NO_DEV: "1", UV_EXCLUDE_NEWER: "2020-01-01",
+    UV_UPGRADE: "1", UV_SYSTEM_PYTHON: "1",
+    // Cost and authentication are the user's business: they do not change what the command means.
+    UV_CACHE_DIR: "/home/researcher/.cache/uv", UV_KEYRING: "on",
+  };
+  assert.deepEqual([...conflictingUvVariables(host)].sort(), ["UV_DEFAULT_INDEX", "UV_EXCLUDE_NEWER", "UV_FROZEN", "UV_INDEX_URL", "UV_LOCKED", "UV_NO_DEV", "UV_OFFLINE", "UV_SYSTEM_PYTHON", "UV_UPGRADE"]);
+  const env = setupEnvironment("/w/.research-toolkit/managed/worker-0.3.6.1", host);
+  for (const name of CONFLICTING_UV_VARIABLES) assert.equal(env[name], undefined, `${name} must not reach uv`);
+  assert.equal(env.UV_CACHE_DIR, "/home/researcher/.cache/uv", "a cache location is not a meaning change");
+  assert.equal(env.UV_KEYRING, "on");
+  assert.equal(env.PATH, "/usr/bin");
+  assert.deepEqual({ UV_PYTHON_DOWNLOADS: env.UV_PYTHON_DOWNLOADS, UV_PYTHON: env.UV_PYTHON, UV_LINK_MODE: env.UV_LINK_MODE, UV_NO_PROGRESS: env.UV_NO_PROGRESS, UV_NO_CONFIG: env.UV_NO_CONFIG },
+    REVIEWED_UV_ENVIRONMENT, "the reviewed values are always set");
+  assert.equal(env.UV_PROJECT_ENVIRONMENT, path.join("/w/.research-toolkit/managed/worker-0.3.6.1", ".venv"));
+});
+
+test("a real setup child never sees a host mirror or a host lock mode", async () => {
+  const previous = { UV_INDEX_URL: process.env.UV_INDEX_URL, UV_LOCKED: process.env.UV_LOCKED };
+  process.env.UV_INDEX_URL = "https://mirror.example.org/simple/";
+  process.env.UV_LOCKED = "1";
+  try {
+    const result = await runProcess(node, ["-e", 'console.log(JSON.stringify({index: process.env.UV_INDEX_URL, locked: process.env.UV_LOCKED, noConfig: process.env.UV_NO_CONFIG, python: process.env.UV_PYTHON}))'], { cwd: os.tmpdir(), timeout: 8000, kind: "setup" });
+    const seen = JSON.parse(result.stdout.trim());
+    assert.equal(seen.index, undefined, "the child must not inherit a mirror");
+    assert.equal(seen.locked, undefined, "the child must not inherit a lock mode");
+    assert.equal(seen.noConfig, "1");
+    assert.equal(seen.python, "3.12");
+  } finally {
+    for (const [name, value] of Object.entries(previous)) { if (value === undefined) delete process.env[name]; else process[name] = value; }
+  }
+});
+
+test("a uv lock refusal is reported as a lock problem, not as a generic exit code (R7-08)", () => {
+  const refusal = "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.\n\nhint: To update the lockfile, run `uv lock`.";
+  const error = { kind: "exit", exitCode: 1, command: "/usr/local/bin/uv.exe", args: ["sync", "--locked"], cwd: "/w/.research-toolkit/managed/worker-0.3.6", stderr: refusal, message: "run failure", timeoutMs: 900000 };
+  const text = describe(error, "The first run can download a managed Python 3.12 and the locked packages.");
+  assert.match(text, /refused the locked dependency file/);
+  assert.match(text, /does not match the project file it ships beside it/);
+  assert.match(text, /not a network, proxy or interpreter problem/);
+  assert.match(text, /needs to be updated/, "uv's own sentence is kept, not replaced");
+  assert.equal(retryable(error), false, "a manifest/lock disagreement is not retried");
+});
+
+test("a retried timeout reports the wall time the operator actually waited (R7-17)", () => {
+  const error = { kind: "timeout", exitCode: null, command: "/usr/local/bin/uv", args: ["sync"], cwd: "/w", stderr: "", message: "run failure", timeoutMs: 900000, attempts: 2, durationMs: 1_803_000 };
+  const text = describe(error);
+  assert.match(text, /did not finish within 900 s per attempt \(2 attempt\(s\) ran\)/);
+  assert.match(text, /Total time waited across 2 attempt\(s\): 1803 s/);
+  const single = describe({ ...error, attempts: 1, durationMs: 900000 });
+  assert.match(single, /Total time waited across 1 attempt\(s\): 900 s/);
+});
+
+
+test("a stripped host uv setting is named in the failure the operator reads (R7-11)", async () => {
+  const path = require("node:path");
+  const host = { ...process.env, UV_OFFLINE: "1", UV_INDEX_URL: "https://mirror.example/simple/" };
+  const previous = process.env;
+  process.env = host;
+  try {
+    assert.equal(scrubbedUvVariables(host), " Before this command ran, the toolkit removed 2 uv setting(s) inherited from the editor process (UV_INDEX_URL, UV_OFFLINE) and applied its own reviewed uv settings; if this command depends on those settings, run it yourself in a terminal.");
+    assert.equal(scrubbedUvVariables({ PATH: "/usr/bin" }), "", "nothing to report when nothing was removed");
+    const message = describe({
+      kind: "exit", exitCode: 2, command: "uv", args: ["sync", "--locked"], cwd: "/w",
+      stderr: "error: Request failed after 3 retries", attempts: 1, durationMs: 1200, timeoutMs: 900000,
+      scrubbedUv: scrubbedUvVariables(host),
+    }, "hint");
+    assert.match(message, /removed 2 uv setting\(s\) inherited from the editor process \(UV_INDEX_URL, UV_OFFLINE\)/);
+  } finally {
+    process.env = previous;
+  }
+});

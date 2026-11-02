@@ -1,0 +1,96 @@
+npm notice run research-stack-toolkit@0.3.7 check:payload
+npm notice run node scripts/with-artifact.js node scripts/check-installed-payload.js
+{
+  "artifact": "research-stack-toolkit-0.3.7.vsix",
+  "version": "0.3.7",
+  "workerBundle": {
+    "files": 19,
+    "overlayFiles": 11,
+    "workerVersion": "0.3.7"
+  },
+  "commands": 25,
+  "receipt": {
+    "extensionVersion": "0.3.7",
+    "workerVersion": "0.3.7",
+    "managedPath": ".research-toolkit/managed/worker-0.3.7"
+  },
+  "presets": {
+    "recommendedDefault": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "research-core"
+      },
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "research-core"
+      }
+    ],
+    "readAndCite": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "read-and-cite"
+      }
+    ],
+    "verifyCitations": [
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "verify-citations"
+      }
+    ],
+    "researchLabMax": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "research-lab-max"
+      },
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "research-lab-max"
+      }
+    ],
+    "corpusLab": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "corpus-lab"
+      },
+      {
+        "module": "research_stack.lab_server",
+        "preset": "corpus-lab"
+      }
+    ],
+    "researchWorkflow": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "research-workflow"
+      },
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "research-workflow"
+      },
+      {
+        "module": "research_stack.lab_server",
+        "preset": "research-workflow"
+      }
+    ]
+  },
+  "gui": {
+    "presets": 9,
+    "measuredToolkitTokens": 3034,
+    "widestPresetTokens": 59780,
+    "widestPresetContextPercent": 46.7
+  },
+  "refresh": {
+    "states": 7
+  },
+  "help": {
+    "guides": 32
+  },
+  "failedSetup": {
+    "outcome": "partial",
+    "blocked": [
+      "notebook-env"
+    ],
+    "logFiles": 1,
+    "verdict": "Installation incomplete — 1 step(s) verified, 2 need attention (Isolated locked worker (Python 3.12), Notebook analysis environment). 1 of 3 package steps are installed in this workspace."
+  },
+  "result": "passed"
+}

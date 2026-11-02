@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.3.7 — 2 November 2026 · A shipped lock that matches its own project file, and a refusal that says so
+
+This release answers the report filed against 0.3.6: the VSIX installed and component setup ran, but the isolated worker step failed and the panel read **"Installation incomplete — 1 step(s) verified, 1 need attention (Isolated locked worker (Python 3.12)). 1 of 4 package steps are installed in this workspace."** The step log held the whole diagnosis — ``uv.exe sync failed with exit code 1: Resolved 40 packages in 63ms | The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`.`` in `.research-toolkit/managed/worker-0.3.6`. The cause was in the toolkit build, not in the workspace: `extension/worker/pyproject.toml` declared `version = "0.3.6"` while the `extension/worker/uv.lock` beside it still recorded the root package `research-stack-basic` at `0.3.4`. uv compares a lockfile with the project metadata *before* it honours `--locked`, so it refused the pair on every managed setup and on every uv version. It is a packaging defect in the toolkit build — not a network, proxy, interpreter or workspace problem — but 0.3.6 reported it as a generic step failure, which is why it took a field user to find it.
+
+**The shipped pair, repaired with provenance**
+
+- `extension/worker/uv.lock` was regenerated with a pinned uv 0.13.6 rather than hand-edited: `revision = 3 → 5` and the root entry `version = "0.3.4" → "0.3.7"`. The 40-package resolved set and the 39 third-party version pins are unchanged, and the regenerated file is byte-identical to the packaged one (`evidence/quality-v0.3.7-2026-11-02/lock-provenance.json`).
+
+**Setup refuses its own build before it touches anything**
+
+- New reviewed module `extension/lockfile.js`: a uv-free reader of `pyproject.toml` and `uv.lock` that reports every reason uv would call the pair stale — the lock's root package name and version, `requires-python`, the dependency specifiers and the dependency groups — and recognises uv's refusal from uv's own sentence (`DRIFT_SIGNATURE`), never from an exit code. It starts no process and writes nothing.
+- `setupRuntime` in `extension/runtime.js` compares the bundled pair before it takes the setup lock, creates a directory or starts a process, and refuses a build whose pair disagrees: *"This toolkit build ships a locked dependency file that does not match its own project file: … No process ran and no file was written. Reinstall the Research Stack Toolkit VSIX; this is a defect in the toolkit build, not in this workspace."*
+
+**One recorded fallback, never a silent one**
+
+- The worker step still runs `uv sync --locked …` first. Only when uv's refusal is recognised as lock drift does it run exactly one `uv sync --frozen …`, which installs exactly the packages the shipped lock pins without rewriting it (`extension/runtime.js`). `lockFallbackNote` in `extension/steps.js` puts the detection, the problems and uv's own message into the step evidence, so the panel, the receipt and **Copy Installation Diagnostics** all name a fallback install as a fallback.
+- Lock drift is not retried as a transient failure. The toolkit never runs `uv lock` inside a managed runtime — `extension/worker/bundle.json` hashes the shipped lock and `validateWorker` verifies that hash — and never issues a plain unlocked `uv sync`.
+
+**Failure text a user can act on**
+
+- `extension/runner.js` describes a lock refusal as a lockfile and a project file that do not match, explicitly *not* a network, proxy or interpreter problem, and keeps uv's own lines and the cwd. A timeout now reports the bound per attempt, how many attempts ran, and the total time waited across them.
+- `runner.setupEnvironment` strips the 15 `UV_*` names that change what the reviewed command means (`UV_INDEX`, `UV_INDEX_URL`, `UV_DEFAULT_INDEX`, `UV_EXTRA_INDEX_URL`, `UV_FIND_LINKS`, `UV_NO_INDEX`, `UV_LOCKED`, `UV_FROZEN`, `UV_UPGRADE`, `UV_NO_SYNC`, `UV_OFFLINE`, `UV_NO_DEV`, `UV_SYSTEM_PYTHON`, `UV_EXCLUDE_NEWER`, `UV_PYTHON_PREFERENCE`) before applying the reviewed environment, so a host mirror or a stray `UV_LOCKED` can no longer make a correct lock look stale.
+
+**Build gates**
+
+- `scripts/lockintegrity.py` is the uv-free pair reader, and a CLI (`python3 scripts/lockintegrity.py`, exit 1 on drift). `scripts/build_worker_bundle.py` refuses a stale pair before and after writing the bundle; `scripts/verify_vsix.py` refuses a packaged worker or packaged notebook overlay whose pair is stale; `tests/test_lock_consistency.py` gates the repository pairs, the bundled bytes against the repository bytes, the unchanged pins, the lock revision the declared uv floor can read, six synthetic drift fixtures, the bundle builder's refusal and acceptance, the CLI's exit codes, and uv's own `uv lock --check` when `RESEARCH_STACK_UV` names a real uv.
+- `npm run verify-package` and `npm run check:payload` derive the artifact path from `extension/vsix-manifest.json` through `extension/scripts/with-artifact.js`, so a gate can no longer audit the previous release's bytes.
+
+**Timeouts and the reading check**
+
+- The MCP reading check honours the operator's bound — `Math.max(90000, researchStack.setupTimeoutSeconds)` — instead of a fixed 90 s floor (`extension/runtime.js`), so a longer setup timeout is not silently cut by the check that follows the sync.
+
+**Release identity and verification**
+
+- Version 0.3.7 in `pyproject.toml`, `src/research_stack/__init__.py`, `extension/package.json`, `extension/vsix-manifest.json` and `extension/runtime.js` `WORKER_VERSION`; the managed worker folder is `.research-toolkit/managed/worker-0.3.7`. A four-part version such as `0.3.6.1` cannot be packaged at all: `@vscode/vsce` validates the extension manifest with `semver.valid`, which accepts at most three numbers ([microsoft/vscode-vsce #415](https://github.com/microsoft/vscode-vsce/issues/415), closed as designed), so the release is 0.3.7 and `tests/test_release_identity.py` now rejects any identity the packager would refuse.
+- `cd extension && npm test` → **168 passed, 0 failed** across the fifteen test files the script runs, new `test/lockfile.test.js` (21 tests over the pyproject/uv.lock reader, uv's refusal signature, the shipped worker pair and the shapes real uv writes for extras, markers, dependency groups, optional dependencies and TOML literal strings) among them. `.venv/bin/python -m pytest` → **155 passed** with `RESEARCH_STACK_UV` naming a real uv, **154 passed + 1 skipped** without one; the skip is `tests/test_lock_consistency.py`'s `uv lock --check` gate, and that file is new with 38 tests. `dist/research-stack-toolkit-0.3.7.vsix` (86 files, 301 366 bytes) passes `npm run verify-package`, including the packaged-pair check, and `npm run check:payload`. Receipts: `evidence/quality-v0.3.7-2026-11-02/`.
+- Detection is signature-based because uv's refusal exit code is not stable: on a drifted pair uv 0.8.5, 0.9.30, 0.10.7 and 0.13.6 exit 1 while uv 0.5.0, 0.6.10 and 0.7.22 exit 2, all seven printing the same sentence (`evidence/quality-v0.3.7-2026-11-02/uv-matrix.json`).
+- Out of scope for this release, unchanged from 0.3.6: the real reference-host receipts for the G1–G4 profile gates on Windows 11 x64 / VS Code Desktop 1.141.0, including the Extension Host and browser renderer receipts, are **still outstanding**, and the reported field workspace has not yet been re-run with this VSIX. Basic and Research remain prototypes; the toolkit still does not install uv itself, does not run setup silently or in the background, does not execute notebook kernels, does not connect to external providers, and does not build the extraction-to-index bridge. This version does not complete G4.
+
 ## 0.3.6 — 1 November 2026 · Component installation that works, and a status that says what happened
 
 This release answers the report filed against 0.3.5: the VSIX installed and activated, but **no component was installed** and the panel said only "Not installed in this workspace". The causes were host-tool lookup limited to the editor process `PATH`, subprocess failures collapsed into three canned sentences, a 240 s first-run timeout, a plan that aborted at the first failure, a lock with no age or owner check, and a GUI with no verdict. Each is fixed, and the install path is now split into modules that can be tested on their own.

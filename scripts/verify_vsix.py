@@ -10,6 +10,9 @@ import sys
 import zipfile
 from pathlib import Path, PurePosixPath
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lockintegrity
+
 EXPECTED = {
     "[Content_Types].xml",
     "extension.vsixmanifest",
@@ -27,6 +30,7 @@ EXPECTED = {
     "extension/setuplog.js",
     "extension/steps.js",
     "extension/status.js",
+    "extension/lockfile.js",
     "extension/probe.py",
     "extension/components.json",
     "extension/presets.json",
@@ -262,6 +266,18 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
                 source = (_REPO_ROOT / relative) if not relative.startswith('overlay/') else (_REPO_ROOT / 'templates/recommended-overlay' / relative.removeprefix('overlay/'))
                 if payload != source.read_bytes():
                     raise ValueError(f'worker bundle drift from repository source: {relative}')
+        # The packaged pairs are the pairs a host runs `uv sync --locked` against, so they are compared
+        # as packaged bytes and not only as the repository tree: 0.3.6 shipped a worker lock that still
+        # recorded the 0.3.4 project version, and every managed setup on a real host stopped there.
+        packaged_problems: list[str] = []
+        for prefix in ("extension/worker", "extension/worker/overlay/notebooks/analysis"):
+            packaged_problems.extend(lockintegrity.check_pair_text(
+                archive.read(f"{prefix}/pyproject.toml").decode("utf-8"),
+                archive.read(f"{prefix}/uv.lock").decode("utf-8"),
+                f"packaged {prefix}/uv.lock",
+            ))
+        if packaged_problems:
+            raise ValueError("packaged lockfile is stale: " + "; ".join(packaged_problems))
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
     reviewed_dynamic_code_boundary = (
         f"{len(python_members)} packaged Python members scanned for eval(, exec(, __import__(, "

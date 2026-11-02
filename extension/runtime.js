@@ -3,9 +3,10 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
-const { runProcess, asRunProcess } = require("./runner");
+const { runProcess, asRunProcess, stderrTail } = require("./runner");
 const { resolverFrom } = require("./hosttools");
-const WORKER_VERSION = "0.3.6";
+const { pairProblems, isLockDrift } = require("./lockfile");
+const WORKER_VERSION = "0.3.7";
 // The managed worker folder name is derived from the version so a release cannot leave one stale.
 const WORKER_FOLDER = `.research-toolkit/managed/worker-${WORKER_VERSION}`;
 const componentCatalog = require("./components.json");
@@ -73,6 +74,30 @@ async function bundle(context) {
   }
   return { root, manifest };
 }
+/**
+ * Compare the worker `pyproject.toml` and `uv.lock` this VSIX ships. An empty list means uv would
+ * accept them; any entry is a reason `uv sync --locked` would refuse this build.
+ */
+async function bundledPairProblems(source) {
+  return pairProblems(
+    await fs.readFile(path.join(source, "pyproject.toml"), "utf8"),
+    await fs.readFile(path.join(source, "uv.lock"), "utf8"),
+  );
+}
+
+/**
+ * The same comparison, but a reader that cannot parse the pair is a finding, not a crash. A shipped
+ * runtime must report "this build is broken" in its own words; it must not surface a stack trace from
+ * the reader instead of the packaging defect.
+ */
+async function readBundledPair(source) {
+  try {
+    return { problems: await bundledPairProblems(source), readerError: null };
+  } catch (error) {
+    return { problems: [], readerError: String((error && error.message) || error) };
+  }
+}
+
 async function validateWorker(worker, manifest) {
   for (const [relative, expected] of Object.entries(manifest.files)) {
     await directory(worker, path.dirname(relative).replace(/\\/g, "/"));
@@ -103,6 +128,9 @@ async function managedRuntime(context, folder) {
 }
 const MANAGED_FOLDER = ".research-toolkit/managed";
 const ACTIVE_POINTER_NAME = "active.json";
+// The managed folder is named from WORKER_VERSION, which is the extension version. `@vscode/vsce`
+// validates that version with `semver.valid`, which accepts at most three numbers, so a managed
+// runtime can only ever have a three-part name.
 const WORKER_FOLDER_PATTERN = /^worker-(\d+\.\d+\.\d+)$/;
 
 async function readJsonFile(file) {
@@ -198,7 +226,10 @@ async function functionalCheck(context, runtime, folder, document, services = {}
     if ((await fs.stat(resolved)).size > 50 * 1024 * 1024) throw new Error("Choose a document smaller than 50 MiB.");
     args.push("--workspace", root, "--document", path.relative(root, resolved));
   }
-  const executed = await asRunProcess(services)(runtime.python, args, { timeout: 90000, captureJsonFailure: true, signal: services.signal });
+  // The reading check is part of setup, so it honours the operator's setup bound instead of a fixed
+  // 90 s that a long sync setting would silently override.
+  const bound = Math.max(90000, Number.isFinite(Number(services.setupTimeoutMs)) ? Number(services.setupTimeoutMs) : 0);
+  const executed = await asRunProcess(services)(runtime.python, args, { timeout: bound, captureJsonFailure: true, signal: services.signal });
   let result;
   try { result = JSON.parse(executed.stdout); if (typeof result.ok !== "boolean") throw new Error(); }
   catch { throw new Error("Worker returned invalid check data. Retry setup; no runtime output was copied."); }
@@ -231,6 +262,19 @@ async function acquireSetupLock(managed) {
 async function setupRuntime(vscode, context, folder, services = {}) {
   const root = requireLocal(vscode, folder);
   const { root: source, manifest } = await bundle(context);
+  // The pair this VSIX ships is the pair the host is about to run `uv sync --locked` against. It is
+  // compared here, in-process and before a lock is taken or a directory is created, so a packaging
+  // mistake is named as a packaging mistake instead of arriving later as a uv refusal the operator has
+  // to interpret. 0.3.6 shipped a worker lock that still recorded the 0.3.4 project version.
+  const bundled = await readBundledPair(source);
+  if (bundled.readerError || bundled.problems.length) {
+    const detail = bundled.readerError
+      ? `its own dependency reader could not parse them (${bundled.readerError})`
+      : bundled.problems.join("; ");
+    const error = new Error(`This toolkit build ships a locked dependency file that does not match its own project file: ${detail}. No process ran and no file was written. Reinstall the Research Stack Toolkit VSIX; this is a defect in the toolkit build, not in this workspace.`);
+    error.lockDrift = { source: "bundled", problems: bundled.readerError ? [bundled.readerError] : bundled.problems };
+    throw error;
+  }
   // The host tool is resolved by the caller (the worker step / preflight) so the same resolution
   // result is reported in the GUI and in the setup log. A raw name lookup is kept only for callers
   // that did not resolve one, and it now searches the documented locations too.
@@ -266,15 +310,47 @@ async function setupRuntime(vscode, context, folder, services = {}) {
     }
     // Only this reviewed project is synced. Never use the research project's .venv/config.
     try { await directory(worker, ".venv"); await directory(worker, process.platform === "win32" ? ".venv/Scripts" : ".venv/bin"); } catch (error) { if (error.code !== "ENOENT") throw error; }
-    services.progress?.("Installing locked worker dependencies with Python 3.12. This can download packages…");
-    await asRunProcess(services)(uv, ["sync", "--locked", "--no-dev", "--python", "3.12", "--project", worker, "--no-config"], {
+    const syncArgs = (mode) => ["sync", mode, "--no-dev", "--python", "3.12", "--project", worker, "--no-config"];
+    const syncOptions = (hint) => ({
       // Same rule as every other step: the registry floor and the operator override, whichever is
       // longer. A short override must not cut a downloading sync below the reviewed bound.
       timeout: Math.max(((Number((componentCatalog.installSteps || []).find((item) => item.id === "worker") || {}).timeoutSeconds) || 900) * 1000,
         Number.isFinite(Number(services.setupTimeoutMs)) ? Number(services.setupTimeoutMs) : 0),
-      cwd: worker, signal: services.signal, kind: "setup", retry: true,
-      hint: "The first run can download a managed Python 3.12 and the locked packages.",
+      cwd: worker, signal: services.signal, kind: "setup", retry: true, hint,
     });
+    services.progress?.("Installing locked worker dependencies with Python 3.12. This can download packages…");
+    let lockFallback = null;
+    try {
+      await asRunProcess(services)(uv, syncArgs("--locked"), syncOptions("The first run can download a managed Python 3.12 and the locked packages."));
+    } catch (error) {
+      // A lock this build shipped that this host's uv calls stale is not a network fault and is not
+      // retried. One bounded fallback installs exactly what the shipped lock pins; the shipped lock is
+      // never rewritten, because `bundle.json` hashes it and `validateWorker` verifies that hash.
+      if (!isLockDrift(error)) throw error;
+      // The fallback is only for a disagreement this toolkit cannot reproduce: the shipped pair is
+      // re-read here, and if the toolkit's own reader agrees with uv, the build is broken and
+      // `--frozen` would install a resolution this uv already called stale. That case is refused with
+      // the packaging wording instead of softened into a warning.
+      const recheck = await readBundledPair(source);
+      if (recheck.readerError || recheck.problems.length) {
+        const detail = recheck.readerError
+          ? `its own dependency reader could not parse them (${recheck.readerError})`
+          : recheck.problems.join("; ");
+        const refusal = new Error(`This host's uv refused the locked dependency file this build ships (${stderrTail(error.stderr || error.message)}), and the toolkit's own check of the same pair agrees: ${detail}. Refusing to install a resolution this uv calls stale. Reinstall the Research Stack Toolkit VSIX; this is a defect in the toolkit build, not in this workspace.`);
+        refusal.lockDrift = { source: "bundled", problems: recheck.readerError ? [recheck.readerError] : recheck.problems, uvMessage: stderrTail(error.stderr || error.message) };
+        throw refusal;
+      }
+      services.progress?.("This host's uv did not accept the shipped lock as written. Installing exactly what the lock pins, without rewriting it…");
+      lockFallback = {
+        detectedAt: new Date().toISOString(),
+        problems: recheck.problems,
+        uvMessage: stderrTail(error.stderr || error.message),
+      };
+      await asRunProcess(services)(uv, syncArgs("--frozen"), {
+        ...syncOptions("Installed exactly the packages the shipped lock pins; the shipped lock was not rewritten."),
+        retry: false,
+      });
+    }
     const python = path.join(worker, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
     services.progress?.("Verifying MCP discovery, PDF/DOCX reading, reports, local search and RIS preparation…");
     const runtime = { worker, python, version: manifest.workerVersion };
@@ -287,7 +363,7 @@ async function setupRuntime(vscode, context, folder, services = {}) {
       previousVersion: prior.active && prior.active.version !== manifest.workerVersion ? prior.active.version : null,
       reason: "verified-setup",
     });
-    return { ...runtime, check, pointer, priorRuntimes: prior.runtimes.filter((item) => item.version !== manifest.workerVersion) };
+    return { ...runtime, check, pointer, lockFallback, priorRuntimes: prior.runtimes.filter((item) => item.version !== manifest.workerVersion) };
   } finally {
     if (lock) await lock.release();
   }

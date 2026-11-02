@@ -1,0 +1,11 @@
+== extension/worker
+Using CPython 3.12.16
+Resolved 40 packages in 2ms
+exit=0
+== templates/recommended-overlay/notebooks/analysis
+Using CPython 3.12.16
+Resolved 42 packages in 2ms
+exit=0
+== .
+Resolved 40 packages in 2ms
+exit=0

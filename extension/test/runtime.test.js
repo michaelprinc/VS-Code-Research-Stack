@@ -256,3 +256,145 @@ test("a rollback candidate that fails the reading check never becomes active (T5
   assert.equal(after.active.version, WORKER_VERSION, "a failed candidate does not move the active pointer");
   assert.equal(after.runtimes.find((item) => item.version === "0.3.4").active, false);
 });
+
+/** A worker bundle whose project file cannot be parsed at all: the reader must report, not crash. */
+async function unreadableBundleContext(t) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "research-unreadable-bundle-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  await fs.cp(path.join(__dirname, "..", "worker"), path.join(dir, "worker"), { recursive: true });
+  const worker = path.join(dir, "worker");
+  await fs.writeFile(path.join(worker, "pyproject.toml"), "[project\nname = \"research-stack-basic\"\nversion = \"", "utf8");
+  const { createHash } = require("node:crypto");
+  const manifest = JSON.parse(await fs.readFile(path.join(worker, "bundle.json"), "utf8"));
+  for (const group of ["files", "overlayFiles"]) {
+    for (const relative of Object.keys(manifest[group])) {
+      const target = group === "overlayFiles" ? path.join(worker, "overlay", relative) : path.join(worker, relative);
+      manifest[group][relative] = createHash("sha256").update(await fs.readFile(target)).digest("hex");
+    }
+  }
+  await fs.writeFile(path.join(worker, "bundle.json"), JSON.stringify(manifest, null, 2) + "\n");
+  return { extensionUri: { fsPath: dir } };
+}
+
+/** A worker bundle built from a stale tree: hashes match, the pair does not (the 0.3.6 packaging mistake). */
+async function staleBundleContext(t) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "research-stale-bundle-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  await fs.cp(path.join(__dirname, "..", "worker"), path.join(dir, "worker"), { recursive: true });
+  const worker = path.join(dir, "worker");
+  const pyproject = await fs.readFile(path.join(worker, "pyproject.toml"), "utf8");
+  await fs.writeFile(path.join(worker, "pyproject.toml"), pyproject.replace(`version = "${WORKER_VERSION}"`, 'version = "0.4.0"'));
+  const { createHash } = require("node:crypto");
+  const manifest = JSON.parse(await fs.readFile(path.join(worker, "bundle.json"), "utf8"));
+  for (const group of ["files", "overlayFiles"]) {
+    for (const relative of Object.keys(manifest[group])) {
+      const target = group === "overlayFiles" ? path.join(worker, "overlay", relative) : path.join(worker, relative);
+      manifest[group][relative] = createHash("sha256").update(await fs.readFile(target)).digest("hex");
+    }
+  }
+  await fs.writeFile(path.join(worker, "bundle.json"), JSON.stringify(manifest, null, 2) + "\n");
+  return { extensionUri: { fsPath: dir } };
+}
+
+test("setup refuses a bundled worker pair that uv would refuse, before any process or write (R7-07, T7-10)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const backend = services(root);
+  const harness = makeHarness({ folders: [folder] });
+  const context = await staleBundleContext(t);
+  const error = await setupRuntime(harness.vscode, context, folder, backend).catch((item) => item);
+  assert.match(error.message, /does not match its own project file/);
+  assert.match(error.message, new RegExp(`root package version ${WORKER_VERSION} does not match pyproject version 0\\.4\\.0`));
+  assert.equal(error.lockDrift.source, "bundled");
+  assert.deepEqual(backend.calls, [], "no host tool was run");
+  await assert.rejects(fs.stat(path.join(root, ".research-toolkit")), /ENOENT/, "nothing was written into the workspace");
+});
+
+test("a bundled pair the dependency reader cannot parse is refused as a build defect, not as a crash (R7-07)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const backend = services(root);
+  const harness = makeHarness({ folders: [folder] });
+  const context = await unreadableBundleContext(t);
+  const error = await setupRuntime(harness.vscode, context, folder, backend).catch((item) => item);
+  assert.ok(error instanceof Error, "setup rejected");
+  assert.match(error.message, /does not match its own project file/, "the operator reads the packaging-defect sentence, not a stack trace");
+  assert.equal(error.lockDrift.source, "bundled");
+  assert.ok(error.lockDrift.problems.length >= 1, "the reader's own failure is recorded as the problem");
+  assert.deepEqual(backend.calls, [], "no host tool was run");
+  await assert.rejects(fs.stat(path.join(root, ".research-toolkit")), /ENOENT/, "nothing was written into the workspace");
+});
+
+test("a host that calls the shipped lock stale gets exactly one recorded --frozen fallback (R7-09, R7-10, T7-12)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const base = services(root);
+  const backend = { ...base, runFile: async (executable, args, options) => {
+    if (args[0] !== "sync") return base.runFile(executable, args, options);
+    backend.calls.push({ executable, args, options });
+    if (args[1] === "--locked") {
+      const error = new Error("run failure");
+      error.kind = "exit"; error.exitCode = 1; error.attempts = 1;
+      error.stderr = "Resolved 40 packages in 63ms\nerror: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.\nhint: To update the lockfile, run `uv lock`.";
+      throw error;
+    }
+    const python = path.join(args[args.indexOf("--project") + 1], ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+    await fs.mkdir(path.dirname(python), { recursive: true }); await fs.writeFile(python, "fixture interpreter");
+    return "";
+  } };
+  const harness = makeHarness({ folders: [folder] });
+  const result = await setupRuntime(harness.vscode, harness.context, folder, backend);
+  const syncs = backend.calls.filter((call) => call.args[0] === "sync");
+  assert.deepEqual(syncs.map((call) => call.args[1]), ["--locked", "--frozen"], "one locked attempt, one frozen fallback, nothing else");
+  assert.ok(result.lockFallback, "the fallback is recorded on the runtime result");
+  assert.match(result.lockFallback.uvMessage, /needs to be updated/, "uv's own sentence is kept");
+  assert.deepEqual(result.lockFallback.problems, [], "the shipped pair itself is current, so this host caused the refusal");
+  assert.ok(result.check.ok, "the fallback runtime is still verified by the real reading check");
+});
+
+test("an ordinary sync failure gets no fallback, and plain `uv sync` is never issued (T7-13)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const base = services(root);
+  const backend = { ...base, runFile: async (executable, args, options) => {
+    if (args[0] !== "sync") return base.runFile(executable, args, options);
+    backend.calls.push({ executable, args, options });
+    const error = new Error("run failure");
+    error.kind = "exit"; error.exitCode = 2; error.stderr = "error: failed to fetch https://pypi.org/simple/pypdf/";
+    error.message = "uv sync failed with exit code 2: error: failed to fetch https://pypi.org/simple/pypdf/";
+    throw error;
+  } };
+  const harness = makeHarness({ folders: [folder] });
+  await assert.rejects(setupRuntime(harness.vscode, harness.context, folder, backend), /failed with exit code 2/);
+  const syncs = backend.calls.filter((call) => call.args[0] === "sync");
+  assert.equal(syncs.length, 1, "a network failure is not answered by a second, weaker command");
+  assert.ok(syncs.every((call) => ["--locked", "--frozen"].includes(call.args[1])), "the toolkit never runs an unlocked sync");
+});
+
+test("discovery sees this release's managed folder and rejects names the toolkit cannot ship (R7-14, T7-16)", async (t) => {
+  const { root } = await fixture(t);
+  const managed = path.join(root, MANAGED_FOLDER);
+  for (const name of ["worker-0.3.6", "worker-0.3.7", "worker-0.3.6.1", "worker-0.3"]) {
+    const folder = path.join(managed, name);
+    await fs.mkdir(path.join(folder, ".venv", process.platform === "win32" ? "Scripts" : "bin"), { recursive: true });
+    await fs.writeFile(path.join(folder, "installation.json"), JSON.stringify({ workerVersion: name.replace("worker-", ""), updatedAt: "2026-11-02T15:13:11.812Z", checks: { ok: true } }));
+  }
+  const discovered = await discoverRuntimes(root);
+  const versions = discovered.runtimes.map((item) => item.version).sort();
+  // `worker-0.3.6.1` and `worker-0.3` are not runtimes: vsce validates the extension version with
+  // semver.valid, which takes at most three numbers, so no release can ever name such a folder.
+  assert.deepEqual(versions, ["0.3.6", "0.3.7", WORKER_VERSION].filter((item, index, all) => all.indexOf(item) === index),
+    "shaped runtimes are discovered and malformed folder names are skipped");
+  const current = discovered.runtimes.find((item) => item.version === WORKER_VERSION);
+  assert.equal(current.thisRelease, true);
+  assert.equal(current.verified, true);
+  await activateRuntime(managed, { version: WORKER_VERSION, folder: path.join(managed, `worker-${WORKER_VERSION}`), previousVersion: "0.3.6", reason: "verified-setup" });
+  const after = await discoverRuntimes(root);
+  assert.equal(after.active.version, WORKER_VERSION, "the patch runtime can be made active");
+});
+
+test("the reading check honours the operator's setup bound instead of a fixed 90 s (R7-16, T7-19)", async () => {
+  const calls = [];
+  const servicesWithBound = { setupTimeoutMs: 1_800_000, async runFile(executable, args, options) { calls.push(options); return JSON.stringify({ ok: true, toolSurface: { servers: [], toolCount: 0 } }); } };
+  await functionalCheck({ extensionUri: { fsPath: "/ext" } }, { python: "/w/.venv/bin/python", worker: "/w", version: WORKER_VERSION }, undefined, undefined, servicesWithBound);
+  assert.equal(calls[0].timeout, 1_800_000, "a raised setup timeout raises the reading check too");
+  const defaultCalls = [];
+  await functionalCheck({ extensionUri: { fsPath: "/ext" } }, { python: "/w/.venv/bin/python", worker: "/w", version: WORKER_VERSION }, undefined, undefined, { async runFile(executable, args, options) { defaultCalls.push(options); return JSON.stringify({ ok: true, toolSurface: { servers: [], toolCount: 0 } }); } });
+  assert.equal(defaultCalls[0].timeout, 90000, "the reviewed floor still applies when nothing was raised");
+});

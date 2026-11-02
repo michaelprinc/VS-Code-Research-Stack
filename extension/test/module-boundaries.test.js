@@ -14,15 +14,16 @@ const path = require("node:path");
 
 const ROOT = path.join(__dirname, "..");
 const REVIEWED = {
-  "runner.js": [],
+  "runner.js": ["lockfile.js"],
   "hosttools.js": ["runner.js"],
   "setuplog.js": [],
   "status.js": [],
+  "lockfile.js": [],
   "preflight.js": ["hosttools.js", "runtime.js"],
-  "steps.js": ["runner.js", "runtime.js", "hosttools.js"],
+  "steps.js": ["runner.js", "runtime.js", "hosttools.js", "lockfile.js"],
   "installer.js": ["runtime.js", "steps.js", "preflight.js", "setuplog.js", "status.js"],
   "diagnostics.js": ["runner.js", "hosttools.js", "runtime.js", "installer.js"],
-  "runtime.js": ["runner.js", "hosttools.js"],
+  "runtime.js": ["runner.js", "hosttools.js", "lockfile.js"],
   "ui.js": [],
   "extension.js": ["ui.js", "diagnostics.js", "runtime.js", "installer.js", "setuplog.js", "status.js", "preflight.js", "steps.js", "hosttools.js", "runner.js"],
 };
