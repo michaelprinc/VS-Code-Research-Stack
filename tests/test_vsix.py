@@ -36,6 +36,7 @@ def _write_vsix(
     crlf_members: tuple[str, ...] = (),
     source_crlf: bool = False,
     build_clock: bool = False,
+    loose_modes: tuple[str, ...] = (),
 ) -> Path:
     manifest = {
         "name": "research-stack-toolkit",
@@ -85,6 +86,7 @@ def _write_vsix(
             # an unstamped VSIX irreproducible; the packaging step stamps every entry instead.
             entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0) if not build_clock else time.localtime()[:6])
             entry.compress_type = zipfile.ZIP_DEFLATED
+            entry.external_attr = (0o664 if name in loose_modes else 0o644) << 16
             archive.writestr(entry, content)
     source_root = path.parent / "source"
     source_root.mkdir(exist_ok=True)
@@ -217,3 +219,11 @@ def test_vsix_verifier_refuses_members_stamped_with_the_build_clock(tmp_path: Pa
     assert verify(stamped, source_root)["result"] == "passed"
     with pytest.raises(ValueError, match="build epoch"):
         verify(unstamped, source_root)
+
+
+def test_vsix_verifier_refuses_members_whose_permission_bits_come_from_the_build_tree(tmp_path: Path) -> None:
+    package = tmp_path / "loose-modes.vsix"
+    source_root = _write_vsix(package, loose_modes=("extension/guides/pypdf.md", "extension/worker/uv.lock"))
+
+    with pytest.raises(ValueError, match="permission bits other than 0644"):
+        verify(package, source_root)

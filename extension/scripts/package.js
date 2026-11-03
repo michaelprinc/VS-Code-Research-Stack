@@ -55,6 +55,26 @@ function normalizeStagedLineEndings(stageRoot) {
   walk(stageRoot);
 }
 
+/**
+ * Give every staged file the same permission bits.
+ *
+ * vsce records the mode of each file it packs in the ZIP entry headers. A maintainer's tree and a fresh
+ * clone of the same tag are not the same tree: 32 members of the 0.3.7 build carried 0664 here and 0644
+ * in a clone, byte-identical content, different digests. The packaged files are read by VS Code and by
+ * uv, never executed directly, so the staged copies are normalised to 0644. The source tree is not
+ * touched.
+ */
+function normalizeStagedModes(stageRoot) {
+  const walk = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const target = path.join(directory, entry.name);
+      if (entry.isDirectory()) { walk(target); continue; }
+      fs.chmodSync(target, 0o644);
+    }
+  };
+  walk(stageRoot);
+}
+
 async function main() {
   const projectRoot = path.resolve(__dirname, "..");
   assertWorkerPairCurrent(projectRoot);
@@ -76,6 +96,7 @@ async function main() {
     fs.cpSync(path.join(projectRoot, "worker"), path.join(stageRoot, "worker"), { recursive: true });
     fs.copyFileSync(path.join(projectRoot, "README.md"), path.join(stageRoot, "README.md"));
     normalizeStagedLineEndings(stageRoot);
+    normalizeStagedModes(stageRoot);
     // Line endings are only half of a reproducible artifact. vsce writes the copy time of each staged
     // file, and a new Date(), into the ZIP entry headers, so two builds of the same commit produced
     // 312,471-byte artifacts with byte-identical members and different digests. vsce honours the

@@ -45,6 +45,8 @@ EXPECTED = {
 _TEXT_SUFFIXES = {".md", ".js", ".cjs", ".mjs", ".json", ".py", ".toml", ".txt", ".svg", ".css", ".html", ".yml", ".yaml"}
 # The ZIP format cannot record a date before 1980-01-01, so the build stamps every entry to it.
 BUILD_EPOCH = (1980, 1, 1, 0, 0, 0)
+# vsce writes these three itself; every other member is copied from the staged tree.
+GENERATED_MEMBERS = frozenset({"[Content_Types].xml", "extension.vsixmanifest", "extension/readme.md"})
 
 
 
@@ -277,6 +279,19 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
             raise ValueError(
                 "packaged members carry a build-time timestamp instead of the fixed build epoch, so the "
                 f"artifact is not reproducible from the tag: {unstamped}"
+            )
+        # The same headers also carry the permission bits of the file that was packed. A maintainer's
+        # tree and a fresh clone of the same tag disagree there — 32 members of the 0.3.7 build were 0664
+        # here and 0644 in a clone, with identical content and different digests. vsce's own three
+        # generated members are 0664 on every build; everything copied from the tree is 0644.
+        loose_modes = sorted(
+            info.filename for info in archive.infolist()
+            if info.filename not in GENERATED_MEMBERS and (info.external_attr >> 16) & 0o777 != 0o644
+        )
+        if loose_modes:
+            raise ValueError(
+                "packaged members carry permission bits other than 0644, so the artifact depends on the "
+                f"build tree rather than the tag: {loose_modes}"
             )
         bundle = json.loads(archive.read("extension/worker/bundle.json"))
         # The bundle must be the one the reviewed source tree builds for this release.
