@@ -43,6 +43,9 @@ EXPECTED = {
     "extension/worker/bundle.json",
 }
 _TEXT_SUFFIXES = {".md", ".js", ".cjs", ".mjs", ".json", ".py", ".toml", ".txt", ".svg", ".css", ".html", ".yml", ".yaml"}
+# The ZIP format cannot record a date before 1980-01-01, so the build stamps every entry to it.
+BUILD_EPOCH = (1980, 1, 1, 0, 0, 0)
+
 
 
 def _lf(data: bytes) -> bytes:
@@ -264,6 +267,17 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
         )
         if crlf_members:
             raise ValueError(f"packaged text members carry CRLF line endings, so the artifact is not reproducible from the tag: {crlf_members}")
+        # Line endings are only half of a reproducible artifact. vsce writes the copy time of each staged
+        # file, and a new Date() for the members it generates, into the ZIP entry headers: two builds of
+        # the same commit were 312,471 bytes each with byte-identical members and different digests.
+        # `extension/scripts/package.js` sets SOURCE_DATE_EPOCH, which vsce applies to every entry, so a
+        # member carrying any other timestamp means the artifact was built unstamped.
+        unstamped = sorted(info.filename for info in archive.infolist() if info.date_time != BUILD_EPOCH)
+        if unstamped:
+            raise ValueError(
+                "packaged members carry a build-time timestamp instead of the fixed build epoch, so the "
+                f"artifact is not reproducible from the tag: {unstamped}"
+            )
         bundle = json.loads(archive.read("extension/worker/bundle.json"))
         # The bundle must be the one the reviewed source tree builds for this release.
         reviewed_version = json.loads((_EXTENSION_ROOT / "vsix-manifest.json").read_text(encoding="utf-8")).get("version")

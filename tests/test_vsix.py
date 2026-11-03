@@ -6,6 +6,8 @@ import importlib.util
 import zipfile
 from pathlib import Path
 
+import time
+
 import pytest
 
 _VERIFIER_PATH = Path(__file__).resolve().parents[1] / "scripts" / "verify_vsix.py"
@@ -33,6 +35,7 @@ def _write_vsix(
     stale_worker_lock: bool = False,
     crlf_members: tuple[str, ...] = (),
     source_crlf: bool = False,
+    build_clock: bool = False,
 ) -> Path:
     manifest = {
         "name": "research-stack-toolkit",
@@ -78,7 +81,11 @@ def _write_vsix(
             source_bytes[name] = source_bytes[name].replace(b"\n", b"\r\n")
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for name, content in members.items():
-            archive.writestr(name, content)
+            # `writestr` with a bare name stamps the entry with the time of the run, which is what makes
+            # an unstamped VSIX irreproducible; the packaging step stamps every entry instead.
+            entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0) if not build_clock else time.localtime()[:6])
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(entry, content)
     source_root = path.parent / "source"
     source_root.mkdir(exist_ok=True)
     (source_root / "vsix-manifest.json").write_bytes(members["extension/package.json"])
@@ -198,3 +205,15 @@ def test_vsix_verifier_accepts_the_shipped_text_members_as_lf(tmp_path: Path) ->
     source_root = _write_vsix(package)
     receipt = verify(package, source_root)
     assert receipt["result"] == "passed"
+
+
+def test_vsix_verifier_refuses_members_stamped_with_the_build_clock(tmp_path: Path) -> None:
+    """Every member byte-identical is not enough: the entry headers carry the build time."""
+    stamped = tmp_path / "stamped.vsix"
+    unstamped = tmp_path / "unstamped.vsix"
+    source_root = _write_vsix(stamped)
+    _write_vsix(unstamped, build_clock=True)
+
+    assert verify(stamped, source_root)["result"] == "passed"
+    with pytest.raises(ValueError, match="build epoch"):
+        verify(unstamped, source_root)

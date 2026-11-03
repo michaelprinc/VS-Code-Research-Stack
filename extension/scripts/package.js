@@ -76,6 +76,13 @@ async function main() {
     fs.cpSync(path.join(projectRoot, "worker"), path.join(stageRoot, "worker"), { recursive: true });
     fs.copyFileSync(path.join(projectRoot, "README.md"), path.join(stageRoot, "README.md"));
     normalizeStagedLineEndings(stageRoot);
+    // Line endings are only half of a reproducible artifact. vsce writes the copy time of each staged
+    // file, and a new Date(), into the ZIP entry headers, so two builds of the same commit produced
+    // 312,471-byte artifacts with byte-identical members and different digests. vsce honours the
+    // SOURCE_DATE_EPOCH convention (out/package.js: it sets every entry's mtime to that epoch and sorts
+    // the members by path), so the build is stamped with 1980-01-01T00:00:00Z, the earliest date the
+    // ZIP format can record.
+    process.env.SOURCE_DATE_EPOCH = "315532800";
     await createVSIX({
       cwd: stageRoot,
       packagePath: outputPath,
