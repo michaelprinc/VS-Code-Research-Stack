@@ -13,8 +13,8 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { bundle, directory, isReparsePoint, managedRuntime, setupRuntime, WORKER_FOLDER, minimumVersionFor } = require("./runtime");
 const { resolverFrom } = require("./hosttools");
-const { runProcess, asRunProcess } = require("./runner");
-const { pairProblems } = require("./lockfile");
+const { runProcess, asRunProcess, stderrTail } = require("./runner");
+const { pairProblems, isLockDrift } = require("./lockfile");
 
 const NOTEBOOK_PROJECT_NAME = "research-stack-analysis";
 const NOTEBOOK_DEPENDENCIES = ["ipykernel", "matplotlib"];
@@ -154,7 +154,7 @@ async function notebookPairProblems(project) {
 async function runNotebookStep({ root, context, services, settings, step, vscode }) {
   // The same roots the preflight used: a uv that lives inside the workspace must not be executed
   // here after the resolver refused it.
-  const uv = await resolveUv({ vscode, services, settings, root });
+  const uv = await resolveUv({ vscode, services, settings, roots: [root] });
   const project = path.join(root, "notebooks", "analysis");
   const ownership = await inspectNotebookProject(project);
   if (!ownership.owned) throw new Error(`notebooks/analysis already holds a project this toolkit does not own (${ownership.reason}). Nothing was synced or overwritten. Move that project aside, or remove the folder if it is not yours.`);
@@ -169,10 +169,50 @@ async function runNotebookStep({ root, context, services, settings, step, vscode
     throw error;
   }
   services.progress?.("Creating the locked notebook analysis environment. This can download packages…");
-  const run = await asRunProcess(services)(uv.path, ["sync", "--locked", "--no-dev", "--python", "3.12", "--project", project, "--no-config"], {
-    timeout: stepTimeout(step, settings), cwd: project, signal: services.signal, kind: "setup", retry: true,
-    hint: "The notebook environment is separate from the MCP worker.",
+  // Same rule as the worker step (DD7-06): one locked attempt, and only a single logged fallback that
+  // installs exactly what this project's lock pins. The toolkit wrote both files for this project and
+  // checked them above, so a refusal here is a disagreement this host produced; the lock is still not
+  // rewritten, and if the toolkit's own reader agrees that the pair disagrees it refuses instead.
+  const syncArgs = (mode) => ["sync", mode, "--no-dev", "--python", "3.12", "--project", project, "--no-config"];
+  const syncOptions = (hint) => ({
+    timeout: stepTimeout(step, settings), cwd: project, signal: services.signal, kind: "setup", retry: true, hint,
   });
+  let run;
+  let lockFallback = null;
+  try {
+    run = await asRunProcess(services)(uv.path, syncArgs("--locked"), syncOptions("The notebook environment is separate from the MCP worker."));
+  } catch (error) {
+    if (!isLockDrift(error)) throw error;
+    const uvMessage = stderrTail(error.stderr || error.message);
+    const problems = await notebookPairProblems(project);
+    if (problems.length) {
+      const refusal = new Error(`This host's uv refused the locked dependency file for notebooks/analysis (${uvMessage}), and the toolkit's own check of the same pair agrees: ${problems.join("; ")}. Refusing to install a resolution this uv calls stale. Re-run setup after this toolkit's own check of the project files passes.`);
+      refusal.lockDrift = { source: "notebook", problems, uvMessage };
+      refusal.kind = error.kind || "lock-drift";
+      refusal.exitCode = error.exitCode === undefined ? null : error.exitCode;
+      refusal.command = error.command;
+      refusal.args = error.args;
+      refusal.attempts = 1;
+      refusal.hint = "If notebooks/analysis was edited by hand, restore it from this toolkit's overlay files or remove the folder and re-run the step.";
+      throw refusal;
+    }
+    services.progress?.("This host's uv did not accept the notebook lock as written. Installing exactly what the lock pins, without rewriting it…");
+    lockFallback = { detectedAt: new Date().toISOString(), problems: [], uvMessage };
+    try {
+      run = await asRunProcess(services)(uv.path, syncArgs("--frozen"), {
+        ...syncOptions("Installed exactly the packages the notebook lock pins; the notebook lock was not rewritten."), retry: false,
+      });
+    } catch (fallbackError) {
+      const combined = new Error(`The locked notebook install was refused by this host's uv (${uvMessage}). The reviewed fallback that installs exactly what the notebook lock pins also failed (${stderrTail(fallbackError.stderr || fallbackError.message)}). The notebook lock was not rewritten. ${fallbackError.hint || "Check the host tool version and network access, then retry the notebook step."}`);
+      combined.kind = fallbackError.kind || "exit";
+      combined.exitCode = fallbackError.exitCode === undefined ? null : fallbackError.exitCode;
+      combined.command = fallbackError.command;
+      combined.args = fallbackError.args;
+      combined.attempts = (fallbackError.attempts || 1) + 1;
+      combined.lockFallback = { detectedAt: new Date().toISOString(), problems: [], uvMessage, fallbackFailure: stderrTail(fallbackError.stderr || fallbackError.message) };
+      throw combined;
+    }
+  }
   const executable = path.join(project, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
   if (!(await fs.stat(executable).catch(() => null)) || !(await fs.stat(executable)).isFile()) {
     const error = new Error(`uv sync finished (exit 0) but ${path.relative(root, executable)} does not exist. The notebook environment was not created; retry the notebook step.`);
@@ -188,9 +228,10 @@ async function runNotebookStep({ root, context, services, settings, step, vscode
   const ownershipNote = ownership.reviewedProject === false ? `${ownership.note}. ` : "";
   return {
     toolkitVersion: manifest.workerVersion,
-    evidence: `${ownershipNote}Locked notebooks/analysis environment created (${overlayEvidence(overlay)} Interpreter verified: ${pythonVersion || "version not reported"}; ipykernel and matplotlib import. Kernel not started by this step.`,
+    evidence: `${ownershipNote}Locked notebooks/analysis environment created (${overlayEvidence(overlay)} Interpreter verified: ${pythonVersion || "version not reported"}; ipykernel and matplotlib import. Kernel not started by this step.${lockFallbackNote(lockFallback)}`,
     overlay, python: executable, importsVerified: true, pythonVersion,
     syncDurationMs: run.durationMs,
+    lockFallback,
     existingProject: ownership.existingProject || false,
     reviewedProject: ownership.reviewedProject !== false,
     projectName: ownership.projectName || NOTEBOOK_PROJECT_NAME,

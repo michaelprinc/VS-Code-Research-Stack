@@ -26,7 +26,14 @@ def _drift(lock_text: str) -> str:
     return pattern.sub(r"\g<1>0.3.4\g<2>", lock_text, count=1)
 
 
-def _write_vsix(path: Path, *, include_extra: bool = False, stale_worker_lock: bool = False) -> Path:
+def _write_vsix(
+    path: Path,
+    *,
+    include_extra: bool = False,
+    stale_worker_lock: bool = False,
+    crlf_members: tuple[str, ...] = (),
+    source_crlf: bool = False,
+) -> Path:
     manifest = {
         "name": "research-stack-toolkit",
         "version": "0.1.0",
@@ -60,20 +67,29 @@ def _write_vsix(path: Path, *, include_extra: bool = False, stale_worker_lock: b
         members["extension/worker/bundle.json"] = json.dumps(bundle, indent=2).encode("utf-8")
     if include_extra:
         members["extension/.env"] = b"secret"
+    # `git checkout` can leave CRLF in the working tree while the committed blobs are LF, so the
+    # staged tree a VSIX was built from is not the tree a fresh clone produces. The packaging step
+    # normalises the staged tree; this reproduces the un-normalised case.
+    source_bytes = dict(members)
+    for name in crlf_members:
+        members[name] = members[name].replace(b"\n", b"\r\n")
+    if source_crlf:
+        for name in crlf_members:
+            source_bytes[name] = source_bytes[name].replace(b"\n", b"\r\n")
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for name, content in members.items():
             archive.writestr(name, content)
     source_root = path.parent / "source"
     source_root.mkdir(exist_ok=True)
     (source_root / "vsix-manifest.json").write_bytes(members["extension/package.json"])
-    (source_root / "extension.js").write_bytes(members["extension/extension.js"])
-    (source_root / "README.md").write_bytes(members["extension/readme.md"])
+    (source_root / "extension.js").write_bytes(source_bytes["extension/extension.js"])
+    (source_root / "README.md").write_bytes(source_bytes["extension/readme.md"])
     (source_root / "media").mkdir(exist_ok=True)
     for member in EXPECTED:
         if member.startswith("extension/") and member not in ("extension/package.json", "extension/readme.md"):
             destination = source_root / member.removeprefix("extension/")
             destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(members[member])
+            destination.write_bytes(source_bytes[member])
     return source_root
 
 
@@ -152,3 +168,33 @@ def test_vsix_verifier_accepts_the_packaged_pair_as_this_release_ships_it(tmp_pa
     source_root = _write_vsix(package)
     result = verify(package, source_root)
     assert result["result"] == "passed"
+
+
+def test_vsix_verifier_refuses_a_text_member_that_only_matches_after_line_ending_rewriting(tmp_path: Path) -> None:
+    """0.3.7 review: the first 0.3.7 artifact was not reproducible from the tag.
+
+    16 guides and `extension/media/toolkit.svg` were packaged with CRLF while the committed tree
+    holds LF. The payload comparison normalises line endings, so only the reproducibility invariant
+    refuses that artifact.
+    """
+    package = tmp_path / "crlf.vsix"
+    source_root = _write_vsix(package, crlf_members=("extension/guides/pypdf.md", "extension/media/toolkit.svg"))
+
+    with pytest.raises(ValueError, match="carry CRLF line endings.*not reproducible from the tag"):
+        verify(package, source_root)
+
+
+def test_vsix_verifier_refuses_crlf_even_when_the_source_tree_is_crlf_too(tmp_path: Path) -> None:
+    """A CRLF artifact that matches a CRLF working tree is still not buildable from the tag."""
+    package = tmp_path / "crlf-both.vsix"
+    source_root = _write_vsix(package, crlf_members=("extension/guides/pypdf.md",), source_crlf=True)
+
+    with pytest.raises(ValueError, match="carry CRLF line endings"):
+        verify(package, source_root)
+
+
+def test_vsix_verifier_accepts_the_shipped_text_members_as_lf(tmp_path: Path) -> None:
+    package = tmp_path / "lf.vsix"
+    source_root = _write_vsix(package)
+    receipt = verify(package, source_root)
+    assert receipt["result"] == "passed"

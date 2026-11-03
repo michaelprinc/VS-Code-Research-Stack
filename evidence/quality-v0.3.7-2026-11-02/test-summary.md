@@ -8,12 +8,12 @@ installs), Node v24.22.0. No uv is installed on the host PATH; the uv binaries u
 
 ```
 cd extension && npm test          # exit 0
-tests 168   suites 0   pass 168   fail 0   cancelled 0
+tests 250   suites 0   pass 250   fail 0   cancelled 0
 ```
 
-`npm test` runs 15 files. `extension/test/` holds 17: `host.test.js` (real Extension Host, run by
+`npm test` runs 16 files. `extension/test/` holds 18: `host.test.js` (real Extension Host, run by
 `npm run test:host`) and `browser.test.js` (bundled Playwright renderer) are the reference-host receipts
-and are deliberately not part of `npm test`. New in this release: `test/lockfile.test.js` (21 tests over
+and are deliberately not part of `npm test`. New in this release: `test/lockfile.test.js` (24 tests) and `test/lockfile-adversarial.test.js` (73 tests over 69 synthetic pairs whose uv verdict was measured), covering
 the pyproject/uv.lock reader, uv's refusal signature, the shipped worker pair, and the shapes real uv
 writes for extras, markers, dependency groups, optional dependencies and TOML literal strings). Raw output:
 [node-test-output.txt](node-test-output.txt).
@@ -22,12 +22,12 @@ writes for extras, markers, dependency groups, optional dependencies and TOML li
 
 ```
 RESEARCH_STACK_UV=/tmp/uvs/uv-0.13.6 .venv/bin/python -m pytest   # exit 0
-155 passed in 93.82s
+185 passed in 94.31s
 ```
 
 ```
 .venv/bin/python -m pytest                                        # exit 0
-154 passed, 1 skipped in 93.85s
+184 passed, 1 skipped in 96.24s
 ```
 
 The single skip is `tests/test_lock_consistency.py`'s `uv lock --check` gate: uv 0.5.0 has no
@@ -35,20 +35,22 @@ The single skip is `tests/test_lock_consistency.py`'s `uv lock --check` gate: uv
 `RESEARCH_STACK_UV` pointed at a real binary it runs and passes. Raw output:
 [pytest-with-uv.txt](pytest-with-uv.txt), [pytest-without-uv.txt](pytest-without-uv.txt).
 
-New in this release: `tests/test_lock_consistency.py` (38 tests — 37 always, 1 gated on a real uv binary — shipped pairs current, the bundled
+New in this release: `tests/test_lock_consistency.py` (65 tests — 64 always, 1 gated on a real uv binary — shipped pairs current, the bundled
 pair byte-identical to the repository pair, the 39 third-party pins unchanged, the revision bound,
 synthetic drift fixtures, extras and PEP 508 markers, optional dependencies and `provides-extras`,
 `[dependency-groups]` include entries, the root `source` mode and path, malformed input that must
 report rather than raise, the bundle builder's refusal, the CLI's exit codes, and the real
-`uv lock --check` gate). `tests/test_vsix.py` grew two tests: a packaged worker whose lock is stale
-is refused, and the pair as this release ships it is accepted. `tests/test_release_identity.py` now
+`uv lock --check` gate). `tests/test_vsix.py` grew five tests: a packaged worker whose lock is stale
+is refused, the pair as this release ships it is accepted, and three that refuse an artifact whose packaged
+text members carry CRLF — one where only the artifact is CRLF, one where the source tree is CRLF too, and
+one that accepts the LF artifact this release now builds. `tests/test_release_identity.py` now
 also asserts the release version is one `@vscode/vsce` can package.
 
 ## Build gates on the packaged artifact
 
 ```
-npm run package        -> dist/research-stack-toolkit-0.3.7.vsix  (86 files, 301 366 bytes)
-sha256                 -> 2595facbf4f0f8271ebaca791a7443dc8915c2eb41b539f9edb64331e5abfb84
+npm run package        -> dist/research-stack-toolkit-0.3.7.vsix  (86 files, 312 471 bytes, 0 CRLF members)
+sha256                 -> f4db025b12718b62336ebec091ba79523a059ffa9de3ba998f66549183666416
 npm run verify-package -> "result": "passed", sourceFilesMatch: true   (see vsix-audit.json)
 npm run check:payload  -> passed                                        (see payload-check.json)
 python3 scripts/lockintegrity.py -> "ok": true                          (see lockintegrity-cli.json)

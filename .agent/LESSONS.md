@@ -44,3 +44,18 @@ Durable process lessons. Release-specific decisions live in `specs/phase-N/desig
     own hash changes the hash. The tag name is stable and points at whatever the release commit becomes.
 13. **`addopts = "-q"` in `[tool.pytest.ini_options]` hides the pass/skip summary line.** Count with
     `-o addopts="" -q` before quoting a number in evidence, or the receipt silently loses its verdict.
+14. **A working tree is not the tag.** `.gitattributes` says `* text=auto eol=lf`, so git stores LF while the
+    checkout can hold CRLF and still report itself clean. A VSIX built from that tree is not buildable from
+    the tag. Normalise the staged tree in the packager and make the verifier refuse the difference.
+15. **Case-insensitivity is a Windows feature you have to code for.** Node keeps the OS spelling of
+    environment names, so a case-sensitive deny-list let `Uv_Index_Url` through. Compare names lower-cased,
+    and drop the reviewed names too — a host spelling of a name the toolkit sets is the same collision.
+16. **A fallback that fails must carry the first refusal.** Catching uv's lock refusal and then losing its
+    text turns a lockfile problem into a network-looking error. Combine both sentences and say how many
+    attempts ran.
+17. **An acceptance row is only done when a test drives the failure it describes.** "Both attempts
+    recorded" sat unproven until a test made `--frozen` fail. When a proof is missing, write that in the
+    row instead of naming a file that does not cover it.
+18. **Do not let a delegated agent's number become a documented fact before it is re-measured.** The
+    synthetic-fixture count moved twice while agents were editing the same file; quote it from a command
+    run at freeze time, with the grep caveat spelled out.

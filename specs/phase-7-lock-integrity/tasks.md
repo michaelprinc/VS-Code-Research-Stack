@@ -14,7 +14,7 @@ Stages run in order; each stage ends with its own gate. Checklists: [checklists/
 - [x] B2 `scripts/build_worker_bundle.py`: refuse a stale pair, re-check what it wrote. (R7-02)
 - [x] B3 `scripts/verify_vsix.py`: compare the **packaged** worker pair. (R7-03)
 - [x] B4 `tests/test_lock_consistency.py`: shipped pairs, byte-equality of the bundled pair, synthetic drift fixture, revision bound, real `uv lock --check` when uv exists. (R7-04, R7-05)
-- [x] B5 **Gate B:** the suite fails against a deliberately drifted copy and passes against the release tree. → `tests/test_lock_consistency.py` (6 synthetic drift fixtures), `tests/test_vsix.py::test_vsix_verifier_refuses_a_packaged_worker_whose_lock_is_stale`
+- [x] B5 **Gate B:** the suite fails against a deliberately drifted copy and passes against the release tree. → `tests/test_lock_consistency.py` (37 synthetic pair fixtures — `grep -c "_fixture(" tests/test_lock_consistency.py` gives 38, the helper's own definition included), `tests/test_vsix.py::test_vsix_verifier_refuses_a_packaged_worker_whose_lock_is_stale`
 
 ## Stage C — diagnose and recover at runtime
 
@@ -22,7 +22,7 @@ Stages run in order; each stage ends with its own gate. Checklists: [checklists/
 - [x] C2 `extension/runtime.js`: bundled-pair self-check before any uv call. (R7-07)
 - [x] C3 `extension/runner.js`: precise lock-drift message; wall time across attempts. (R7-08, R7-17)
 - [x] C4 `extension/runtime.js`: one logged `--frozen` fallback after a recognised drift; never plain `uv sync`. (R7-09, R7-10)
-- [x] C5 `extension/runner.js`: scrub conflicting inherited `UV_*`, keep the reviewed six. (R7-11)
+- [x] C5 `extension/runner.js`: scrub conflicting inherited `UV_*`, keep the five reviewed `UV_*` values plus the derived `UV_PROJECT_ENVIRONMENT`. (R7-11)
 - [x] C6 `extension/test/lockfile.test.js` plus runtime tests for the self-check, the tier, and the message. (R7-07…R7-10)
 - [x] C7 **Gate C:** `npm test` green with the new module in the reviewed boundary set. → 155/155, `lockfile.js` declared in `test/module-boundaries.test.js`
 
@@ -40,4 +40,4 @@ Stages run in order; each stage ends with its own gate. Checklists: [checklists/
 - [x] E3 `npm run check:payload` passes on the new artifact.
 - [x] E4 Evidence folder `evidence/quality-v0.3.7-2026-11-02/` with the reproduction, the uv-version matrix and the audit results.
 - [x] E5 CHANGELOG, release report, `.agent/QUALITY_STATE.md`, gate report.
-- [x] E6 **Gate E:** full suites green (168 Node / 155 Python with a real uv, 154 + 1 skip without); artifact hash recorded; commit + tag `v0.3.7`.
+- [x] E6 **Gate E:** full suites green (250 Node / 185 Python with a real uv, 184 + 1 skip without); artifact hash recorded; commit + tag `v0.3.7`, re-cut after the review rounds.

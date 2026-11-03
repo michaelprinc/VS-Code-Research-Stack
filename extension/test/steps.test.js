@@ -2,6 +2,7 @@
 /** Step-level contracts: per-step timeouts from the registry, and uv resolution before any run. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("node:path");
 const { stepTimeout, resolveUv, lockFallbackNote, notebookPairProblems } = require("../steps");
 const { STEPS_BY_ID } = require("../installer");
 
@@ -88,4 +89,54 @@ test("the notebook project this toolkit writes is checked before uv is pointed a
   await fs.writeFile(path.join(dir, "pyproject.toml"), "[project\nname = \"x\"\nversion = \"", "utf8");
   const unreadable = await notebookPairProblems(dir);
   assert.equal(unreadable.length, 1, "a reader failure is a problem, not an exception");
+});
+
+test("the notebook step gets the same one bounded lockfile fallback as the worker step (0.3.7 e2e defect 2)", async (t) => {
+  const os = require("node:os");
+  const fs = require("node:fs/promises");
+  const { runNotebookStep } = require("../steps");
+  const { makeHarness } = require("./harness");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "research-notebook-fallback-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const harness = makeHarness({ folders: [{ name: "research", uri: { scheme: "file", fsPath: dir } }] });
+  const project = path.join(dir, "notebooks", "analysis");
+  const calls = [];
+  const services = {
+    async resolveHostTool(name) { return { name, path: "/trusted/uv", source: "path", version: "0.13.6", verified: true, searched: {}, hint: "" }; },
+    async runProcess(executable, args) {
+      calls.push({ executable, args });
+      if (args[0] === "sync") {
+        if (args[1] === "--locked") {
+          const error = new Error("run failure");
+          error.kind = "exit"; error.exitCode = 1; error.attempts = 1;
+          error.stderr = "Resolved 40 packages in 63ms\nerror: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.\nhint: To update the lockfile, run `uv lock`.";
+          throw error;
+        }
+        const python = path.join(project, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+        await fs.mkdir(path.dirname(python), { recursive: true });
+        await fs.writeFile(python, "fixture interpreter");
+        return { stdout: "3.12.16 (main)\n", stderr: "", durationMs: 12 };
+      }
+      return { stdout: "3.12.16 (main)\n", stderr: "", durationMs: 5 };
+    },
+  };
+  const result = await runNotebookStep({ root: dir, context: harness.context, services, settings: {}, step: STEPS_BY_ID.get("notebook-env"), vscode: harness.vscode });
+  const syncs = calls.filter((call) => call.args[0] === "sync");
+  assert.deepEqual(syncs.map((call) => call.args[1]), ["--locked", "--frozen"], "one locked attempt, one frozen fallback, nothing else");
+  assert.ok(!syncs.some((call) => call.args[1] === "--locked" && call.args.includes("lock")), "the step never runs `uv lock` in the workspace");
+  assert.ok(result.lockFallback, "the fallback is recorded on the step result");
+  assert.match(result.evidence, /Warning: this host's uv refused the shipped lockfile/, "the component evidence names the fallback");
+  assert.match(result.evidence, /without rewriting the lockfile/, result.evidence);
+
+  // An ordinary notebook failure (a download problem) must not be softened into a frozen install.
+  const plain = { ...services, runProcess: async (executable, args) => {
+    calls.push({ executable, args });
+    if (args[0] === "sync") { const error = new Error("run failure"); error.kind = "exit"; error.exitCode = 2; error.stderr = "error: failed to fetch https://pypi.org/simple/matplotlib/"; throw error; }
+    return { stdout: "3.12.16\n", stderr: "", durationMs: 1 };
+  } };
+  const failure = await runNotebookStep({ root: dir, context: harness.context, services: plain, settings: {}, step: STEPS_BY_ID.get("notebook-env"), vscode: harness.vscode }).catch((error) => error);
+  assert.equal(failure.exitCode, 2, "the runner's exit code reaches the operator");
+  assert.match(failure.stderr, /failed to fetch/, "uv's own sentence is kept, not replaced by a lockfile story");
+  assert.equal(failure.lockDrift, undefined, "a network failure is not reported as a lockfile problem");
+  assert.deepEqual(calls.filter((call) => call.args[0] === "sync" && call.args[1] === "--frozen").length, 1, "no second fallback for an unrelated failure");
 });

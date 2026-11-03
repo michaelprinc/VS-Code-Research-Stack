@@ -254,3 +254,22 @@ test("PATH entries are probed once each and the relative ones are counted in the
   assert.match(result.reason, /1 absolute PATH entr\(ies\), 3 PATH entr\(ies\) skipped as relative/, result.reason);
 });
 
+
+test("a 0-byte uv.exe on a Windows host is found but refused, not offered as a usable tool (0.3.7 Windows review D7)", async (t) => {
+  const host = await fakeHost(t);
+  const empty = await host.write(host.onPath, "uv.exe", "");
+  const launched = [];
+  clearHostToolCache();
+  const result = await resolveHostTool("uv", {
+    platform: "win32",
+    roots: [host.workspace],
+    env: { PATH: host.onPath, USERPROFILE: path.join(host.root, "no-user"), LOCALAPPDATA: path.join(host.root, "no-local"), HOME: path.join(host.root, "no-home") },
+    runProcess: async (executable) => { launched.push(executable); return { stdout: "uv 0.13.6", stderr: "" }; },
+  });
+  assert.equal(result.usable, false, "Windows has no executable bit, so an empty file is the unusable case");
+  assert.equal(result.verified, false);
+  assert.equal(launched.length, 0, "an empty file is never spawned");
+  assert.equal(result.path, await fs.realpath(empty), "it is still reported where it was found");
+  assert.match(result.reason, /uv was found at .*uv\.exe but it is an empty file/, result.reason);
+  assert.match(result.hint, /uv/, "the operator still gets the setting that can fix it");
+});

@@ -2,9 +2,9 @@ npm notice run research-stack-toolkit@0.3.7 verify-package
 npm notice run node scripts/with-artifact.js uv run --locked python ../scripts/verify_vsix.py
 {
   "artifact": "research-stack-toolkit-0.3.7.vsix",
-  "sha256": "2595facbf4f0f8271ebaca791a7443dc8915c2eb41b539f9edb64331e5abfb84",
-  "packageBytes": 301366,
-  "unpackedBytes": 920155,
+  "sha256": "f4db025b12718b62336ebec091ba79523a059ffa9de3ba998f66549183666416",
+  "packageBytes": 312471,
+  "unpackedBytes": 958161,
   "entries": [
     "[Content_Types].xml",
     "extension.vsixmanifest",

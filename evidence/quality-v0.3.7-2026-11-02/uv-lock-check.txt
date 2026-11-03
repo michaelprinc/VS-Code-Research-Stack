@@ -1,11 +1,9 @@
-== extension/worker
 Using CPython 3.12.16
-Resolved 40 packages in 2ms
-exit=0
-== templates/recommended-overlay/notebooks/analysis
+Resolved 40 packages in 0.94ms
+  extension/worker -> exit 0
 Using CPython 3.12.16
-Resolved 42 packages in 2ms
-exit=0
-== .
-Resolved 40 packages in 2ms
-exit=0
+Resolved 40 packages in 1ms
+  . -> exit 0
+Using CPython 3.12.16
+Resolved 42 packages in 0.86ms
+  templates/recommended-overlay/notebooks/analysis -> exit 0

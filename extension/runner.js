@@ -99,7 +99,7 @@ function describe(runError, hint) {
   if (runError.kind === "cwd") return `${subject} cannot run in ${runError.cwd}: the working directory ${runError.launchCode === "ELOOP" ? "is a link, not a directory" : "does not exist"}. Setup writes only inside the workspace folder.`;
   if (runError.kind === "buffer") return `${subject} produced more output than the ${Math.round(MAX_BUFFER_BYTES / 1024)} KiB capture limit (${where}). The output was truncated; the run was stopped.`;
   if (runError.kind === "exit" && isLockDrift(runError)) {
-    return `${subject} refused the locked dependency file: ${tail} (${where}). The lockfile this toolkit ships does not match the project file it ships beside it — not a network, proxy or interpreter problem. ${hint || "Retry setup; if it repeats, report this build."}${runError.scrubbedUv || ""}`;
+    return `${subject} refused the locked dependency file: ${tail} (${where}). This is a lockfile disagreement — not a network, proxy or interpreter problem; the toolkit's own check of the pair says whether this build is broken or this host's uv disagreed with a lockfile the toolkit reads as current. ${hint || "Retry setup; if it repeats, report this build."}${runError.scrubbedUv || ""}`;
   }
   return `${subject} failed with exit code ${runError.exitCode === null ? runError.signal || runError.launchCode : runError.exitCode}${tail ? `: ${tail}` : ""} (${where})${hint ? ` ${hint}` : ""}${runError.scrubbedUv || ""}`;
 }
@@ -151,15 +151,30 @@ const CONFLICTING_UV_VARIABLES = [
   "UV_LOCKED", "UV_FROZEN", "UV_UPGRADE", "UV_NO_SYNC", "UV_OFFLINE", "UV_NO_DEV", "UV_SYSTEM_PYTHON",
   "UV_EXCLUDE_NEWER", "UV_PYTHON_PREFERENCE",
 ];
+// Windows environment names are case-insensitive and Node keeps the OS spelling in `process.env`, so a
+// host can hold `uv_locked` or `Uv_Index_Url`. Matching only the exact spellings let such a variable
+// reach `uv.exe` — where it is the same setting — while the toolkit reported that it had removed it.
+// `uv sync --locked` with a host `UV_EXCLUDE_NEWER` set fails with uv's lockfile-staleness sentence,
+// which is exactly the symptom this release was asked to fix.
+const CONFLICTING_UV_NAMES = new Set(
+  [...CONFLICTING_UV_VARIABLES, ...Object.keys(REVIEWED_UV_ENVIRONMENT), "UV_PROJECT_ENVIRONMENT"].map((name) => name.toLowerCase()),
+);
+// Reported in the reviewed order so the same host always produces the same sentence.
+const OVERRIDDEN_UV_VARIABLES = [...CONFLICTING_UV_VARIABLES, ...Object.keys(REVIEWED_UV_ENVIRONMENT), "UV_PROJECT_ENVIRONMENT"];
 
 function conflictingUvVariables(environment = process.env) {
-  return CONFLICTING_UV_VARIABLES.filter((name) => environment[name] !== undefined);
+  const hostNames = Object.keys(environment);
+  return OVERRIDDEN_UV_VARIABLES.flatMap((candidate) => hostNames.filter((name) => name.toLowerCase() === candidate.toLowerCase()));
 }
 
 function setupEnvironment(cwd, environment = process.env) {
   const kept = {};
   for (const [name, value] of Object.entries(environment)) {
-    if (!CONFLICTING_UV_VARIABLES.includes(name) && name !== "UV_PROJECT_ENVIRONMENT") kept[name] = value;
+    // Every name the toolkit sets itself is dropped from the inherited environment too, whatever the
+    // host spelled it: a host `uv_link_mode=hardlink` sitting beside `UV_LINK_MODE=copy` leaves the
+    // child free to read the host's copy, and `copy` was chosen precisely to avoid the Windows
+    // cross-device hardlink failure.
+    if (!CONFLICTING_UV_NAMES.has(name.toLowerCase())) kept[name] = value;
   }
   return {
     ...kept,

@@ -7,11 +7,11 @@ pair and the exact command `runtime.js` issues.
 
 | Measurement | Result |
 |---|---|
-| `uv sync --locked --no-dev --python 3.12 --project <worker> --no-config` on the **shipped 0.3.6 pair** (pyproject 0.3.6, lock 0.3.4) | **exit 1** on uv 0.5.0 and uv 0.13.6, with the field report's wording: "Resolved 40 packages … The lockfile at `uv.lock` needs to be updated, but `--locked` was provided." Reproduced; not inferred. |
+| `uv sync --locked --no-dev --python 3.12 --project <worker> --no-config` on the **shipped 0.3.6 pair** (pyproject 0.3.6, lock 0.3.4) | **exit 2** on uv 0.5.0 and **exit 1** on uv 0.13.6, both printing the same sentence: "Resolved 40 packages … The lockfile at `uv.lock` needs to be updated, but `--locked` was provided." Reproduced; not inferred. The number is not stable across the range — 2 on uv 0.5.0–0.7.22, 1 on uv 0.8.5–0.13.6 — which is why detection never uses it. |
 | Same command after the lock's root entry records the manifest version | **exit 0** on uv **0.5.0, 0.6.10, 0.7.22, 0.8.5, 0.9.30, 0.10.7, 0.13.6** — the whole supported range down to the registry floor `uv >= 0.5.0`. |
-| `uv lock` (uv 0.13.6) on the shipped manifest | Changes **two lines only**: `revision = 3 → 5` and the root `version = "0.3.4" → "0.3.7"`. The 40 locked packages, their versions and their hashes are unchanged. The regenerated file is byte-identical to the corrected lock. |
+| `uv lock` (uv 0.13.6) on the shipped manifest | Changes **two lines only**: `revision = 3 → 5` and the root `version = "0.3.4" → "0.3.7"`. The lock holds 40 `[[package]]` entries before and after; the root entry's version is the one that changes, and the 39 third-party pins and their hashes are unchanged. The regenerated file is byte-identical to the corrected lock. |
 | `uv lock --check` availability | Absent in uv 0.5.0 (exit 2, `unexpected argument`), present from 0.6.10 through 0.13.6. A capability probe is required (R7-12). |
-| Lockfile `revision = 5` | Written by uv 0.5.0 itself and accepted by every version tested, so raising the revision is not a compatibility risk for the declared uv floor. |
+| Lockfile `revision = 5` | Written by uv 0.13.6 (`revision = 3 → 5`). uv 0.5.0 writes **no** `revision` key at all — its own `uv lock` drops the line — but it reads and accepts the revision-5 lock: `uv sync --locked` on the shipped pair exits 0. Raising the revision is therefore not a compatibility risk for the declared uv floor. |
 | `uv sync --frozen` on a drifted pair | Proceeds (skips the freshness check) — which is why it is used only as a **logged fallback after** the drift has been named, never as the default. |
 
 ## 2. Decisions
@@ -23,7 +23,7 @@ pair and the exact command `runtime.js` issues.
 | **DD7-03** | Gate at three points: bundle build, VSIX audit, test suite. | A single gate can be bypassed by hand-packaging. The audit checks the **packaged** pair so an artifact cut from a stale tree cannot pass. |
 | **DD7-04** | Runtime tiers: bundled-pair self-check → `uv sync --locked` → on drift, one `uv sync --frozen` fallback, logged and surfaced. No `uv lock` in the managed directory. | `uv lock` would rewrite a file `bundle.json` hashes and `validateWorker` verifies, trading a reproducible integrity model for a cosmetic label. `--frozen` installs exactly what the shipped lock pins and mutates nothing. Astral's own recommendation for this failure is `--frozen` ([uv #15643](https://github.com/astral-sh/uv/issues/15643)). |
 | **DD7-05** | Recognise drift from uv's own sentence, and keep it out of the transient-retry path. | Retrying a manifest/lock disagreement runs the same refusal twice and hides it. |
-| **DD7-06** | Scrub inherited `UV_*` variables that change the reviewed command's meaning, then set the reviewed six. | `--no-config` neutralises config files, not the environment; a user's mirror or `UV_LOCKED` can make a byte-correct lock look stale. |
+| **DD7-06** | Scrub inherited `UV_*` variables that change the reviewed command's meaning, then set the five reviewed `UV_*` values plus `UV_PROJECT_ENVIRONMENT`, which is derived from the project directory. | `--no-config` neutralises config files, not the environment; a user's mirror or `UV_LOCKED` can make a byte-correct lock look stale. |
 | **DD7-07** | Keep the release identity three-part and assert it is a version vsce can package. | `semver.valid` rejects `0.3.6.1`, so a four-part identity is not a shippable release at all ([vscode-vsce #415](https://github.com/microsoft/vscode-vsce/issues/415)). Relaxing the pattern would have hidden the constraint instead of recording it; the release is 0.3.7 and `tests/test_release_identity.py` now names the packaging rule in its failure message. |
 | **DD7-08** | Derive the artifact name from `extension/vsix-manifest.json` in npm scripts. | Verification must point at the artifact the release actually cut. |
 
@@ -36,10 +36,10 @@ pair and the exact command `runtime.js` issues.
 | `scripts/verify_vsix.py` | Reads `extension/worker/pyproject.toml` and `extension/worker/uv.lock` **from the archive** and runs the same comparison (R7-03). |
 | `tests/test_lock_consistency.py` | New suite: shipped pairs current, worker pair byte-equal to the reviewed source, drift detector proven on a synthetic fixture, revision bound, real `uv lock --check` when uv exists (R7-04, R7-05). |
 | `extension/lockfile.js` | New reviewed module: drift signature, lock/pyproject readers, `pairProblems`, `dependencyPins`. No process, no writes. |
-| `extension/runtime.js` | Bundled-pair self-check before any uv call; drift-aware setup tiers; four-part `WORKER_FOLDER_PATTERN`; `functionalCheck` honours the setup timeout. |
+| `extension/runtime.js` | Bundled-pair self-check before any uv call; drift-aware setup tiers; three-part `WORKER_FOLDER_PATTERN` (`/^worker-(\d+\.\d+\.\d+)$/`); `functionalCheck` honours the setup timeout. |
 | `extension/runner.js` | `setupEnvironment` scrubs conflicting `UV_*` before setting the reviewed values; `describe()` names a lock-drift refusal precisely; wall time across attempts reported. |
 | `extension/package.json` | `verify-package` / `check:payload` resolve the artifact from `vsix-manifest.json`. |
-| `tests/test_release_identity.py`, `extension/test/unit.test.js` | Version shape accepts three or four parts. |
+| `tests/test_release_identity.py`, `extension/test/unit.test.js` | Version shape stays three-part; both refuse a fourth part (`unit.test.js` asserts `/^\d+\.\d+\.\d+$/`, `test_release_identity.py` asserts `worker-0.3.6.1` is not a runtime). |
 | `extension/test/module-boundaries.test.js`, `scripts/verify_vsix.py` inventory | `lockfile.js` joins the reviewed module set. |
 
 ## 4. Failure-mode review of the new code

@@ -341,6 +341,7 @@ function attemptRecord(step, values) {
     blockedBy: values.blockedBy || null,
     artifacts: values.artifacts || null,
     evidence: values.evidence || "",
+    lockFallback: values.lockFallback || null,
   };
 }
 
@@ -360,8 +361,11 @@ function nextActionFor(error, step) {
 /** The command line a failing step actually ran, for the copied diagnostics. */
 function commandLine(error) {
   if (!error || !error.command) return "";
-  const args = Array.isArray(error.args) && error.args.length ? ` ${error.args.join(" ")}` : "";
-  return `${error.command}${args}${error.cwd ? ` (in ${error.cwd})` : ""}`;
+  // The hint beside this text tells the operator to run the command themselves, and a workspace path
+  // such as `K:\Soukromé aktivity\Bankovní účet SVJ ČSA368` breaks a copy-paste unless it is quoted.
+  const quote = (value) => (/\s/.test(value) ? `"${value}"` : value);
+  const args = Array.isArray(error.args) && error.args.length ? ` ${error.args.map(quote).join(" ")}` : "";
+  return `${quote(error.command)}${args}${error.cwd ? ` (in ${quote(error.cwd)})` : ""}`;
 }
 
 /**
@@ -472,6 +476,7 @@ async function runPlan({ vscode, context, folder, packageId, stepIds, services =
         const attempt = attemptRecord(step, {
           status: "installed", startedAt: stepStartedAt, durationMs: Date.now() - stepStarted,
           attempts: recorded.attempts || 1, artifacts: verified, evidence: recorded.evidence,
+          lockFallback: recorded.lockFallback || null,
         });
         attempts.push(attempt);
         await writeReceipt(workerDirectory, receipt);
@@ -482,6 +487,7 @@ async function runPlan({ vscode, context, folder, packageId, stepIds, services =
           startedAt: stepStartedAt, durationMs: Date.now() - stepStarted,
           attempts: error.attempts || 1, exitCode: error.exitCode,
           error: error.message, hint: nextActionFor(error, step), command: commandLine(error),
+          lockFallback: error.lockFallback || null,
           artifacts: await verifyStepArtifacts(step, root, manifest).catch(() => null),
         });
         attempts.push(attempt);
@@ -595,6 +601,6 @@ module.exports = {
   STEPS_BY_ID, COMPONENTS_BY_ID, RECEIPT_NAME, NOTEBOOK_PROJECT_NAME, NOTEBOOK_DEPENDENCIES,
   stepsForPackage, packageDeclaration, stepsForComponents, resolveStepSelection, explainStepSelection,
   readReceipt, writeReceipt, verifyStepArtifacts, stepStatus, componentStatus, planArtifacts, planView,
-  overlayStepFor, inspectNotebookProject, writeOverlayFiles, overlayEvidence,
+  overlayStepFor, inspectNotebookProject, writeOverlayFiles, overlayEvidence, commandLine, attemptRecord,
   runPlan, refreshPlanStatus, outdatedSteps, failedSteps,
 };

@@ -305,6 +305,9 @@ test("setup refuses a bundled worker pair that uv would refuse, before any proce
   assert.match(error.message, /does not match its own project file/);
   assert.match(error.message, new RegExp(`root package version ${WORKER_VERSION} does not match pyproject version 0\\.4\\.0`));
   assert.equal(error.lockDrift.source, "bundled");
+  assert.equal(error.kind, "lock-drift", "the refusal is classified, so the status record does not fall through to a generic retry hint");
+  assert.match(error.hint, /Reinstall the VSIX/, error.hint);
+  assert.equal(error.attempts, 0, "no attempt was made, and the record says so");
   assert.deepEqual(backend.calls, [], "no host tool was run");
   await assert.rejects(fs.stat(path.join(root, ".research-toolkit")), /ENOENT/, "nothing was written into the workspace");
 });
@@ -397,4 +400,34 @@ test("the reading check honours the operator's setup bound instead of a fixed 90
   const defaultCalls = [];
   await functionalCheck({ extensionUri: { fsPath: "/ext" } }, { python: "/w/.venv/bin/python", worker: "/w", version: WORKER_VERSION }, undefined, undefined, { async runFile(executable, args, options) { defaultCalls.push(options); return JSON.stringify({ ok: true, toolSurface: { servers: [], toolCount: 0 } }); } });
   assert.equal(defaultCalls[0].timeout, 90000, "the reviewed floor still applies when nothing was raised");
+});
+
+test("when the reviewed fallback also fails, the operator sees both refusals, not just the last one (0.3.7 review, T7-13 gap)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const base = services(root);
+  const backend = { ...base, runFile: async (executable, args, options) => {
+    if (args[0] !== "sync") return base.runFile(executable, args, options);
+    backend.calls.push({ executable, args, options });
+    const error = new Error("run failure");
+    error.kind = "exit"; error.exitCode = 2; error.attempts = 1;
+    if (args[1] === "--locked") {
+      error.stderr = "Resolved 40 packages in 63ms\nerror: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.\nhint: To update the lockfile, run `uv lock`.";
+    } else {
+      error.stderr = "error: failed to fetch https://pypi.org/simple/pypdf/";
+    }
+    throw error;
+  } };
+  const harness = makeHarness({ folders: [folder] });
+  const error = await setupRuntime(harness.vscode, harness.context, folder, backend).catch((item) => item);
+  const syncs = backend.calls.filter((call) => call.args[0] === "sync");
+  assert.deepEqual(syncs.map((call) => call.args[1]), ["--locked", "--frozen"], "the fallback ran once and nothing ran after it");
+  assert.match(error.message, /The locked install was refused by this host's uv/, error.message);
+  assert.match(error.message, /needs to be updated/, "the first refusal's sentence survives");
+  assert.match(error.message, /The reviewed fallback that installs exactly what the shipped lock pins also failed/, error.message);
+  assert.match(error.message, /failed to fetch/, "and so does the second one");
+  assert.match(error.message, /was not rewritten/, error.message);
+  assert.equal(error.attempts, 2, "the record says two attempts ran");
+  assert.equal(error.exitCode, 2, "the exit code of the attempt that stopped the install");
+  assert.ok(error.lockFallback, "the status record can still show that a fallback was attempted");
+  assert.match(error.lockFallback.fallbackFailure, /failed to fetch/);
 });

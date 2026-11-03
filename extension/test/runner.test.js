@@ -288,7 +288,8 @@ test("a uv lock refusal is reported as a lock problem, not as a generic exit cod
   const error = { kind: "exit", exitCode: 1, command: "/usr/local/bin/uv.exe", args: ["sync", "--locked"], cwd: "/w/.research-toolkit/managed/worker-0.3.6", stderr: refusal, message: "run failure", timeoutMs: 900000 };
   const text = describe(error, "The first run can download a managed Python 3.12 and the locked packages.");
   assert.match(text, /refused the locked dependency file/);
-  assert.match(text, /does not match the project file it ships beside it/);
+  assert.match(text, /This is a lockfile disagreement/, "the refusal is classified without asserting the shipped pair is broken");
+  assert.match(text, /the toolkit's own check of the pair says whether this build is broken/);
   assert.match(text, /not a network, proxy or interpreter problem/);
   assert.match(text, /needs to be updated/, "uv's own sentence is kept, not replaced");
   assert.equal(retryable(error), false, "a manifest/lock disagreement is not retried");
@@ -318,6 +319,40 @@ test("a stripped host uv setting is named in the failure the operator reads (R7-
       scrubbedUv: scrubbedUvVariables(host),
     }, "hint");
     assert.match(message, /removed 2 uv setting\(s\) inherited from the editor process \(UV_INDEX_URL, UV_OFFLINE\)/);
+  } finally {
+    process.env = previous;
+  }
+});
+
+test("a host uv setting is removed whatever spelling the host used (0.3.7 Windows review D1)", () => {
+  const previous = process.env;
+  try {
+    // Windows environment names are case-insensitive and Node keeps the OS spelling in process.env.
+    const host = {
+      PATH: "/usr/bin", uv_locked: "1", Uv_Index_Url: "https://evil.example", uv_python: "3.11",
+      UV_NO_CONFIG: "0", uv_offline: "1", Uv_Frozen: "1", uv_exclude_newer: "2024-01-01",
+      uv_system_python: "1", uv_project_environment: "/somewhere/else/.venv",
+      // Reviewed names too: a host `uv_link_mode=hardlink` beside UV_LINK_MODE=copy leaves the child
+      // free to read the host's copy, and `copy` exists to avoid the Windows cross-device failure.
+      uv_link_mode: "hardlink", Uv_No_Progress: "0", uv_python_downloads: "never",
+    };
+    process.env = host;
+    const removed = conflictingUvVariables(host);
+    assert.deepEqual(removed.map((name) => name.toLowerCase()).sort(), ["uv_exclude_newer", "uv_frozen", "uv_index_url", "uv_link_mode", "uv_locked", "uv_no_config", "uv_no_progress", "uv_offline", "uv_project_environment", "uv_python", "uv_python_downloads", "uv_system_python"],
+      "the operator is told the spelling their own environment used, for every name the toolkit overrides");
+    const env = setupEnvironment("/w/.research-toolkit/managed/worker-0.3.7", host);
+    const lowered = Object.keys(env).map((name) => name.toLowerCase());
+    assert.equal(new Set(lowered).size, lowered.length, `no name may appear twice in different spellings: ${lowered.join(", ")}`);
+    for (const name of ["uv_locked", "uv_index_url", "uv_offline", "uv_frozen", "uv_exclude_newer", "uv_system_python", "uv_link_mode", "uv_no_progress", "uv_python_downloads", "uv_no_config", "uv_project_environment"]) {
+      assert.ok(!lowered.includes(name) || lowered.filter((item) => item === name).length === 1, `${name} survived the scrub`);
+    }
+    assert.equal(env.UV_LINK_MODE, "copy");
+    assert.equal(env.UV_PYTHON_DOWNLOADS, "automatic");
+    assert.equal(env.UV_NO_CONFIG, "1");
+    assert.equal(env.UV_PROJECT_ENVIRONMENT, path.join("/w/.research-toolkit/managed/worker-0.3.7", ".venv"));
+    assert.equal(env.PATH, "/usr/bin", "settings that only change cost are left alone");
+    assert.match(scrubbedUvVariables(host), /uv_exclude_newer/);
+    assert.ok(removed.includes("Uv_Index_Url"), "the sentence names the host's own spelling, not the toolkit's");
   } finally {
     process.env = previous;
   }

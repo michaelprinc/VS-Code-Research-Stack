@@ -11,7 +11,13 @@ and, when a uv is present on the development host, they also run uv's own `uv lo
 
 The synthetic fixtures mirror the shapes real uv writes. Where a fixture declares a lock entry as
 `editable`, its manifest declares a `[build-system]`, because that is what makes uv write `editable`
-rather than `virtual` (measured with uv 0.13.6 and uv 0.5.0 on a probe project).
+rather than `virtual` (measured with uv 0.13.6 and uv 0.5.0 on a probe project). Where a fixture's
+`requires-dist` names a requirement, the lock carries a `[[package]]` block for it too: measured with
+uv 0.13.6, a lock whose metadata names `mcp` but has no `mcp` package block is refused (`lock --check`
+exit 2, "Dependency `pypdf` has missing `source` field but has more than one matching package"), so a
+fixture that left the block out was describing a pair no uv accepts. A block with no `sdist` and no
+`wheels` keys is faithful — uv 0.13.6 accepts that (`lock --check` exit 0) — and every fixture below
+that claims uv accepts the pair was run against real uv 0.13.6 in a temp directory.
 """
 
 from __future__ import annotations
@@ -104,10 +110,31 @@ def _fixture(tmp_path: Path, lock_text: str, pyproject_text: str) -> None:
     (tmp_path / "uv.lock").write_text(lock_text, encoding="utf-8")
 
 
-def _root_lock(extra: str = "") -> str:
+def _root_lock(extra: str = "", requires_python: str = ">=3.12") -> str:
+    """A lock carrying only the root entry, plus whatever the test adds.
+
+    `requires-python` is not optional in a uv 0.13.6 lock: a lock without the key fails to parse
+    ("missing field `requires-python`", `lock --check` exit 2). uv writes one even for a manifest that
+    declares none — `>=3.12`, measured on uv 0.5.0, 0.7.22, 0.9.30 and 0.13.6 — which is the default
+    here, because `_packaged_manifest` declares no `requires-python`. Pass `requires_python=""` to test
+    its absence.
+    """
+    header = 'version = 1\n'
+    if requires_python:
+        header += 'requires-python = "' + requires_python + '"\n'
+    return header + '[[package]]\nname = "p"\nversion = "1.0.0"\nsource = { editable = "." }\n' + extra
+
+
+def _package_block(name: str, version: str, artifacts: str = "") -> str:
+    """A `[[package]]` block in the shape uv writes, minus the artifact lists unless given.
+
+    uv 0.13.6 accepts a package entry with no `sdist` and no `wheels` keys (`lock --check` exit 0,
+    measured), so a block like this keeps a fixture faithful to a pair uv accepts without dragging
+    hundreds of lines of hashes into the test file.
+    """
     return (
-        'version = 1\n[[package]]\nname = "p"\nversion = "1.0.0"\nsource = { editable = "." }\n'
-        + extra
+        '\n[[package]]\nname = "' + name + '"\nversion = "' + version + '"\n'
+        'source = { registry = "https://pypi.org/simple" }\n' + artifacts
     )
 
 
@@ -129,7 +156,7 @@ def test_version_only_drift_is_detected(tmp_path: Path) -> None:
 
 
 def test_matching_versions_are_accepted(tmp_path: Path) -> None:
-    _fixture(tmp_path, 'version = 1\nrevision = 3\n[[package]]\nname = "research-stack-basic"\nversion = "0.3.6.1"\nsource = { editable = "." }\n',
+    _fixture(tmp_path, 'version = 1\nrevision = 3\nrequires-python = ">=3.12"\n[[package]]\nname = "research-stack-basic"\nversion = "0.3.6.1"\nsource = { editable = "." }\n',
              '[project]\nname = "research-stack-basic"\nversion = "0.3.6.1"\n' + BUILD_SYSTEM)
     assert lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock") == []
 
@@ -189,7 +216,8 @@ def test_extras_declare_matches_the_extras_uv_records(tmp_path: Path) -> None:
     """
     _fixture(
         tmp_path,
-        _root_lock('\n[package.metadata]\nrequires-dist = [\n    { name = "mcp", extras = ["cli"], specifier = "==2.2.0" },\n]\n'),
+        _root_lock('\n[package.metadata]\nrequires-dist = [\n    { name = "mcp", extras = ["cli"], specifier = "==2.2.0" },\n]\n')
+        + _package_block("mcp", "2.2.0"),
         _packaged_manifest('"mcp[cli]==2.2.0", '),
     )
     assert lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock") == []
@@ -201,7 +229,8 @@ def test_marker_bearing_requirement_matches_the_marker_uv_records(tmp_path: Path
         tmp_path,
         _root_lock(
             '\n[package.metadata]\nrequires-dist = [{ name = "pywin32", marker = "sys_platform == \'win32\'", specifier = "==306" }]\n'
-        ),
+        )
+        + _package_block("pywin32", "306"),
         _packaged_manifest('"pywin32==306; sys_platform == \'win32\'", '),
     )
     assert lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock") == []
@@ -248,6 +277,9 @@ OPTIONAL_LOCK = (
     '    { name = "pypdf", marker = "extra == \'pdf\'", specifier = "==6.4.1" },\n'
     '    { name = "pywin32", marker = "sys_platform == \'win32\' and extra == \'win\'", specifier = "==311" },\n'
     ']\nprovides-extras = ["pdf", "win"]\n'
+    + _package_block("mcp", "2.2.0")
+    + _package_block("pypdf", "6.4.1")
+    + _package_block("pywin32", "311")
 )
 OPTIONAL_MANIFEST = (
     '[project]\nname = "p"\nversion = "1.0.0"\nrequires-python = ">=3.12"\n'
@@ -322,9 +354,22 @@ def test_single_quoted_manifest_scalars_are_read(tmp_path: Path) -> None:
 
 # --- dependency groups that are not requirement strings ------------------------------------------
 
-def test_group_include_reference_is_compared_by_name_and_does_not_crash(tmp_path: Path) -> None:
-    """`{ include = "dev" }` is a group reference: uv 0.5.0 locks it as `other = []`, so it carries
-    no specifier on either side, and the guard compares the group names instead."""
+def test_group_include_spelling_is_a_construct_the_reader_cannot_certify(tmp_path: Path) -> None:
+    """`{ include = "dev" }` is a group reference uv 0.13.6 refuses, so the guard certifies neither side.
+
+    Measured on this host in a temp copy of the shipped worker pair (`HOME=/data/dsh/home`,
+    `UV_CACHE_DIR=/tmp/uvcache`): uv 0.5.0 accepted the spelling and locked the group as `other = []`
+    (`sync --locked --python 3.12` exit 0), and uv 0.13.6 refuses the manifest against **either** lock —
+    beside the shipped lock and beside that `other = []` lock both give `lock --check` exit 2, "Project
+    `research-stack-basic` has malformed dependency groups / Group `test` contains an unknown dependency
+    object specifier: {\"include\": \"dev\"}". A guard that returned no problem for this pair certified a
+    manifest the pinned build uv rejects.
+
+    This replaces the 0.3.7 fixture that asserted `check_pair(...) == []` for exactly this pair. That
+    assertion was the Python half of a divergence: `extension/lockfile.js` flagged the same pair, so the
+    two gates answered the same pair differently. Both now report the same thing, in the same words, and
+    neither calls it a group mismatch it cannot prove.
+    """
     _fixture(
         tmp_path,
         _root_lock(
@@ -332,10 +377,39 @@ def test_group_include_reference_is_compared_by_name_and_does_not_crash(tmp_path
             '[package.metadata.requires-dev]\n'
             'dev = [{ name = "pytest", specifier = "==8.4.2" }]\n'
             'other = []\n'
-        ),
+        )
+        + _package_block("pytest", "8.4.2"),
         _packaged_manifest(groups='\n[dependency-groups]\ndev = ["pytest==8.4.2"]\nother = [{ include = "dev" }]\n'),
     )
-    assert lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock") == []
+    problems = lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock")
+    assert len(problems) == 1, problems
+    assert "dependency group 'other' declares { include = 'dev' }" in problems[0], problems[0]
+    assert "cannot certify that group-reference spelling" in problems[0], problems[0]
+    assert "dependency groups differ" not in "\n".join(problems), problems[0]
+
+
+def test_include_group_against_an_empty_group_is_drift(tmp_path: Path) -> None:
+    """`{ include-group = "dev" }` is the spelling uv flattens, so a lock that records it empty is stale.
+
+    Measured with uv 0.13.6 on the manifest declaring `dev = ["pytest==8.4.2"]` and
+    `test = [{ include-group = "dev" }]`: beside the lock uv wrote for it (`test = [{ name = "pytest",
+    specifier = "==8.4.2" }]`) `lock --check` exits 0 and `uv-0.5.0 sync --locked --python 3.12` exits 0;
+    beside a lock recording `test = []` it exits 1 with uv's staleness sentence. The pair the previous
+    test reports as uncertifiable is a *different* spelling, and this is the one that is ordinary drift.
+    """
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(
+            'dev = [{ name = "pytest", specifier = "==8.4.2" }]\n',
+            'dev = [{ name = "pytest", specifier = "==8.4.2" }]\ntest = []\n',
+        ),
+        PROBE_MANIFEST.replace(
+            'dev = ["pytest==8.4.2"]',
+            'dev = ["pytest==8.4.2"]\ntest = [{ include-group = "dev" }]',
+        ),
+    )
+    assert any("dependency groups differ" in problem for problem in problems), problems
+    assert "test" in "\n".join(problems), problems
 
 
 def test_group_entry_the_reader_cannot_read_is_a_problem_not_a_traceback(tmp_path: Path) -> None:
@@ -431,7 +505,7 @@ def test_tool_uv_package_false_locks_as_virtual(tmp_path: Path) -> None:
     """`[tool.uv] package = false` is the manifest saying "do not install me": uv writes `virtual`."""
     _fixture(
         tmp_path,
-        'version = 1\n[[package]]\nname = "p"\nversion = "1.0.0"\nsource = { virtual = "." }\n',
+        'version = 1\nrequires-python = ">=3.12"\n[[package]]\nname = "p"\nversion = "1.0.0"\nsource = { virtual = "." }\n',
         _packaged_manifest() + '\n[tool.uv]\npackage = false\n',
     )
     assert lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock") == []
@@ -449,18 +523,52 @@ def test_lock_without_requires_python_is_reported(tmp_path: Path) -> None:
     assert any("requires-python" in problem and "the lockfile records none" in problem for problem in problems), problems
 
 
-def test_two_local_entries_are_reported_naming_both(tmp_path: Path) -> None:
-    """A workspace lock is not a guess: the guard names both local entries instead of picking one."""
+def test_uvs_own_default_requires_python_is_not_drift(tmp_path: Path) -> None:
+    """A manifest that declares no `requires-python` beside the `>=3.12` uv writes for it is current.
+
+    Measured with uv 0.13.6 in a temp copy of the shipped worker pair: `lock --check` exits 0 with the
+    warning "No `requires-python` value found in the workspace. Defaulting to `>=3.12`", and
+    `uv-0.5.0 sync --locked --python 3.12` on the same pair exits 0. The lock carries uv's own sentence,
+    not a constraint the manifest dropped — reporting it as drift refuses a pair uv itself wrote, and it
+    is the pair `extension/lockfile.js` used to refuse while this guard accepted it. The version of the
+    pair that keeps an upper bound is still drift (F4, above).
+    """
+    _fixture(tmp_path, _root_lock(), _packaged_manifest())
+    assert lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock") == []
+
+
+def test_a_stray_local_entry_is_not_drift(tmp_path: Path) -> None:
+    """A second local entry pointing at another directory is a workspace member, not a rival root.
+
+    This replaces the 0.3.7 fixture that asserted the opposite for exactly this pair. That fixture was
+    unfaithful to what real uv writes: measured with uv 0.13.6 in a temp directory, a lock carrying
+    `source = { virtual = "packages/member" }` beside the root entry — and the same pair carrying
+    `source = { editable = "packages/other-member" }`, before and after the root entry — passes
+    `uv lock --check` with exit 0. Reporting that as drift blocks a package build over a pair uv calls
+    current. Ambiguity is only real when two entries claim `.`.
+    """
     _fixture(
         tmp_path,
-        'version = 1\n[[package]]\nname = "p"\nversion = "1.0.0"\nsource = { editable = "." }\n\n'
+        'version = 1\nrequires-python = ">=3.12"\n[[package]]\nname = "p"\nversion = "1.0.0"\nsource = { editable = "." }\n\n'
         '[[package]]\nname = "member"\nversion = "0.1.0"\nsource = { virtual = "packages/member" }\n',
+        _packaged_manifest(),
+    )
+    assert lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock") == []
+    assert lockintegrity.root_lock_entry(tmp_path / "uv.lock")["name"] == "p"
+
+
+def test_two_entries_claiming_the_root_path_are_ambiguous(tmp_path: Path) -> None:
+    """Two `[[package]]` blocks both claiming `source = { editable = "." }` is not a guess."""
+    _fixture(
+        tmp_path,
+        'version = 1\nrequires-python = ">=3.12"\n[[package]]\nname = "p"\nversion = "1.0.0"\nsource = { editable = "." }\n\n'
+        '[[package]]\nname = "other"\nversion = "0.1.0"\nsource = { editable = "." }\n',
         _packaged_manifest(),
     )
     problems = lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock")
     assert len(problems) == 1, problems
-    assert "2 local (editable/virtual) package entries" in problems[0], problems
-    assert "'p' (editable = '.')" in problems[0] and "'member' (virtual = 'packages/member')" in problems[0], problems
+    assert "all claiming the source path '.'" in problems[0], problems[0]
+    assert "'p' (editable = '.')" in problems[0] and "'other' (editable = '.')" in problems[0], problems
 
 
 def test_a_non_integer_revision_is_reported(tmp_path: Path) -> None:
@@ -485,16 +593,435 @@ def test_the_bundle_build_refuses_a_stale_source_pair(tmp_path: Path) -> None:
 
 
 def test_the_bundle_build_accepts_a_current_pair(tmp_path: Path) -> None:
-    _fixture(tmp_path, 'version = 1\n[[package]]\nname = "p"\nversion = "2.0.0"\nsource = { editable = "." }\n',
-             '[project]\nname = "p"\nversion = "2.0.0"\n' + BUILD_SYSTEM)
+    _fixture(tmp_path, 'version = 1\nrequires-python = ">=3.12, <3.15"\n[[package]]\nname = "p"\nversion = "2.0.0"\nsource = { editable = "." }\n',
+             '[project]\nname = "p"\nversion = "2.0.0"\nrequires-python = ">=3.12,<3.15"\n' + BUILD_SYSTEM)
     build_worker_bundle.assert_locks_current([("pyproject.toml", "uv.lock")], tmp_path)
 
 
 def test_the_cli_reports_drift_with_a_nonzero_exit(tmp_path: Path) -> None:
-    _fixture(tmp_path, 'version = 1\n[[package]]\nname = "p"\nversion = "1.0.0"\nsource = { editable = "." }\n',
-             '[project]\nname = "p"\nversion = "2.0.0"\n' + BUILD_SYSTEM)
+    _fixture(tmp_path, 'version = 1\nrequires-python = ">=3.12, <3.15"\n[[package]]\nname = "p"\nversion = "1.0.0"\nsource = { editable = "." }\n',
+             '[project]\nname = "p"\nversion = "2.0.0"\nrequires-python = ">=3.12,<3.15"\n' + BUILD_SYSTEM)
     assert lockintegrity.main(["lockintegrity.py", str(tmp_path)]) == 1
     assert lockintegrity.main(["lockintegrity.py", str(ROOT)]) == 0
+
+
+# --- the defects an adversarial pass measured against real uv --------------------------------------
+#
+# PROBE_PAIR is the pair uv 0.13.6 writes for PROBE_MANIFEST (measured in a temp directory: `uv lock`,
+# then `uv lock --check` on what it wrote — exit 0). Every fixture below is that pair with exactly one
+# field changed, and every changed pair was put back in front of real uv 0.13.6: the exit code uv gave
+# is recorded in the test's docstring and is what the assertion claims.
+
+PROBE_MANIFEST = (
+    '[project]\nname = "probe"\nversion = "1.0.0"\nrequires-python = ">=3.12,<3.15"\n'
+    'dependencies = ["pypdf==6.4.1"]\n\n[dependency-groups]\ndev = ["pytest==8.4.2"]\n' + BUILD_SYSTEM
+)
+# The sdist and wheel uv 0.13.6 recorded for pypdf 6.4.1, copied out of the shipped worker lock.
+PYPDF_SDIST = (
+    'sdist = { url = "https://files.pythonhosted.org/packages/0c/e0/57f914ae9fedbc91fe3ebe74b78c88903943ec9c232b6da15947bb3bf8ab/pypdf-6.4.1.tar.gz", hash = "sha256:36eb0b52730fc3077d2b8d4122751e696d46af9ef9e5383db492df1ab0cc4647", size = 5275322, upload-time = "2025-12-07T14:19:27.922Z" }\n'
+)
+PYPDF_WHEEL = (
+    'wheels = [\n'
+    '    { url = "https://files.pythonhosted.org/packages/db/ef/68c0f473d8b8764b23f199450dfa035e6f2206e67e9bde5dd695bab9bdf0/pypdf-6.4.1-py3-none-any.whl", hash = "sha256:1782ee0766f0b77defc305f1eb2bafe738a2ef6313f3f3d2ee85b4542ba7e535", size = 328325, upload-time = "2025-12-07T14:19:26.286Z" },\n'
+    ']\n'
+)
+PYPDF_ARTIFACTS = PYPDF_SDIST + PYPDF_WHEEL
+PROBE_LOCK = (
+    'version = 1\nrevision = 5\nrequires-python = ">=3.12, <3.15"\n\n'
+    '[[package]]\nname = "probe"\nversion = "1.0.0"\nsource = { editable = "." }\n'
+    'dependencies = [\n    { name = "pypdf" },\n]\n\n'
+    '[package.dev-dependencies]\ndev = [\n    { name = "pytest" },\n]\n\n'
+    '[package.metadata]\nrequires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]\n\n'
+    '[package.metadata.requires-dev]\ndev = [{ name = "pytest", specifier = "==8.4.2" }]\n'
+    + _package_block("pypdf", "6.4.1", PYPDF_ARTIFACTS)
+    + _package_block("pytest", "8.4.2")
+)
+# uv 0.13.6 wrote these sdists and wheels for pytest 8.4.2 and for iniconfig 2.3.1, one of its
+# dependencies. iniconfig is the transitive package: the manifest never names it.
+PYTEST_ARTIFACTS = (
+    'sdist = { url = "https://files.pythonhosted.org/packages/a3/5c/00a0e072241553e1a7496d638deababa67c5058571567b92a7eaa258397c/pytest-8.4.2.tar.gz", hash = "sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01", size = 1519618, upload-time = "2025-09-04T14:34:22.711Z" }\n'
+    'wheels = [\n'
+    '    { url = "https://files.pythonhosted.org/packages/a8/a4/20da314d277121d6534b3a980b29035dcd51e6744bd79075a6ce8fa4eb8d/pytest-8.4.2-py3-none-any.whl", hash = "sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79", size = 365750, upload-time = "2025-09-04T14:34:20.226Z" },\n'
+    ']\n'
+)
+INICONFIG_ARTIFACTS = (
+    'sdist = { url = "https://files.pythonhosted.org/packages/01/e1/2069291243c926a2ff1cd706c7f3eeb9b62144bf60f77c9fb9ff2fb26bd3/iniconfig-2.3.1.tar.gz", hash = "sha256:67f4b9c50da0dedf52af349e7749a80a9057a5031199791b906c3bb3ae878960", size = 21209, upload-time = "2026-10-06T22:48:38.076Z" }\n'
+    'wheels = [\n'
+    '    { url = "https://files.pythonhosted.org/packages/56/43/4ca9e49d27a1fcf6bece6f6aec0ea46bb9112489b93d4b688fb415457bdb/iniconfig-2.3.1-py3-none-any.whl", hash = "sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7", size = 7552, upload-time = "2026-10-06T22:48:36.959Z" },\n'
+    ']\n'
+)
+TRANSITIVE_LOCK = PROBE_LOCK.replace(
+    _package_block("pytest", "8.4.2"),
+    '[[package]]\nname = "pytest"\nversion = "8.4.2"\nsource = { registry = "https://pypi.org/simple" }\n'
+    'dependencies = [\n    { name = "iniconfig" },\n]\n'
+    + PYTEST_ARTIFACTS
+    + _package_block("iniconfig", "2.3.1", INICONFIG_ARTIFACTS),
+)
+
+
+def test_the_pair_uv_wrote_is_clean(tmp_path: Path) -> None:
+    """The control every other test in this section is a diff against. `uv lock --check`: exit 0."""
+    _fixture(tmp_path, PROBE_LOCK, PROBE_MANIFEST)
+    assert lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock") == []
+
+
+def _probe_pair(tmp_path: Path, lock_text: str, pyproject_text: str) -> list[str]:
+    _fixture(tmp_path, lock_text, pyproject_text)
+    return lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock")
+
+
+# F1: a PEP 508 marker is part of the requirement uv compares. Measured with uv 0.13.6: changed, added
+# and removed markers each make `uv lock --check` exit 1.
+
+def test_marker_changed_on_a_requirement_is_detected(tmp_path: Path) -> None:
+    """`python_version >= '3.14'` in the manifest beside `python_full_version >= '3.13'` in the lock. `uv lock --check`: exit 1."""
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(
+            'requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]',
+            'requires-dist = [{ name = "pypdf", marker = "python_full_version >= \'3.13\'", specifier = "==6.4.1" }]',
+        ),
+        PROBE_MANIFEST.replace('"pypdf==6.4.1"', '"pypdf==6.4.1; python_version >= \'3.14\'"'),
+    )
+    assert len(problems) == 1, problems
+    assert "marker" in problems[0] and "python_version >= '3.14'" in problems[0], problems[0]
+    assert "python_full_version >= '3.13'" in problems[0], problems[0]
+
+
+def test_marker_added_to_a_requirement_is_detected(tmp_path: Path) -> None:
+    """A marker the manifest gained and the lock never recorded. `uv lock --check`: exit 1."""
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK,
+        PROBE_MANIFEST.replace('"pypdf==6.4.1"', '"pypdf==6.4.1; python_version >= \'3.13\'"'),
+    )
+    assert len(problems) == 1, problems
+    assert "marker" in problems[0] and "python_version >= '3.13'" in problems[0], problems[0]
+
+
+def test_marker_removed_from_a_requirement_is_detected(tmp_path: Path) -> None:
+    """A marker the manifest dropped and the lock still carries. `uv lock --check`: exit 1."""
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(
+            'requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]',
+            'requires-dist = [{ name = "pypdf", marker = "python_full_version >= \'3.13\'", specifier = "==6.4.1" }]',
+        ),
+        PROBE_MANIFEST,
+    )
+    assert len(problems) == 1, problems
+    assert "marker" in problems[0] and "python_full_version >= '3.13'" in problems[0], problems[0]
+
+
+def test_uvs_marker_rewrite_is_not_drift(tmp_path: Path) -> None:
+    """uv rewrites `python_version` into `python_full_version` and sorts a conjunction; both are accepted.
+
+    Every row here is the manifest spelling beside the lock spelling uv 0.13.6 actually wrote for it,
+    measured with `uv lock` followed by `uv lock --check` — exit 0 for all seven. Comparing the marker
+    text instead of uv's rewrite would call all seven stale.
+    """
+    rewrites = [
+        ("python_version >= '3.13'", "python_full_version >= '3.13'"),
+        ("python_version < '3.14'", "python_full_version < '3.14'"),
+        ("python_version == '3.13'", "python_full_version == '3.13.*'"),
+        ("python_version != '3.13'", "python_full_version != '3.13.*'"),
+        ("python_version > '3.13'", "python_full_version >= '3.14'"),
+        ("python_version <= '3.13'", "python_full_version < '3.14'"),
+        ("sys_platform == 'win32' and python_version >= '3.13'",
+         "python_full_version >= '3.13' and sys_platform == 'win32'"),
+    ]
+    for manifest_marker, lock_marker in rewrites:
+        problems = _probe_pair(
+            tmp_path,
+            PROBE_LOCK.replace(
+                'requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]',
+                'requires-dist = [{ name = "pypdf", marker = "' + lock_marker + '", specifier = "==6.4.1" }]',
+            ),
+            PROBE_MANIFEST.replace('"pypdf==6.4.1"', '"pypdf==6.4.1; ' + manifest_marker + '"'),
+        )
+        assert problems == [], f"{manifest_marker!r} vs {lock_marker!r}: {problems}"
+
+
+def test_a_marker_this_reader_does_not_model_is_left_alone(tmp_path: Path) -> None:
+    """Guessing at a rewrite uv does not report would call a uv-current pair stale, so the reader stays quiet.
+
+    uv 0.13.6 rewrites `python_version ~= '3.13'` as
+    `python_full_version >= '3.13' and python_full_version < '4'` and accepts the pair
+    (`uv lock --check`: exit 0). The reader models the six comparison operators, not `~=`, and reports
+    nothing rather than reporting a drift it cannot prove.
+    """
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(
+            'requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]',
+            'requires-dist = [{ name = "pypdf", marker = "python_full_version >= \'3.13\' and python_full_version < \'4\'", specifier = "==6.4.1" }]',
+        ),
+        PROBE_MANIFEST.replace('"pypdf==6.4.1"', '"pypdf==6.4.1; python_version ~= \'3.13\'"'),
+    )
+    assert problems == [], problems
+
+
+# F3: an extra the lock does not record. Measured with uv 0.13.6 against a lock it wrote: both rows
+# make `uv lock --check` exit 1.
+
+def test_extra_reusing_an_existing_pin_is_detected(tmp_path: Path) -> None:
+    """`pdf = ["pypdf==6.4.1"]` where pypdf is already a pinned dependency: no new requirement text. `uv lock --check`: exit 1."""
+    problems = _probe_pair(tmp_path, PROBE_LOCK, PROBE_MANIFEST + '\n[project.optional-dependencies]\npdf = ["pypdf==6.4.1"]\n')
+    assert any("provides-extras" in problem for problem in problems), problems
+
+
+def test_extra_declared_with_an_empty_list_is_detected(tmp_path: Path) -> None:
+    """`pdf = []` changes no requirement and no specifier at all. `uv lock --check`: exit 1."""
+    problems = _probe_pair(tmp_path, PROBE_LOCK, PROBE_MANIFEST + '\n[project.optional-dependencies]\npdf = []\n')
+    assert len(problems) == 1, problems
+    assert "provides-extras" in problems[0], problems[0]
+
+
+def test_an_extra_folded_into_the_marker_is_accepted(tmp_path: Path) -> None:
+    """The same manifest beside the lock uv wrote for it is current. `uv lock --check`: exit 0.
+
+    uv records an optional dependency as a second `requires-dist` entry carrying `extra == 'pdf'`, and
+    canonicalises the extra name in the marker the way it canonicalises it in `provides-extras`
+    (`cli_tools` locks as `extra == 'cli-tools'`, measured).
+    """
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(
+            'requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]',
+            'requires-dist = [\n    { name = "pypdf", specifier = "==6.4.1" },\n'
+            '    { name = "pypdf", marker = "extra == \'pdf\'", specifier = "==6.4.1" },\n]\n'
+            'provides-extras = ["pdf"]',
+        ),
+        PROBE_MANIFEST + '\n[project.optional-dependencies]\npdf = ["pypdf==6.4.1"]\n',
+    )
+    assert problems == [], problems
+
+
+# F4: `requires-python` the lock carries and the manifest no longer declares. `uv lock --check`: exit 1.
+
+def test_requires_python_dropped_from_the_manifest_is_detected(tmp_path: Path) -> None:
+    problems = _probe_pair(tmp_path, PROBE_LOCK, PROBE_MANIFEST.replace('requires-python = ">=3.12,<3.15"\n', ""))
+    assert len(problems) == 1, problems
+    assert "the lockfile records requires-python" in problems[0] and "pyproject declares none" in problems[0], problems[0]
+
+
+# F6: a transitive pin hand-edited inside the lock. Measured with uv 0.13.6: `uv lock --check` exit 2,
+# "The entry for package `pypdf` (6.4.0) has wheel `pypdf-6.4.1-py3-none-any.whl` with inconsistent
+# version (6.4.1), which indicates a malformed wheel".
+
+def test_a_hand_edited_package_version_is_detected(tmp_path: Path) -> None:
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(_package_block("pypdf", "6.4.1", PYPDF_ARTIFACTS), _package_block("pypdf", "6.4.0", PYPDF_ARTIFACTS)),
+        PROBE_MANIFEST,
+    )
+    assert len(problems) == 1, problems
+    assert "records version '6.4.0'" in problems[0], problems[0]
+    assert "pypdf-6.4.1.tar.gz" in problems[0] and "claims '6.4.1'" in problems[0], problems[0]
+
+    wheel_only = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(_package_block("pypdf", "6.4.1", PYPDF_ARTIFACTS), _package_block("pypdf", "6.4.0", PYPDF_WHEEL)),
+        PROBE_MANIFEST,
+    )
+    assert len(wheel_only) == 1, wheel_only
+    assert "pypdf-6.4.1-py3-none-any.whl" in wheel_only[0], wheel_only[0]
+
+
+def test_a_hand_edited_pin_on_a_transitive_package_is_detected(tmp_path: Path) -> None:
+    """The case F6 was measured with: a package the manifest never names, reached through pytest.
+
+    `uv lock --check` on TRANSITIVE_LOCK exits 0; bumping iniconfig's recorded version from 2.3.1 to
+    2.3.0 makes it exit 2 with "The entry for package `iniconfig` (2.3.0) has wheel
+    `iniconfig-2.3.1-py3-none-any.whl` with inconsistent version (2.3.1)", and
+    `uv sync --locked --dry-run --python 3.12` exits 2 for the same reason.
+    """
+    assert _probe_pair(tmp_path, TRANSITIVE_LOCK, PROBE_MANIFEST) == []
+
+    problems = _probe_pair(
+        tmp_path,
+        TRANSITIVE_LOCK.replace('name = "iniconfig"\nversion = "2.3.1"', 'name = "iniconfig"\nversion = "2.3.0"'),
+        PROBE_MANIFEST,
+    )
+    assert len(problems) == 1, problems
+    assert "iniconfig-2.3.1-py3-none-any.whl" in problems[0], problems[0]
+
+
+def test_a_package_without_sdist_or_wheels_is_not_drift(tmp_path: Path) -> None:
+    """uv 0.13.6 accepts a lock whose `sdist` and `wheels` keys were deleted. `uv lock --check`: exit 0."""
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(PYPDF_ARTIFACTS, ""),
+        PROBE_MANIFEST,
+    )
+    assert problems == [], problems
+
+
+# F7: a whole `[[package]]` block deleted. Measured with uv 0.13.6: `uv lock --check` exit 2,
+# "Dependency `pypdf` has missing `source` field but has more than one matching package".
+
+def test_a_deleted_package_block_is_detected(tmp_path: Path) -> None:
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(_package_block("pypdf", "6.4.1", PYPDF_ARTIFACTS), ""),
+        PROBE_MANIFEST,
+    )
+    assert any("requirement pypdf has no [[package]] entry" in problem for problem in problems), problems
+
+
+def test_a_duplicated_package_block_is_detected(tmp_path: Path) -> None:
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK + _package_block("pypdf", "6.4.1", PYPDF_ARTIFACTS),
+        PROBE_MANIFEST,
+    )
+    assert any("resolves to 2 [[package]] entries" in problem for problem in problems), problems
+
+
+# F9: `extra` (singular) is uv's key in a resolved `dependencies` list, not in `requires-dist`.
+# Measured with uv 0.13.6: `uv lock --check` exit 1.
+
+def test_singular_extra_key_in_requires_dist_is_detected(tmp_path: Path) -> None:
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(
+            'requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]',
+            'requires-dist = [{ name = "pypdf", extra = "cli", specifier = "==6.4.1" }]',
+        ),
+        PROBE_MANIFEST.replace('"pypdf==6.4.1"', '"pypdf[cli]==6.4.1"'),
+    )
+    assert any("declared dependencies differ" in problem for problem in problems), problems
+    assert any("'pypdf[cli]'" in problem for problem in problems), problems
+
+
+# F11: `dynamic = ["dependencies"]` resolved by the build backend. Measured with uv 0.13.6 on a buildable
+# project: `uv lock` writes the resolved requirements into `[package.metadata] requires-dist`, and the
+# pair it wrote passes `uv lock --check` (exit 0) and `uv sync --locked --dry-run --python 3.12` (exit 0).
+
+DYNAMIC_MANIFEST = (
+    '[project]\nname = "probe"\nversion = "1.0.0"\nrequires-python = ">=3.12,<3.15"\n'
+    'dynamic = ["dependencies"]\n\n[dependency-groups]\ndev = ["pytest==8.4.2"]\n'
+    '\n[tool.setuptools.dynamic]\ndependencies = { file = ["requirements.txt"] }\n'
+    '\n[build-system]\nrequires = ["setuptools==75.6.0"]\nbuild-backend = "setuptools.build_meta"\n'
+)
+
+
+def test_dynamic_dependencies_skip_the_requires_dist_comparison(tmp_path: Path) -> None:
+    _fixture(tmp_path, PROBE_LOCK, DYNAMIC_MANIFEST)
+    (tmp_path / "requirements.txt").write_text("pypdf==6.4.1\n", encoding="utf-8")
+    problems = lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock")
+    assert problems == [], problems
+    assert "declared dependencies differ" not in "\n".join(problems)
+
+
+def test_a_resolved_dependency_the_metadata_half_does_not_record_is_detected(tmp_path: Path) -> None:
+    """With the manifest half unreadable, the lock is still compared against itself.
+
+    Measured with uv 0.13.6 on this pair: emptying `[package.metadata] requires-dist` while the root
+    entry's resolved `dependencies` list still names `pypdf` makes `uv lock --check` exit 1 — "The
+    lockfile at `uv.lock` needs to be updated, but `--check` was provided".
+    """
+    _fixture(tmp_path, PROBE_LOCK.replace('requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]', "requires-dist = []"), DYNAMIC_MANIFEST)
+    (tmp_path / "requirements.txt").write_text("pypdf==6.4.1\n", encoding="utf-8")
+    problems = lockintegrity.check_pair(tmp_path / "pyproject.toml", tmp_path / "uv.lock")
+    assert len(problems) == 1, problems
+    assert "resolves pypdf" in problems[0] and "records no such requirement" in problems[0], problems[0]
+
+
+# F12: uv normalises the root version it writes, and only the root version. Measured with uv 0.13.6:
+# `version = "1.0.0.0"` locks as `version = "1.0"` and `uv lock --check` exits 0.
+
+def test_root_version_is_compared_as_normalised_pep_440(tmp_path: Path) -> None:
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace('name = "probe"\nversion = "1.0.0"', 'name = "probe"\nversion = "1.0"'),
+        PROBE_MANIFEST.replace('version = "1.0.0"', 'version = "1.0.0.0"'),
+    )
+    assert problems == [], problems
+
+    drifted = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace('name = "probe"\nversion = "1.0.0"', 'name = "probe"\nversion = "1.0.1"'),
+        PROBE_MANIFEST.replace('version = "1.0.0"', 'version = "1.0.0.0"'),
+    )
+    assert any("root package version" in problem for problem in drifted), drifted
+
+
+def test_odd_specifiers_are_compared_as_uv_wrote_them(tmp_path: Path) -> None:
+    """uv writes `===6.4.1`, `~=6.4.1` and `>=6.4.1, !=6.5.0` back verbatim, and accepts them.
+
+    Measured with uv 0.13.6: each manifest below locks with its specifier written back unchanged —
+    `specifier = "===6.4.1"`, `"~=6.4.1"`, `">=6.4.1,!=6.5.0"` (the spaces dropped) — and `uv lock
+    --check` on each pair exits 0. The PEP 440 normalisation this reader applies is measured for the
+    root version only; a specifier is compared as the text uv records.
+    """
+    for specifier in ("===6.4.1", "~=6.4.1", ">=6.4.1, !=6.5.0"):
+        problems = _probe_pair(
+            tmp_path,
+            PROBE_LOCK.replace('specifier = "==6.4.1"', 'specifier = "' + specifier + '"'),
+            PROBE_MANIFEST.replace('"pypdf==6.4.1"', '"pypdf' + specifier + '"'),
+        )
+        assert problems == [], f"{specifier}: {problems}"
+
+
+# F16: uv 0.13.6 accepts `{ include-group = "dev" }` and flattens it. Measured: `uv lock` writes
+# `requires-dev.test = [{ name = "pytest", specifier = "==8.4.2" }]` and `uv lock --check` exits 0.
+
+def test_include_group_is_flattened_the_way_uv_flattens_it(tmp_path: Path) -> None:
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(
+            'dev = [{ name = "pytest", specifier = "==8.4.2" }]\n',
+            'dev = [{ name = "pytest", specifier = "==8.4.2" }]\ntest = [{ name = "pytest", specifier = "==8.4.2" }]\n',
+        ),
+        PROBE_MANIFEST.replace(
+            'dev = ["pytest==8.4.2"]',
+            'dev = ["pytest==8.4.2"]\ntest = [{ include-group = "dev" }]',
+        ),
+    )
+    assert problems == [], problems
+
+
+def test_include_group_of_an_undeclared_group_is_reported(tmp_path: Path) -> None:
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK,
+        PROBE_MANIFEST.replace(
+            'dev = ["pytest==8.4.2"]',
+            'dev = ["pytest==8.4.2"]\ntest = [{ include-group = "missing-group" }]',
+        ),
+    )
+    assert any("includes 'missing-group'" in problem for problem in problems), problems
+
+
+# F17: `[tool.uv] package = true` means editable with no `[build-system]`. Measured with uv 0.13.6: uv
+# wrote `source = { editable = "." }` for such a manifest and `uv lock --check` on it exits 0.
+
+def test_tool_uv_package_true_locks_as_editable_without_a_build_system(tmp_path: Path) -> None:
+    manifest = (
+        '[project]\nname = "probe"\nversion = "1.0.0"\nrequires-python = ">=3.12,<3.15"\n'
+        'dependencies = ["pypdf==6.4.1"]\n\n[tool.uv]\npackage = true\n'
+    )
+    lock = (
+        'version = 1\nrevision = 5\nrequires-python = ">=3.12, <3.15"\n\n'
+        '[[package]]\nname = "probe"\nversion = "1.0.0"\nsource = { editable = "." }\n\n'
+        '[package.metadata]\nrequires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]\n'
+        + _package_block("pypdf", "6.4.1", PYPDF_ARTIFACTS)
+    )
+    assert _probe_pair(tmp_path, lock, manifest) == []
+
+
+# F18: the revision ceiling is this toolkit's support policy. Measured: uv 0.13.6 and uv 0.9.30 both
+# exit 0 on `uv lock --check` against a pair identical to the one 0.13.6 wrote except `revision = 6`
+# and `revision = 99`.
+
+def test_revision_above_the_supported_maximum_is_a_support_limit_not_a_uv_verdict(tmp_path: Path) -> None:
+    for revision in (6, 99):
+        problems = _probe_pair(tmp_path, PROBE_LOCK.replace("revision = 5", f"revision = {revision}"), PROBE_MANIFEST)
+        assert len(problems) == 1, problems
+        assert f"revision {revision}" in problems[0], problems[0]
+        assert "support policy, not a uv verdict" in problems[0], problems[0]
+        assert "needs to be updated" not in problems[0], problems[0]
 
 
 # --- uv's own verdict, when this host has a uv ---------------------------------------------------

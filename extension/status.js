@@ -111,6 +111,13 @@ function outcomeLine(record, { toolkitVersion } = {}) {
     // A record made by a retry covers part of the package; the headline has to say how much.
     line += ` ${coverage.installed} of ${coverage.total} package steps are installed in this workspace.`;
   }
+  // A step that installed through the `--frozen` fallback is installed, but not from the lockfile this
+  // build shipped. The headline must not read as an unqualified success.
+  const fallbacks = steps.filter((step) => step.lockFallback);
+  if (fallbacks.length) {
+    const names = fallbacks.map((step) => step.label || step.id).join(", ");
+    line += ` ${fallbacks.length} step(s) installed through a lockfile fallback (${names}) — this host's uv refused the shipped lockfile; see that step's evidence.`;
+  }
   if (toolkitVersion && record.toolkitVersion && record.toolkitVersion !== toolkitVersion) {
     line += ` Recorded by toolkit ${record.toolkitVersion}; this release has not run in this workspace yet.`;
   }
@@ -130,6 +137,7 @@ function stepRow(step) {
   if (step.status === "failed" && Number.isInteger(step.exitCode)) parts.push(`exit ${step.exitCode}`);
   if (step.attempts > 1) parts.push(`${step.attempts} attempts`);
   if (step.blockedBy) parts.push(`blocked by ${step.blockedBy}`);
+  if (step.lockFallback) parts.push("lockfile fallback used");
   return {
     id: step.id,
     label: step.label || step.id,
@@ -140,6 +148,9 @@ function stepRow(step) {
     error: step.error || (step.artifacts && step.artifacts.verified === false ? `missing: ${(step.artifacts.missing || []).join(", ")}` : ""),
     command: step.command || "",
     artifactsText: artifactsText(step),
+    note: step.lockFallback
+      ? `installed through a lockfile fallback: ${step.lockFallback.problems && step.lockFallback.problems.length ? step.lockFallback.problems.join("; ") : "this host's uv refused the shipped lockfile and the toolkit's own check of the same pair agreed"}`
+      : "",
     hint: step.hint || "",
   };
 }
@@ -187,6 +198,7 @@ function diagnosticsText(record, log) {
     lines.push(`  ${identity}: ${row.statusText} · ${row.duration} · last attempt ${row.attemptedAt}`);
     if (row.command) lines.push(`    command: ${row.command}`);
     if (row.error) lines.push(`    error: ${row.error}`);
+    if (row.note) lines.push(`    note: ${row.note}`);
     if (row.hint) lines.push(`    next action: ${row.hint}`);
   }
   if (log && Array.isArray(log.lines) && log.lines.length) {

@@ -123,6 +123,10 @@ async function probeCandidate(candidate, platform = process.platform) {
     return { resolved, problem: "a Windows batch wrapper", wrapper: true };
   }
   if (platform !== "win32" && !(info.mode & 0o111)) return { resolved, problem: "not executable", notExecutable: true };
+  // Windows has no executable bit, so an empty file is the unusable case there. A 0-byte `uv.exe`
+  // left behind by an interrupted installer would otherwise be reported as a usable tool and fail
+  // later as a confusing spawn error.
+  if (platform === "win32" && info.size === 0) return { resolved, problem: "an empty file", notExecutable: true };
   return { resolved, usable: true, problem: null };
 }
 

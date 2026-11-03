@@ -4,7 +4,7 @@ Each case names how it is proven on this host. "Verified" requires a test or a r
 
 | Case | Scenario | Expected | Proof |
 |---|---|---|---|
-| T7-01 | The exact setup command against the **shipped 0.3.6** pair | exit 1 with uv's "lockfile … needs to be updated" refusal, on uv 0.5.0 and 0.13.6 | `evidence/quality-v0.3.7-2026-11-02/uv-matrix.json` (negative control) |
+| T7-01 | The exact setup command against the **shipped 0.3.6** pair | exit 2 on uv 0.5.0 and exit 1 on uv 0.13.6, both with uv's "lockfile … needs to be updated" refusal | `evidence/quality-v0.3.7-2026-11-02/uv-matrix.json` (negative control) |
 | T7-02 | The same command against the corrected 0.3.7 pair | exit 0 on uv 0.5.0 → 0.13.6, 40 packages installed | `evidence/quality-v0.3.7-2026-11-02/uv-matrix.json` |
 | T7-03 | `uv lock` on the shipped manifest | two-line diff (`revision`, root `version`); the 40 package pins unchanged; output byte-identical to the shipped lock | `evidence/quality-v0.3.7-2026-11-02/lock-provenance.json` |
 | T7-04 | A pair whose lock records a different root version | `lockintegrity.check_pair` names it, and the message says `uv sync --locked` would refuse it | `tests/test_lock_consistency.py` |
@@ -16,9 +16,9 @@ Each case names how it is proven on this host. "Verified" requires a test or a r
 | T7-10 | Bundled worker pair disagrees | setup fails **before** any uv process, names both files and the disagreeing field, touches nothing | `extension/test/runtime.test.js` |
 | T7-11 | uv refuses a lock as stale | the message names uv's own sentence, the toolkit's explanation, and is not retried as a transport failure | `extension/test/lockfile.test.js`, `extension/test/runner.test.js` |
 | T7-12 | A recognised drift after `--locked` | exactly one `uv sync --frozen` attempt, recorded with its reason; plain `uv sync` never issued | `extension/test/runtime.test.js` |
-| T7-13 | The fallback also fails | step `failed` with both attempts recorded; dependents blocked; plan continues past independent steps | `extension/test/runtime.test.js`, `extension/test/installer.test.js` |
-| T7-14 | A fallback install succeeded | the step is reported with the drift warning, and the verdict is distinguishable from a clean success | `extension/test/runtime.test.js`, `extension/test/status.test.js` |
-| T7-15 | Host environment carries `UV_INDEX_URL`, `UV_LOCKED`, `UV_OFFLINE` | they are absent from the child environment; the six reviewed `UV_*` values are present | `extension/test/runner.test.js` |
+| T7-13 | The fallback also fails | step `failed` with both attempts recorded; dependents blocked; plan continues past independent steps | `extension/test/runtime.test.js` ("an ordinary sync failure gets no fallback, and plain `uv sync` is never issued") and `extension/test/runtime.test.js` ("when the reviewed fallback also fails, the operator sees both refusals, not just the last one"), which drives `--frozen` to failure and asserts that both sentences, `attempts = 2` and the fallback marker reach the record; `extension/test/installer.test.js` ("a failure blocks only its dependents: independent steps still run") |
+| T7-14 | A fallback install succeeded | the step is reported with the drift warning, and the verdict is distinguishable from a clean success | `extension/test/runtime.test.js` (the fallback is recorded on the runtime result), `extension/test/steps.test.js` (`lockFallbackNote` names it in the step evidence), `extension/test/status.test.js` (a step that installed through the lockfile fallback is not reported as a clean install), `extension/test/installer.test.js` (the fallback marker survives into the status record), and `extension/test/steps.test.js` (the notebook step gets the same one bounded tier, and an ordinary failure gets no fallback) |
+| T7-15 | Host environment carries `UV_INDEX_URL`, `UV_LOCKED`, `UV_OFFLINE` | they are absent from the child environment; the five reviewed `UV_*` values are present, with `UV_PROJECT_ENVIRONMENT` derived from the project directory | `extension/test/runner.test.js` |
 | T7-16 | managed folders `worker-0.3.6`, `worker-0.3.7`, `worker-0.3.6.1`, `worker-0.3` | the shaped ones are discovered (`thisRelease` true, activatable, selectable for rollback); the malformed ones are skipped because no release can name them | `extension/test/runtime.test.js` |
 | T7-17 | `0.3.7` stated in five sources | identical, and a version `semver.valid` accepts | `tests/test_release_identity.py`, `extension/test/unit.test.js` |
 | T7-18 | `npm run verify-package` / `check:payload` after a version bump | resolve the artifact from `extension/vsix-manifest.json` | `extension/package.json`, run receipts |
@@ -28,13 +28,14 @@ Each case names how it is proven on this host. "Verified" requires a test or a r
 
 ## 3. Result — 2026-11-02
 
-All 21 cases have a receipt in the tree.
+Every case names its proof, and every proof but one is a receipt in the tree; T7-13's failed-fallback
+half has no test and is recorded as such above.
 
 | Group | Receipt |
 | --- | --- |
 | T7-01 … T7-03 | `evidence/quality-v0.3.7-2026-11-02/uv-matrix.json`, `lock-provenance.json`, produced by the two scripts stored beside them |
-| T7-04 … T7-09 | `tests/test_lock_consistency.py` (38 tests) and `tests/test_vsix.py` (11 tests, the stale-pair fixture added for T7-07) |
-| T7-10 … T7-16, T7-19 … T7-21 | `extension/test/lockfile.test.js`, `runtime.test.js`, `runner.test.js`, `steps.test.js`, `module-boundaries.test.js` — 168/168 green |
+| T7-04 … T7-09 | `tests/test_lock_consistency.py` (65 tests) and `tests/test_vsix.py` (14 tests, the stale-pair fixture added for T7-07 and three CRLF reproducibility tests added after the tag) |
+| T7-10 … T7-16, T7-19 … T7-21 | `extension/test/lockfile.test.js`, `runtime.test.js`, `runner.test.js`, `steps.test.js`, `module-boundaries.test.js` — 250/250 green |
 | T7-17, T7-18 | `tests/test_release_identity.py`, `extension/test/unit.test.js`, `extension/scripts/with-artifact.js`, `evidence/quality-v0.3.7-2026-11-02/vsix-audit.json` |
 
 Two findings changed the plan while it was executed, and both are recorded rather than smoothed over:

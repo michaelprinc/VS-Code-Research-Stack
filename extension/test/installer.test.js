@@ -13,6 +13,7 @@ const {
   STEPS_BY_ID, RECEIPT_NAME, stepsForPackage, stepsForComponents, resolveStepSelection,
   readReceipt, writeReceipt, stepStatus, componentStatus, planView, outdatedSteps, failedSteps,
   overlayStepFor, writeOverlayFiles, runPlan, verifyStepArtifacts, planArtifacts, inspectNotebookProject, explainStepSelection, refreshPlanStatus,
+  commandLine, attemptRecord,
 } = require("../installer");
 
 async function fixture(t) {
@@ -415,4 +416,22 @@ test("a retry record describes the whole package plan, not only the steps the re
   assert.equal(carried.carried, true, "a carried step is marked as carried, with its own re-checked evidence");
   assert.equal(carried.artifacts.verified, true);
   assert.deepEqual(record.packageSteps, { total: 3, installed: 2 }, "the record states how much of the package it covers");
+});
+
+test("the command an operator is told to re-run is quotable, and a fallback attempt carries its marker (0.3.7 Windows review D5)", () => {
+  const line = commandLine({
+    command: "C:\\Users\\sestra\\AppData\\Local\\uv\\uv.exe",
+    args: ["sync", "--locked", "--no-dev", "--python", "3.12", "--project", "K:\\Soukromé aktivity\\Bankovní účet SVJ ČSA368\\.research-toolkit\\managed\\worker-0.3.7", "--no-config"],
+    cwd: "K:\\Soukromé aktivity\\Bankovní účet SVJ ČSA368",
+  });
+  assert.match(line, /"K:\\Soukromé aktivity\\Bankovní účet SVJ ČSA368\\\.research-toolkit\\managed\\worker-0\.3\.7"/, line);
+  assert.match(line, /\(in "K:\\Soukromé aktivity\\Bankovní účet SVJ ČSA368"\)/, line);
+  assert.ok(!/--project K:\\/.test(line), "an unquoted path with spaces cannot be pasted into a terminal");
+  assert.equal(commandLine({ command: "uv", args: ["--version"] }), "uv --version", "a path without spaces is left as it is");
+
+  const attempt = attemptRecord({ id: "worker", label: "Isolated locked worker" }, {
+    status: "installed", attempts: 1, evidence: "Locked worker synced", lockFallback: { detectedAt: "2026-11-02T21:00:00.000Z", problems: [] },
+  });
+  assert.deepEqual(attempt.lockFallback, { detectedAt: "2026-11-02T21:00:00.000Z", problems: [] }, "the fallback marker has to survive into the status record");
+  assert.equal(attemptRecord({ id: "worker", label: "w" }, { status: "installed" }).lockFallback, null);
 });

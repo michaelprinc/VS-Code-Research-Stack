@@ -24,6 +24,37 @@ function assertWorkerPairCurrent(projectRoot) {
   }
 }
 
+/**
+ * Rewrite every staged text file to LF line endings.
+ *
+ * `.gitattributes` says `* text=auto eol=lf`, but a maintainer's tree can still hold CRLF copies of the
+ * guides (git normalises them on commit, so `git status` stays clean while the file on disk keeps CRLF).
+ * vsce copies those bytes verbatim, which makes the artifact depend on the build host: the 0.3.7 build
+ * from this tree and a build from a fresh clone of the same tag differed in 17 members. The release
+ * digest has to be reproducible from the tag, so the staged tree is normalised here.
+ */
+const TEXT_EXTENSIONS = new Set([".md", ".js", ".cjs", ".mjs", ".json", ".py", ".toml", ".txt", ".svg", ".css", ".html", ".yml", ".yaml"]);
+
+function normalizeStagedLineEndings(stageRoot) {
+  const walk = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const target = path.join(directory, entry.name);
+      if (entry.isDirectory()) { walk(target); continue; }
+      if (!TEXT_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue;
+      const bytes = fs.readFileSync(target);
+      if (!bytes.includes(0x0d)) continue;
+      const normalized = Buffer.alloc(bytes.length);
+      let written = 0;
+      for (let index = 0; index < bytes.length; index += 1) {
+        if (bytes[index] === 0x0d && bytes[index + 1] === 0x0a) continue;
+        normalized[written++] = bytes[index];
+      }
+      fs.writeFileSync(target, normalized.subarray(0, written));
+    }
+  };
+  walk(stageRoot);
+}
+
 async function main() {
   const projectRoot = path.resolve(__dirname, "..");
   assertWorkerPairCurrent(projectRoot);
@@ -44,6 +75,7 @@ async function main() {
     fs.cpSync(path.join(projectRoot, "guides"), path.join(stageRoot, "guides"), { recursive: true });
     fs.cpSync(path.join(projectRoot, "worker"), path.join(stageRoot, "worker"), { recursive: true });
     fs.copyFileSync(path.join(projectRoot, "README.md"), path.join(stageRoot, "README.md"));
+    normalizeStagedLineEndings(stageRoot);
     await createVSIX({
       cwd: stageRoot,
       packagePath: outputPath,

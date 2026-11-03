@@ -42,6 +42,22 @@ EXPECTED = {
     "extension/functional_check.py",
     "extension/worker/bundle.json",
 }
+_TEXT_SUFFIXES = {".md", ".js", ".cjs", ".mjs", ".json", ".py", ".toml", ".txt", ".svg", ".css", ".html", ".yml", ".yaml"}
+
+
+def _lf(data: bytes) -> bytes:
+    """Line endings as `extension/scripts/package.js` stages them: LF only.
+
+    `.gitattributes` says `* text=auto eol=lf`, but a maintainer's tree can still hold CRLF copies of
+    the guides — git normalises them on commit, so `git status` stays clean while the file on disk keeps
+    CRLF. vsce copies those bytes verbatim, which made the 0.3.7 build from this tree differ from a
+    build of the same tag in a fresh clone in 17 members. The packager now normalises the staged tree,
+    and this audit compares normalised bytes so a line-ending difference is neither a payload mismatch
+    nor a build-host-specific digest.
+    """
+    return data.replace(b"\r\n", b"\n")
+
+
 _EXTENSION_ROOT = Path(__file__).resolve().parents[1] / "extension"
 _COMPONENTS = json.loads((_EXTENSION_ROOT / "components.json").read_text(encoding="utf-8"))["components"]
 _REPO_ROOT = _EXTENSION_ROOT.parent
@@ -236,9 +252,18 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
                 except json.JSONDecodeError:
                     matches = False
             else:
-                matches = packaged_bytes == source_bytes
+                # `extension/scripts/package.js` normalises the staged tree to LF, so the comparison is
+                # made on normalised bytes: a maintainer's CRLF copy of a guide must not change the
+                # release digest, and it must not look like a payload substitution either.
+                matches = _lf(packaged_bytes) == _lf(source_bytes)
             if not matches:
                 raise ValueError(f"packaged payload does not match project source: {member}")
+        crlf_members = sorted(
+            member for member in names
+            if PurePosixPath(member).suffix.lower() in _TEXT_SUFFIXES and b"\r\n" in archive.read(member)
+        )
+        if crlf_members:
+            raise ValueError(f"packaged text members carry CRLF line endings, so the artifact is not reproducible from the tag: {crlf_members}")
         bundle = json.loads(archive.read("extension/worker/bundle.json"))
         # The bundle must be the one the reviewed source tree builds for this release.
         reviewed_version = json.loads((_EXTENSION_ROOT / "vsix-manifest.json").read_text(encoding="utf-8")).get("version")

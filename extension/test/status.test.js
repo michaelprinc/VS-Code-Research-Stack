@@ -122,3 +122,18 @@ test("a host tool that was found but cannot be used is not printed as resolved (
   assert.match(text, /uv: not found — uv was not found/, text);
   assert.ok(!/resolved from path/.test(text), "an unusable tool is never reported as resolved");
 });
+
+test("a step that installed through the lockfile fallback is not reported as a clean install (0.3.7 e2e defect 1)", () => {
+  const fallback = { detectedAt: "2026-11-02T21:00:00.000Z", problems: [], uvMessage: "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided." };
+  const record = { package: "full", steps: [step("worker", "installed", { lockFallback: fallback })] };
+  const verdict = outcomeLine(record);
+  assert.match(verdict.line, /lockfile fallback/, verdict.line);
+  assert.match(verdict.line, /refused the shipped lockfile/, verdict.line);
+  const row = stepRow(record.steps[0]);
+  assert.match(row.statusText, /lockfile fallback used/, row.statusText);
+  assert.match(row.note, /installed through a lockfile fallback/, row.note);
+  assert.match(diagnosticsText(record), /note: installed through a lockfile fallback/, diagnosticsText(record));
+
+  const clean = outcomeLine({ package: "full", steps: [step("worker", "installed")] }).line;
+  assert.ok(!/fallback/.test(clean), "a normal install keeps its plain headline");
+});

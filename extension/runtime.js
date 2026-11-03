@@ -273,6 +273,12 @@ async function setupRuntime(vscode, context, folder, services = {}) {
       : bundled.problems.join("; ");
     const error = new Error(`This toolkit build ships a locked dependency file that does not match its own project file: ${detail}. No process ran and no file was written. Reinstall the Research Stack Toolkit VSIX; this is a defect in the toolkit build, not in this workspace.`);
     error.lockDrift = { source: "bundled", problems: bundled.readerError ? [bundled.readerError] : bundled.problems };
+    // Without a kind and a hint the status record shows an empty command with no exit code and the
+    // next-action table answers "Retry this step" to a build defect a retry cannot fix.
+    error.kind = "lock-drift";
+    error.exitCode = null;
+    error.attempts = 0;
+    error.hint = "Reinstall the VSIX from this release; the toolkit's own build gate should have refused to package this pair.";
     throw error;
   }
   // The host tool is resolved by the caller (the worker step / preflight) so the same resolution
@@ -338,6 +344,15 @@ async function setupRuntime(vscode, context, folder, services = {}) {
           : recheck.problems.join("; ");
         const refusal = new Error(`This host's uv refused the locked dependency file this build ships (${stderrTail(error.stderr || error.message)}), and the toolkit's own check of the same pair agrees: ${detail}. Refusing to install a resolution this uv calls stale. Reinstall the Research Stack Toolkit VSIX; this is a defect in the toolkit build, not in this workspace.`);
         refusal.lockDrift = { source: "bundled", problems: recheck.readerError ? [recheck.readerError] : recheck.problems, uvMessage: stderrTail(error.stderr || error.message) };
+        // Carry what the runner already knew about the failed attempt. Without it the status record
+        // shows an empty command and no exit code, and the next-action table falls through to
+        // "Retry this step" for a build defect that a retry cannot fix.
+        refusal.kind = error.kind || "lock-drift";
+        refusal.exitCode = error.exitCode === undefined ? null : error.exitCode;
+        refusal.command = error.command;
+        refusal.args = error.args;
+        refusal.attempts = error.attempts || 1;
+        refusal.hint = "Reinstall the VSIX from this release; the toolkit's own build gate should have refused to package this pair.";
         throw refusal;
       }
       services.progress?.("This host's uv did not accept the shipped lock as written. Installing exactly what the lock pins, without rewriting it…");
@@ -346,10 +361,26 @@ async function setupRuntime(vscode, context, folder, services = {}) {
         problems: recheck.problems,
         uvMessage: stderrTail(error.stderr || error.message),
       };
-      await asRunProcess(services)(uv, syncArgs("--frozen"), {
-        ...syncOptions("Installed exactly the packages the shipped lock pins; the shipped lock was not rewritten."),
-        retry: false,
-      });
+      try {
+        await asRunProcess(services)(uv, syncArgs("--frozen"), {
+          ...syncOptions("Installed exactly the packages the shipped lock pins; the shipped lock was not rewritten."),
+          retry: false,
+        });
+      } catch (fallbackError) {
+        // The locked attempt's refusal is the diagnosis; the fallback's failure is what stopped the
+        // install. Losing the first sentence leaves the operator with a network-looking error for a
+        // lockfile problem.
+        const first = stderrTail(error.stderr || error.message);
+        const second = stderrTail(fallbackError.stderr || fallbackError.message);
+        const combined = new Error(`The locked install was refused by this host's uv (${first}). The reviewed fallback that installs exactly what the shipped lock pins also failed (${second}). The shipped lockfile was not rewritten. ${fallbackError.hint || "Check the host tool version and network access, then retry setup."}`);
+        combined.kind = fallbackError.kind || "exit";
+        combined.exitCode = fallbackError.exitCode === undefined ? null : fallbackError.exitCode;
+        combined.command = fallbackError.command;
+        combined.args = fallbackError.args;
+        combined.attempts = (fallbackError.attempts || 1) + 1;
+        combined.lockFallback = { detectedAt: new Date().toISOString(), problems: [], uvMessage: first, fallbackFailure: second };
+        throw combined;
+      }
     }
     const python = path.join(worker, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
     services.progress?.("Verifying MCP discovery, PDF/DOCX reading, reports, local search and RIS preparation…");

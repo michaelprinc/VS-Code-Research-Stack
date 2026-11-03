@@ -4,7 +4,7 @@ Recorded 2 November 2026 on the Linux development host.
 
 Specification: [`specs/phase-7-lock-integrity/spec.md`](../../specs/phase-7-lock-integrity/spec.md)
 (findings D7-01…D7-08, requirements R7-01…R7-17), [`design.md`](../../specs/phase-7-lock-integrity/design.md)
-(decisions DD7-01…DD7-08), [`tasks.md`](../../specs/phase-7-lock-integrity/tasks.md),
+(decisions DD7-01…DD7-11), [`tasks.md`](../../specs/phase-7-lock-integrity/tasks.md),
 [`acceptance.md`](../../specs/phase-7-lock-integrity/acceptance.md) (T7-01…T7-21) and the
 [gate checklist](../../specs/phase-7-lock-integrity/checklists/gates.md).
 Evidence: [`evidence/quality-v0.3.7-2026-11-02/`](../../../evidence/quality-v0.3.7-2026-11-02/test-summary.md).
@@ -41,7 +41,8 @@ than hand-edited. The diff against the 0.3.6 lock is two lines — `revision = 3
 **A build cannot ship a lock uv will refuse** (`scripts/lockintegrity.py`). A uv-free reader of exactly
 the fields uv compares — the lock's root `[[package]]` entry, its `requires-python`, its dependency
 specifiers and `requires-dev`, against `[project]` in `pyproject.toml`. It runs in
-`scripts/build_worker_bundle.py` before and after the bundle is written, in `scripts/verify_vsix.py`
+`scripts/build_worker_bundle.py` on the source pairs before anything is staged, and again on the built
+worker pair before `bundle.json` is written, in `scripts/verify_vsix.py`
 against the **packaged** bytes of the worker and the overlay notebook project, in
 `tests/test_lock_consistency.py`, and as a CLI (`python3 scripts/lockintegrity.py`, exit 1 on drift).
 
@@ -64,7 +65,8 @@ config *files*; environment variables win over them. `setupEnvironment` now stri
 would change what the reviewed command means (`UV_INDEX`, `UV_INDEX_URL`, `UV_DEFAULT_INDEX`,
 `UV_EXTRA_INDEX_URL`, `UV_FIND_LINKS`, `UV_NO_INDEX`, `UV_LOCKED`, `UV_FROZEN`, `UV_UPGRADE`,
 `UV_NO_SYNC`, `UV_OFFLINE`, `UV_NO_DEV`, `UV_SYSTEM_PYTHON`, `UV_EXCLUDE_NEWER`,
-`UV_PYTHON_PREFERENCE`) and then applies the reviewed six. A user's mirror or a stray `UV_LOCKED` can
+`UV_PYTHON_PREFERENCE`) and then applies the five reviewed `UV_*` values plus `UV_PROJECT_ENVIRONMENT`,
+which it derives from the project directory. A user's mirror or a stray `UV_LOCKED` can
 no longer make a correct lock look stale.
 
 **Failure text a user can act on** (`extension/runner.js`). A lock refusal is described as a lockfile
@@ -78,7 +80,7 @@ now reports the bound per attempt, how many attempts ran, and the total time wai
 **The reading check honours the operator's bound** (`extension/runtime.js`):
 `Math.max(90000, researchStack.setupTimeoutSeconds)` instead of a fixed 90 s.
 
-## Two findings that changed the plan
+## Findings that changed the plan
 
 1. **The recovery tier is real, and measured.** `uv sync --frozen …` against the drifted 0.3.6 pair
    exits 0 and installs the pinned set on all seven uv versions, while `uv sync --locked …` against the
@@ -89,7 +91,7 @@ now reports the bound per attempt, how many attempts ran, and the total time wai
    exit 1; uv 0.5.0, 0.6.10 and 0.7.22 exit 2 — all seven print the same sentence. Detection matches
    `DRIFT_SIGNATURE` on stderr and never a number. Receipt:
    [`uv-matrix.json`](../../../evidence/quality-v0.3.7-2026-11-02/uv-matrix.json).
-2. **A four-part version cannot be packaged.** The requested `0.3.6.1` is rejected by
+3. **A four-part version cannot be packaged.** The requested `0.3.6.1` is rejected by
    `@vscode/vsce`'s `validateVersion` → `semver.valid`, and the Marketplace accepts "one to three
    numbers" ([vscode-vsce #415](https://github.com/microsoft/vscode-vsce/issues/415), closed as
    designed). `npm run package` stopped with `Invalid extension "version": "0.3.6.1"`. The release is
@@ -106,12 +108,21 @@ No `uv lock` is ever run inside a managed runtime.
 
 ## Verification
 
-`cd extension && npm test` → **168 passed, 0 failed** (15 files run; `host.test.js` and `browser.test.js`
-are the reference-host receipts and are not part of `npm test`; `test/lockfile.test.js` is new, 21 tests). `.venv/bin/python -m pytest` → **155 passed** with `RESEARCH_STACK_UV` pointing at uv 0.13.6,
-**154 passed + 1 skipped** without one (`tests/test_lock_consistency.py` is new, 38 tests). `dist/research-stack-toolkit-0.3.7.vsix` — 86 files,
-301 366 bytes, sha256 `2595facbf4f0f8271ebaca791a7443dc8915c2eb41b539f9edb64331e5abfb84` — passes
+`cd extension && npm test` → **250 passed, 0 failed** (16 files run; `host.test.js` and `browser.test.js`
+are the commands that would produce the reference-host receipts — they are not part of `npm test` and
+were not run for 0.3.7, which is why G1–G4 remain open; `test/lockfile.test.js` (24 tests) and `test/lockfile-adversarial.test.js` (73 tests) are new). `.venv/bin/python -m pytest` → **185 passed** with `RESEARCH_STACK_UV` pointing at uv 0.13.6,
+**184 passed + 1 skipped** without one (`tests/test_lock_consistency.py`, 65 tests). `dist/research-stack-toolkit-0.3.7.vsix` — 86 files,
+312 471 bytes, sha256 `f4db025b12718b62336ebec091ba79523a059ffa9de3ba998f66549183666416` — passes
 `npm run verify-package` (including the packaged-pair check, `sourceFilesMatch: true`) and
 `npm run check:payload`. `uv lock --check` (uv 0.13.6) exits 0 on all three shipped pairs.
+
+**The artifact as first built was not reproducible from the tag.** 17 of its 86 packaged members — the
+16 guides under `extension/guides/` and `extension/media/toolkit.svg` — carried CRLF line endings while
+the committed tree holds LF: `extension/guides/uv.md` was 2,372 bytes with 21 CRLF in that build, against
+2,351 bytes and no CRLF at `git show v0.3.7:extension/guides/uv.md`. A fresh clone of the tag therefore
+produced a different digest from the one recorded above. `extension/scripts/package.js` now rewrites the
+staged tree to LF, and `scripts/verify_vsix.py` refuses an artifact whose packaged text members contain
+CRLF; the rebuilt artifact carries CRLF in none of its 86 members.
 
 ## What remains open
 
