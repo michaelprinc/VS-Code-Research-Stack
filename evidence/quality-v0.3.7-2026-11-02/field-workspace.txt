@@ -1,0 +1,128 @@
+Field workspace inspection — 3 November 2026, this host
+=======================================================
+
+The workspace that reported the 0.3.6 failure is mounted on this host at
+/mnt/k/Soukromé_aktivity/Bankovní účet SVJ ČSA368 (the K: drive of the reporting machine). It was
+inspected read-only. Nothing in that workspace was created, modified or deleted, and no user document
+was copied into this repository — only the two dependency files of the toolkit's own managed worker
+were copied to /tmp for a uv run.
+
+What the workspace holds
+------------------------
+.research-toolkit/recommended-profile.json      schemaVersion 1, "Researcher" profile, extends "basic"
+.research-toolkit/managed/worker-0.3.3          from an earlier release
+.research-toolkit/managed/worker-0.3.5          from an earlier release
+.research-toolkit/managed/worker-0.3.6          the install that failed
+.research-toolkit/logs/last-setup.json          the record quoted below
+.research-toolkit/logs/setup-20261102T1512*.jsonl
+
+last-setup.json (excerpt, the failure the report is about)
+---------------------------------------------------------
+  "outcome": "partial",  "package": "full",  "toolkitVersion": "0.3.6",
+  "packageSteps": { "total": 4, "installed": 1 }
+  step "worker"  status "failed"  exitCode 1  durationMs 193  attempts 1
+    "uv.exe sync failed with exit code 1: Resolved 40 packages in 63ms | The lockfile at `uv.lock`
+     needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`."
+    command: C:\Users\micha\AppData\Local\hermes\bin\uv.exe sync --locked --no-dev --python 3.12
+             --project K:\...\managed\worker-0.3.6 --no-config
+  preflight: all six checks ok, no blockers
+  host uv: "uv 0.11.23 (3cdf50e09 2026-06-19 x86_64-pc-windows-msvc)", resolved from path, usable,
+           minimumVersion 0.5.0
+
+The pair the toolkit wrote into that workspace
+----------------------------------------------
+.research-toolkit/managed/worker-0.3.6/pyproject.toml   [project] name "research-stack-basic"
+                                                          version = "0.3.6"
+.research-toolkit/managed/worker-0.3.6/uv.lock          revision 3, requires-python ">=3.12, <3.15"
+                                                          [[package]] name "research-stack-basic"
+                                                          version = "0.3.4", source { editable = "." }
+
+That is the diagnosed root cause, present in the reported workspace: the manifest the toolkit wrote
+declared 0.3.6 and the lock it wrote beside it recorded 0.3.4.
+
+Both 0.3.7 readers, run against those exact files
+-------------------------------------------------
+Python reader (scripts/lockintegrity.py, check_pair_text):
+  1 problem — "uv.lock: root package version '0.3.4' does not match pyproject version '0.3.6'
+              — uv sync --locked would refuse this pair"
+JavaScript reader (extension/lockfile.js, pairProblems):
+  1 problem — "lock root package version 0.3.4 does not match pyproject version 0.3.6"
+
+Real uv, on a copy of those two files in /tmp (the workspace itself was never touched)
+--------------------------------------------------------------------------------------
+HOME=/data/dsh/home  UV_CACHE_DIR=/tmp/uvcache
+/tmp/uvs/uv-0.13.6 lock --check --project /tmp/fieldpair --no-config
+  exit 1 — error: The lockfile at `uv.lock` needs to be updated, but `--check` was provided.
+/tmp/uvs/uv-0.5.0 sync --locked --python 3.12 --project /tmp/fieldpair --no-config
+  exit 2 — error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.
+           To update the lockfile, run `uv lock`.
+
+The reporting host ran uv 0.11.23 and got exit 1 with the same sentence, which sits between the two
+measurements above (refusal exit 2 up to 0.7.22, exit 1 from 0.8.5 on).
+
+The reviewed fallback, run against that same drifted pair
+----------------------------------------------------------
+The 0.3.7 worker step is allowed one `uv sync --frozen` attempt, and only when the toolkit's own reader
+says the pair is current. On a pair this drifted the reader refuses, so the fallback would not run in
+the field workspace. The fallback's own safety property was still measured on this pair, because it is
+the pair the fallback exists for:
+
+  before: sha256 uv.lock = 7a28c41f64fe2d2eed10cec003430fb12e44f7900d5ec8e5d4aab9e9ec3aed90
+  /tmp/uvs/uv-0.5.0  sync --frozen --no-dev --python 3.12 --project /tmp/fieldpair --no-config -> exit 0
+  /tmp/uvs/uv-0.13.6 sync --frozen --no-dev --python 3.12 --project /tmp/fieldpair --no-config -> exit 0
+  after:  sha256 uv.lock = 7a28c41f64fe2d2eed10cec003430fb12e44f7900d5ec8e5d4aab9e9ec3aed90  (unchanged)
+
+`--frozen` installs what the lock pins and never rewrites the lock — the toolkit's rule that setup must
+not run `uv lock` in a managed directory holds even in the fallback. uv 0.13.6 reported
+"~ research-stack-basic==0.3.6 (from file:///tmp/fieldpair)": the editable root is installed at the
+version the manifest declares, not at the stale version the lock recorded.
+
+What the refused install left behind
+------------------------------------
+.research-toolkit/managed/worker-0.3.6/ holds .python-version, .venv (Scripts, Lib, pyvenv.cfg) with
+2 entries in .venv/Lib/site-packages, plus pyproject.toml, uv.lock, src and installation.json. uv had
+created the managed Python environment before it refused the lock, so the step's own artifact check
+found both files it looks for — `mcp_server.py` and `.venv/Scripts/python.exe` — and recorded
+"artifacts": { "verified": true, "observedCount": 2 } on a step whose status is "failed".
+
+That combination is why the status record matters: extension/installer.js counts a step as installed
+only when the workspace record says it was installed, so this step is reported "missing" with
+"Not installed. The last setup attempt failed: …" rather than as installed, even though its files are
+present. Verified in the code path stepStatus() (installer.js:209-235): a record holding only a failed
+lastAttempt is not an installation.
+
+Five setup logs were written between 15:12:20 and 15:13:00, then last-setup.json at 15:13:11 — the
+operator retried setup repeatedly, which is what the 0.3.6 reporting could not explain and what the
+0.3.7 refusal wording is meant to explain.
+
+The reporting host's uv version, obtained and run here
+------------------------------------------------------
+The reporting host ran uv 0.11.23, which is not one of the binaries in /tmp/uvs. It was installed into
+a scratch target only (`/tmp/uvs/uv-0.13.6 pip install --target /tmp/uv011 --python 3.12 uv==0.11.23`,
+giving /tmp/uv011/bin/uv, `uv 0.11.23 (x86_64-unknown-linux-gnu)`). Nothing in the repository's own
+environment was changed.
+
+  Drifted 0.3.6 pair (a copy of the two files from the field workspace, in /tmp/fieldpair-011):
+    uv 0.11.23 sync --locked --no-dev --python 3.12 --project … --no-config -> exit 1
+      Resolved 40 packages in 513ms
+      The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the
+      lockfile, run `uv lock`.
+    That is the field record reproduced on the reporting host's own uv version: exit code 1, the same
+    "Resolved 40 packages" line, the same sentence.
+
+  Shipped 0.3.7 pair (the bytes unpacked from dist/research-stack-toolkit-0.3.7.vsix):
+    uv 0.11.23 sync --locked --python 3.12 --project /tmp/shipmatrix/worker --no-config   -> exit 0
+    uv 0.11.23 sync --locked --no-dev --python 3.12 --project /tmp/shipmatrix/notebook --no-config -> exit 0
+    The worker environment uv built holds 81 site-packages entries for the 40 locked packages.
+
+So the failure and the fix were both exercised at the version the report came from. No `--frozen`
+fallback was needed at 0.11.23.
+
+What this receipt does not prove
+
+--------------------------------
+Setup has not been re-run in that workspace: it is a Windows host and this host is Linux, so the
+Windows path (uv.exe, AppData, drive-letter paths, the extension host) cannot be exercised here. The
+0.3.7 worker pair that replaces the drifted one installs on all seven uv versions measured in
+packaged-uv-matrix.txt. uv 0.11.x — the version on the reporting host — is not among the binaries
+available here; 0.10.7 and 0.13.6 bracket it and both accept the shipped pair.

@@ -1,0 +1,62 @@
+Packaged-artifact uv matrix — 3 November 2026, this host
+=========================================================
+
+What this proves: the dependency pairs inside the shipped VSIX, not the repository copies of them,
+install on every uv version the toolkit supports. The 0.3.6 field failure happened in the packaged
+worker tree, so the matrix is run against the packaged bytes.
+
+Artifact under test
+-------------------
+dist/research-stack-toolkit-0.3.7.vsix
+  312,471 bytes
+  sha256 89cf8ba92105edde9983345303e32a077ecfaeb4f286231cceb81c6060b78e82
+  86 members, none carrying CRLF, every ZIP entry stamped at 1980-01-01T00:00:00Z
+
+Commands run
+------------
+HOME=/data/dsh/home  UV_CACHE_DIR=/tmp/uvcache
+python3 -c "import zipfile; zipfile.ZipFile('dist/research-stack-toolkit-0.3.7.vsix').extractall('vsix')"
+cp -r vsix/extension/worker worker                       # plus src/research_stack/__init__.py and README.md
+cp -r vsix/extension/worker/overlay/notebooks/analysis notebook
+
+for v in 0.5.0 0.6.10 0.7.22 0.8.5 0.9.30 0.10.7 0.13.6; do
+  /tmp/uvs/uv-$v sync --locked --python 3.12 --project /tmp/shipmatrix/worker --no-config
+done
+
+for v in 0.5.0 0.6.10 0.7.22 0.8.5 0.9.30 0.10.7 0.13.6; do
+  /tmp/uvs/uv-$v sync --locked --no-dev --python 3.12 --project /tmp/shipmatrix/notebook --no-config
+done
+
+The two extra files in the worker copy (a one-line src/research_stack/__init__.py and a README.md) are
+needed because the packaged tree is the bundle's payload, not a buildable checkout: uv resolves the
+build backend before it resolves dependencies. They are not part of the artifact and change no
+dependency.
+
+Worker pair (extension/worker/pyproject.toml + uv.lock from the artifact)
+------------------------------------------------------------------------
+uv 0.5.0  -> exit 0   + uvicorn==0.54.0
+uv 0.6.10 -> exit 0   ~ research-stack-basic==0.3.7 (from file:///tmp/shipmatrix/worker)
+uv 0.7.22 -> exit 0   Audited 37 packages in 0.73ms
+uv 0.8.5  -> exit 0   Audited 37 packages in 0.71ms
+uv 0.9.30 -> exit 0   Audited 37 packages in 1ms
+uv 0.10.7 -> exit 0   Audited 37 packages in 1ms
+uv 0.13.6 -> exit 0   Checked 37 packages in 0.65ms
+
+uv 0.11.23 — the version on the machine that reported the 0.3.6 failure — was installed into a scratch
+target (/tmp/uv011/bin/uv, from the uv==0.11.23 wheel) and gives exit 0 on the same packaged worker and
+notebook pairs. See field-workspace.txt for that run and for the 0.3.6 pair refused at the same version.
+
+Notebook pair (overlay/notebooks/analysis/pyproject.toml + uv.lock from the artifact)
+------------------------------------------------------------------------------------
+uv 0.5.0  -> exit 0   + wcwidth==0.9.2
+uv 0.6.10 -> exit 0   Audited 37 packages in 0.03ms
+uv 0.7.22 -> exit 0   Audited 37 packages in 0.02ms
+uv 0.8.5  -> exit 0   Audited 37 packages in 0.01ms
+uv 0.9.30 -> exit 0   Audited 37 packages in 0.79ms
+uv 0.10.7 -> exit 0   Audited 37 packages in 0.54ms
+uv 0.13.6 -> exit 0   Checked 37 packages in 0.49ms
+
+Read against the 0.3.6 failure recorded in uv-matrix.json: the same command on the 0.3.6 packaged pair
+was refused by all seven versions with "The lockfile at uv.lock needs to be updated, but --locked was
+provided" (exit 2 on 0.5.0-0.7.22, exit 1 on 0.8.5 and later). No --frozen fallback was needed on any
+version for this release.
