@@ -79,9 +79,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--uv", action="append", required=True, help="path to a uv binary (repeatable)")
     parser.add_argument("--drift-to", default="0.3.4", help="root version to record in the negative control")
+    parser.add_argument("--out", help="write the receipt here instead of overwriting the recorded evidence file")
     args = parser.parse_args()
 
-    out = pathlib.Path(__file__).resolve().parent / "uv-matrix.json"
+    # The recorded receipt lives beside this script, and re-running the script rewrites it. Pass --out to
+    # reproduce a run somewhere else and leave the recorded evidence alone.
+    out = pathlib.Path(args.out) if args.out else pathlib.Path(__file__).resolve().parent / "uv-matrix.json"
     cache = pathlib.Path(tempfile.mkdtemp(prefix="research-stack-uv-cache-"))
     rows = []
     for uv in args.uv:
@@ -141,6 +144,7 @@ def main() -> int:
             "frozenRecoveredOnEveryDriftedPair": all(row["frozenRecovered"] for row in rows),
         },
     }
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {out}")
     verdict = document["verdict"]

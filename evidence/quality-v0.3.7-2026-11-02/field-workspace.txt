@@ -93,7 +93,18 @@ lastAttempt is not an installation.
 
 Five setup logs were written between 15:12:20 and 15:13:00, then last-setup.json at 15:13:11 — the
 operator retried setup repeatedly, which is what the 0.3.6 reporting could not explain and what the
-0.3.7 refusal wording is meant to explain.
+0.3.7 refusal wording is meant to explain. One of those lines, verbatim:
+
+  {"kind":"step","stepId":"worker","status":"failed","exitCode":1,"durationMs":201,
+   "error":"uv.exe sync failed with exit code 1: Resolved 40 packages in 82ms | The lockfile at
+    `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`.
+    (cwd K:\\Soukromé_aktivity\\Bankovní účet SVJ ČSA368\\.research-toolkit\\managed\\worker-0.3.6) …"}
+  {"kind":"plan","status":"partial","package":"full","ran":[],"skipped":[],"repaired":[],
+   "failed":["worker"],"blocked":[],"at":"2026-11-02T15:13:00.452Z"}
+
+Nothing in the workspace's own configuration caused it: .vscode/settings.json holds only
+"specstory.cloudSync.enabled": "never" — no researchStack setting — so the toolkit ran with its defaults
+and resolved uv from PATH (C:\Users\micha\AppData\Local\hermes\bin\uv.exe, version 0.11.23).
 
 The reporting host's uv version, obtained and run here
 ------------------------------------------------------

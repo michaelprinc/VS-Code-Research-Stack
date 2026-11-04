@@ -62,6 +62,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--uv", default="/tmp/uvs/uv-0.13.6")
     parser.add_argument("--base", default="v0.3.6", help="revision whose lock is the starting point")
+    parser.add_argument("--out", help="write the receipt here instead of overwriting the recorded evidence file")
     args = parser.parse_args()
 
     shipped_lock = (ROOT / "extension" / "worker" / "uv.lock").read_text(encoding="utf-8")
@@ -114,7 +115,10 @@ def main() -> int:
         "resolvedPackageCount": len(new_pins),
         "thirdPartyPinCount": len([name for name in new_pins if name != "research-stack-basic"]),
     }
-    out = pathlib.Path(__file__).resolve().parent / "lock-provenance.json"
+    # The recorded receipt lives beside this script, and re-running the script rewrites it. Pass --out to
+    # reproduce a run somewhere else and leave the recorded evidence alone.
+    out = pathlib.Path(args.out) if args.out else pathlib.Path(__file__).resolve().parent / "lock-provenance.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {out}")
     print(f"diff: +{document['diffAddedLines']} / -{document['diffRemovedLines']} lines, "

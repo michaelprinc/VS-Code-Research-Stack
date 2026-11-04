@@ -1,0 +1,8 @@
+  uv 0.5.0  shipped exit=0 (1109 ms)  drifted exit=2 (559 ms)  drift message seen=True
+ uv 0.6.10  shipped exit=0 (1120 ms)  drifted exit=2 (589 ms)  drift message seen=True
+ uv 0.7.22  shipped exit=0 (500 ms)  drifted exit=2 (453 ms)  drift message seen=True
+  uv 0.8.5  shipped exit=0 (373 ms)  drifted exit=1 (57 ms)  drift message seen=True
+ uv 0.9.30  shipped exit=0 (557 ms)  drifted exit=1 (489 ms)  drift message seen=True
+ uv 0.10.7  shipped exit=0 (1245 ms)  drifted exit=1 (588 ms)  drift message seen=True
+uv 0.13.6 (x86_64-unknown-linux-gnu)  shipped exit=0 (1745 ms)  drifted exit=1 (486 ms)  drift message seen=True
+wrote /data/dsh/home/Aplikovaná umělá inteligence pro sestry karmelitky/Research-Stack/toolkit/evidence/quality-v0.3.7-2026-11-02/uv-matrix.json

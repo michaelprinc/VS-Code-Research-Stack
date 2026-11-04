@@ -1,7 +1,7 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { outcomeOf, outcomeLine, firstProblem, stepRow, diagnosticsText, durationText, OUTCOMES } = require("../status");
+const { outcomeOf, outcomeLine, firstProblem, stepRow, fallbackState, diagnosticsText, durationText, OUTCOMES } = require("../status");
 
 const step = (id, status, extra = {}) => ({ id, label: id, status, durationMs: 1000, startedAt: "2026-11-01T08:00:00.000Z", finishedAt: "2026-11-01T08:00:01.000Z", ...extra });
 const verified = { verified: true, missing: [] };
@@ -136,4 +136,77 @@ test("a step that installed through the lockfile fallback is not reported as a c
 
   const clean = outcomeLine({ package: "full", steps: [step("worker", "installed")] }).line;
   assert.ok(!/fallback/.test(clean), "a normal install keeps its plain headline");
+});
+
+test("a lockfile fallback that FAILED is never reported as an install (0.3.7 e2e defect D2, receipts/19)", () => {
+  // The exact shape receipts/19-locked-and-fallback-both-fail.json recorded: the locked attempt was
+  // refused, the reviewed --frozen fallback also failed with exit 2, nothing was installed.
+  const failedFallback = { detectedAt: "2026-11-03T11:00:50.383Z", problems: [], uvMessage: "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.", fallbackFailure: "cause: Connection refused (os error 111)" };
+  const record = {
+    package: "recommended", toolkitVersion: "0.3.7", packageSteps: { total: 3, installed: 1 },
+    steps: [
+      step("worker", "failed", { label: "Isolated locked worker (Python 3.12)", attempts: 2, exitCode: 2, error: "The locked install was refused by this host's uv.", hint: "Retry this step.", lockFallback: failedFallback }),
+      step("research-overlay", "installed", { label: "Research overlay files", artifacts: verified }),
+      step("notebook-env", "blocked", { label: "Notebook analysis environment", blockedBy: "worker" }),
+    ],
+  };
+  const line = outcomeLine(record).line;
+  assert.match(line, /1 step\(s\) attempted the reviewed lockfile fallback and did not install \(Isolated locked worker \(Python 3\.12\)\)/, line);
+  assert.ok(!/installed through a lockfile fallback/.test(line), `a failed fallback is not an install: ${line}`);
+
+  const row = stepRow(record.steps[0]);
+  assert.match(row.statusText, /^failed · exit 2 · 2 attempts · lockfile fallback attempted, step not installed$/, row.statusText);
+  assert.ok(!/lockfile fallback used/.test(row.statusText), row.statusText);
+  assert.match(row.note, /attempted the reviewed lockfile fallback, which did not install this step/, row.note);
+  assert.ok(!/installed through/.test(row.note), row.note);
+
+  const text = diagnosticsText(record);
+  assert.ok(!/installed through a lockfile fallback/.test(text), `the copied diagnostics must not call a failed step installed:\n${text}`);
+  assert.match(text, /lockfile fallback attempted, step not installed/, text);
+});
+
+test("a fallback install and a failed fallback are counted apart in the same headline (0.3.7 e2e defect D2)", () => {
+  const ok = { detectedAt: "2026-11-03T09:06:02.825Z", problems: [], uvMessage: "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided." };
+  const bad = { detectedAt: "2026-11-03T11:00:50.383Z", problems: [], uvMessage: "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.", fallbackFailure: "cause: Connection refused" };
+  const record = {
+    package: "recommended", toolkitVersion: "0.3.7",
+    steps: [
+      step("worker", "installed", { label: "Isolated locked worker (Python 3.12)", artifacts: verified, lockFallback: ok }),
+      step("notebook-env", "failed", { label: "Notebook analysis environment", exitCode: 2, error: "The reviewed fallback also failed.", lockFallback: bad }),
+    ],
+  };
+  const line = outcomeLine(record).line;
+  assert.match(line, /1 step\(s\) installed through a lockfile fallback \(Isolated locked worker \(Python 3\.12\)\)/, line);
+  assert.match(line, /1 step\(s\) attempted the reviewed lockfile fallback and did not install \(Notebook analysis environment\)/, line);
+  assert.equal((line.match(/lockfile fallback/g) || []).length, 2, "one clause per bucket, no merged count");
+  const rows = record.steps.map(stepRow);
+  assert.match(rows[0].statusText, /lockfile fallback used/, rows[0].statusText);
+  assert.match(rows[0].note, /^installed through a lockfile fallback:/, rows[0].note);
+  assert.match(rows[1].statusText, /lockfile fallback attempted, step not installed/, rows[1].statusText);
+  assert.ok(!/^installed/.test(rows[1].note), rows[1].note);
+});
+
+test("a step that is not an install cannot carry the installed-through-fallback wording (D2, defensive)", () => {
+  const marker = { detectedAt: "2026-11-03T11:00:50.383Z", problems: ["the shipped pair disagrees"], uvMessage: "refused" };
+  for (const status of ["failed", "blocked", "cancelled"]) {
+    const row = stepRow(step("worker", status, { lockFallback: marker, blockedBy: "worker" }));
+    assert.ok(!/installed through/.test(row.note), `${status}: ${row.note}`);
+    assert.ok(!/lockfile fallback used/.test(row.statusText), `${status}: ${row.statusText}`);
+    assert.match(row.note, /attempted the reviewed lockfile fallback/, row.note);
+    assert.match(row.note, /the shipped pair disagrees/, "the recorded problem is still named");
+  }
+  assert.equal(fallbackState(step("worker", "installed", { artifacts: verified })), null, "a normal install has no fallback state");
+  assert.equal(fallbackState(step("worker", "installed", { artifacts: verified, lockFallback: marker })), "installed");
+  assert.equal(fallbackState(step("worker", "failed", { lockFallback: marker })), "attempted");
+});
+
+test("a refusal that started no process says so in the step row instead of leaving 1 attempt (0.3.7 e2e defect D7)", () => {
+  const row = stepRow(step("worker", "failed", { attempts: 0, error: "No process ran and no file was written." }));
+  assert.match(row.statusText, /^failed · no process ran$/, row.statusText);
+  assert.ok(!/1 attempt/.test(row.statusText), row.statusText);
+  assert.match(diagnosticsText({ steps: [step("worker", "failed", { attempts: 0, error: "No process ran." })] }), /failed · no process ran/);
+  // A real count is still printed as a count, and an install never claims it ran nothing.
+  assert.equal(stepRow(step("worker", "failed", { attempts: 2, exitCode: 2 })).statusText, "failed · exit 2 · 2 attempts");
+  assert.equal(stepRow(step("worker", "installed", { attempts: 2, artifacts: verified })).statusText, "installed · 2 attempts");
+  assert.equal(stepRow(step("worker", "skipped", { attempts: 0, artifacts: verified })).statusText, "already current and verified");
 });

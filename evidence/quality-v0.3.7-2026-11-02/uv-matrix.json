@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-02T20:21:51+00:00",
+  "generatedAt": "2026-11-04T00:51:00+00:00",
   "host": {
-    "python": "3.13.5",
+    "python": "3.12.16",
     "platform": "linux",
     "note": "uv binaries were downloaded to /tmp/uvs; no uv is installed on the host PATH."
   },
@@ -49,7 +49,7 @@
       ],
       "shippedPair": {
         "exitCode": 0,
-        "durationMs": 903,
+        "durationMs": 1109,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -59,17 +59,17 @@
       },
       "driftedPair": {
         "exitCode": 2,
-        "durationMs": 627,
+        "durationMs": 559,
         "stderrTail": [
           "Creating virtual environment at: .venv",
-          "Resolved 40 packages in 604ms",
+          "Resolved 40 packages in 536ms",
           "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`."
         ],
         "stdoutTail": []
       },
       "frozenFallbackOnDriftedPair": {
         "exitCode": 0,
-        "durationMs": 324,
+        "durationMs": 337,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -97,7 +97,7 @@
       ],
       "shippedPair": {
         "exitCode": 0,
-        "durationMs": 1445,
+        "durationMs": 1120,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -107,17 +107,17 @@
       },
       "driftedPair": {
         "exitCode": 2,
-        "durationMs": 712,
+        "durationMs": 589,
         "stderrTail": [
           "Creating virtual environment at: .venv",
-          "Resolved 40 packages in 679ms",
+          "Resolved 40 packages in 558ms",
           "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`."
         ],
         "stdoutTail": []
       },
       "frozenFallbackOnDriftedPair": {
         "exitCode": 0,
-        "durationMs": 599,
+        "durationMs": 340,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -145,7 +145,7 @@
       ],
       "shippedPair": {
         "exitCode": 0,
-        "durationMs": 720,
+        "durationMs": 500,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -155,17 +155,17 @@
       },
       "driftedPair": {
         "exitCode": 2,
-        "durationMs": 563,
+        "durationMs": 453,
         "stderrTail": [
           "Creating virtual environment at: .venv",
-          "Resolved 40 packages in 532ms",
+          "Resolved 40 packages in 429ms",
           "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`."
         ],
         "stdoutTail": []
       },
       "frozenFallbackOnDriftedPair": {
         "exitCode": 0,
-        "durationMs": 460,
+        "durationMs": 336,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -193,7 +193,7 @@
       ],
       "shippedPair": {
         "exitCode": 0,
-        "durationMs": 439,
+        "durationMs": 373,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -203,17 +203,17 @@
       },
       "driftedPair": {
         "exitCode": 1,
-        "durationMs": 65,
+        "durationMs": 57,
         "stderrTail": [
           "Creating virtual environment at: .venv",
-          "Resolved 40 packages in 43ms",
+          "Resolved 40 packages in 39ms",
           "The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`."
         ],
         "stdoutTail": []
       },
       "frozenFallbackOnDriftedPair": {
         "exitCode": 0,
-        "durationMs": 482,
+        "durationMs": 325,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -241,7 +241,7 @@
       ],
       "shippedPair": {
         "exitCode": 0,
-        "durationMs": 754,
+        "durationMs": 557,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -251,17 +251,17 @@
       },
       "driftedPair": {
         "exitCode": 1,
-        "durationMs": 660,
+        "durationMs": 489,
         "stderrTail": [
           "Creating virtual environment at: .venv",
-          "Resolved 40 packages in 591ms",
+          "Resolved 40 packages in 443ms",
           "The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`."
         ],
         "stdoutTail": []
       },
       "frozenFallbackOnDriftedPair": {
         "exitCode": 0,
-        "durationMs": 602,
+        "durationMs": 338,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -289,7 +289,7 @@
       ],
       "shippedPair": {
         "exitCode": 0,
-        "durationMs": 1192,
+        "durationMs": 1245,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -299,17 +299,17 @@
       },
       "driftedPair": {
         "exitCode": 1,
-        "durationMs": 734,
+        "durationMs": 588,
         "stderrTail": [
           "Creating virtual environment at: .venv",
-          "Resolved 40 packages in 658ms",
+          "Resolved 40 packages in 541ms",
           "The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`."
         ],
         "stdoutTail": []
       },
       "frozenFallbackOnDriftedPair": {
         "exitCode": 0,
-        "durationMs": 537,
+        "durationMs": 332,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -337,7 +337,7 @@
       ],
       "shippedPair": {
         "exitCode": 0,
-        "durationMs": 1881,
+        "durationMs": 1745,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",
@@ -347,7 +347,7 @@
       },
       "driftedPair": {
         "exitCode": 1,
-        "durationMs": 760,
+        "durationMs": 486,
         "stderrTail": [
           "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.",
           "",
@@ -357,7 +357,7 @@
       },
       "frozenFallbackOnDriftedPair": {
         "exitCode": 0,
-        "durationMs": 556,
+        "durationMs": 351,
         "stderrTail": [
           " + typing-extensions==4.16.0",
           " + typing-inspection==0.4.4",

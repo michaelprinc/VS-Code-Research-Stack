@@ -1,0 +1,13 @@
+# uv's own verdict on an sdist filename that disagrees while the wheel agrees
+# measured 2026-11-03 on this host, pair written from tests/test_lock_consistency.py fixtures
+# entry version 6.4.1, wheel pypdf-6.4.1-py3-none-any.whl, sdist renamed to pypdf-6.4.2.tar.gz
+
+$ cd /tmp/sdistcheck && /tmp/uvs/uv-0.13.6 lock --check --no-config
+Using CPython 3.12.16
+Resolved 3 packages in 0.81ms
+exit: 0
+
+Both readers: no problems reported (tests/test_lock_consistency.py::
+  test_a_sdist_filename_that_disagrees_while_the_wheel_agrees_is_not_reported)
+Reason recorded: uv validates the wheel filenames it downloads, not the sdist name; a reader that
+  flagged this would refuse a lock real uv accepts and would block the toolkit's own build.

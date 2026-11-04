@@ -8,11 +8,35 @@
  * the 0.3.6 status reporting possible: a failure carries its command, exit code, stderr and
  * duration instead of collapsing into a canned sentence, which is how the 0.3.5 setup failures
  * became untroubleshootable.
+ *
+ * 0.3.7 Windows review W2 — what a stopped run actually kills. `uv sync` is not one process: it
+ * spawns a managed python and wheel-build children. A bound that only terminates the direct child
+ * leaves those grandchildren alive and writing into the step's own directory after the toolkit has
+ * already reported the step failed and released `.setup.lock`. So the boundary now owns the whole
+ * tree: the child is started in its own process group (POSIX) and a stopped run is reaped with
+ * `kill(-pid)`, or with `taskkill /PID <pid> /T /F` on Windows while the direct child is still
+ * alive to name its tree.
+ *
+ * The same reap covers a run that **ended** badly — a non-zero exit (kind "exit") or a spawn failure
+ * (kind "spawn") — not only a run the toolkit stopped. A tool can exit while its own children keep
+ * running: the reported field failure is `uv sync --locked` refusing and exiting 1, and a build
+ * grandchild outlives it. Measured on this host before this change, the direct child was gone and
+ * the RunError had been reported at 35 ms, while the orphan grandchild wrote its file at 1.2 s —
+ * into the step directory, after the step had been reported failed. A run that exits 0 is left
+ * alone: nothing failed, so nothing is killed.
+ *
+ * Why the bounded run is a `spawn` and not an `execFile` (measured on this host, Node v24.22.0):
+ * `execFile` builds its own spawn options internally and passes only
+ * `cwd, env, gid, shell, signal, uid, windowsHide, windowsVerbatimArguments` — `detached` is
+ * dropped, so an `execFile` child keeps the toolkit's own process group and `kill(-child.pid)`
+ * would aim at the editor's group instead of the tool's. `execFile` is still the call site for the
+ * Windows reaper, which needs no group of its own. The bounds are unchanged: `shell: false`,
+ * `windowsHide: true`, `maxBuffer: MAX_BUFFER_BYTES`, one timeout per attempt, one call site.
  */
 
 const path = require("node:path");
 const os = require("node:os");
-const { execFile } = require("node:child_process");
+const childProcess = require("node:child_process");
 const fs = require("node:fs/promises");
 const { isLockDrift } = require("./lockfile");
 
@@ -22,24 +46,228 @@ const REPORT_LIMIT = 64 * 1024;
 const STDERR_TAIL_LINES = 6;
 const RETRY_DELAY_MS = 2000;
 const MAX_ATTEMPTS = 2;
+/** The Windows tree reaper and how long the boundary is willing to wait for it (W2). */
+const TASKKILL = "taskkill.exe";
+const REAP_BOUND_MS = 2000;
+
+/**
+ * `/T` takes the whole tree rooted at the pid, `/F` forces it. The pid must still be alive when
+ * this runs, which is why the reaper is called before the direct child is terminated.
+ */
+function taskkillArguments(pid) {
+  return ["/PID", String(pid), "/T", "/F"];
+}
+
+/**
+ * Kill everything the run left behind — a stopped run, or a run that exited badly with its own
+ * children still alive — and never let the reaping itself become the failure.
+ *
+ * The returned promise always resolves — with what was reaped or with the reason it could not be.
+ * A reaper that could reject is an unhandled rejection in the extension host, and a reaper with no
+ * bound is a step that never reports.
+ */
+function reapTree(child) {
+  const pid = child && child.pid;
+  if (!pid) return Promise.resolve({ reaped: false, target: "no pid", reason: "the child never got a pid" });
+
+  if (os.platform() === "win32") {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (outcome) => {
+        if (done) return;
+        done = true;
+        clearTimeout(bound);
+        // taskkill /T /F takes the root too; this is the backstop for the case where it refused.
+        try { child.kill("SIGKILL"); } catch { /* the tree is already gone */ }
+        resolve(outcome);
+      };
+      const bound = setTimeout(() => finish({ reaped: false, target: `${TASKKILL} /PID ${pid} /T /F`, reason: `${TASKKILL} did not answer within ${REAP_BOUND_MS} ms` }), REAP_BOUND_MS);
+      try {
+        childProcess.execFile(TASKKILL, taskkillArguments(pid), {
+          timeout: REAP_BOUND_MS, maxBuffer: MAX_BUFFER_BYTES, windowsHide: true, shell: false, cwd: os.tmpdir(),
+        }, (error) => finish(error
+          ? { reaped: false, target: `${TASKKILL} /PID ${pid} /T /F`, reason: `${TASKKILL} exited with ${error.code || error.signal || error.message}` }
+          : { reaped: true, target: `${TASKKILL} /PID ${pid} /T /F` }));
+      } catch (error) {
+        finish({ reaped: false, target: `${TASKKILL} /PID ${pid} /T /F`, reason: `${TASKKILL} could not start: ${error.code || error.message}` });
+      }
+    });
+  }
+
+  // The child leads its own group (see `detached` in `execute`), so the group id is the child's pid
+  // and every uv grandchild is in it. ESRCH means the group is already empty.
+  try {
+    process.kill(-pid, "SIGKILL");
+    return Promise.resolve({ reaped: true, target: `process group -${pid}` });
+  } catch (error) {
+    try { child.kill("SIGKILL"); } catch { /* already gone */ }
+    return Promise.resolve({ reaped: false, target: `process group -${pid}`, reason: `kill(-${pid}) ${error.code || error.message}` });
+  }
+}
 
 /** Reviewer-visible bounds. This is the only call site of the reviewed process boundary. */
 function execute(executable, args, options) {
   const timeoutMs = options.timeout || DEFAULT_TIMEOUT_MS;
+  const cwd = options.cwd || os.tmpdir();
   return new Promise((resolve, reject) => {
-    execFile(executable, args, {
-      timeout: options.timeout || DEFAULT_TIMEOUT_MS,
-      maxBuffer: MAX_BUFFER_BYTES,
-      windowsHide: true,
-      shell: false,
-      cwd: options.cwd || os.tmpdir(),
-      signal: options.signal,
+    const call = { executable, args, cwd, timeout: timeoutMs, stdout: "", stderr: "" };
+    if (options.signal && options.signal.aborted) {
+      // Cancelled before anything ran: do not start a process that is about to be killed.
+      reject(classify(cancelledError(), call));
+      return;
+    }
+
+    const child = childProcess.spawn(executable, args, {
+      cwd,
       env: options.env,
-    }, (error, stdout, stderr) => {
-      if (error) reject(classify(error, { executable, args, cwd: options.cwd || os.tmpdir(), timeout: timeoutMs, stdout, stderr }));
-      else resolve({ stdout: String(stdout || ""), stderr: String(stderr || "") });
+      shell: false,
+      windowsHide: true,
+      // POSIX only: the child becomes its own group and session leader so `kill(-pid)` can take the
+      // whole tree. On Windows the tree is taken by `taskkill /T` instead.
+      detached: os.platform() !== "win32",
     });
+
+    const out = { parts: [], total: 0 };
+    const err = { parts: [], total: 0 };
+    let overflow = false;
+    let stopped = null;
+    let spawnError = null;
+    let exitInfo = null;
+    let reapPromise = null;
+    let reapOutcome = null;
+    let timer = null;
+    let reapBound = null;
+    let abortListener = null;
+    let settled = false;
+
+    const collect = (stream, sink) => {
+      if (!stream) return;
+      stream.setEncoding("utf8");
+      stream.on("data", (chunk) => {
+        if (sink.total >= MAX_BUFFER_BYTES) {
+          if (!overflow) { overflow = true; stop("buffer"); }
+          return;
+        }
+        sink.parts.push(chunk);
+        sink.total += chunk.length;
+      });
+      // A killed child's stream errors are a consequence of the kill, never the failure itself.
+      stream.on("error", () => {});
+    };
+    collect(child.stdout, out);
+    collect(child.stderr, err);
+
+    const clear = () => {
+      if (timer) clearTimeout(timer);
+      if (reapBound) clearTimeout(reapBound);
+      if (abortListener && options.signal) options.signal.removeEventListener("abort", abortListener);
+    };
+
+    /**
+     * Reap the child's tree. The rejection waits for the reaper so the step is not reported failed
+     * while a uv grandchild is still writing into the step's directory — bounded by REAP_BOUND_MS so
+     * a reaper that never answers cannot hang the promise.
+     */
+    const beginReap = () => {
+      if (reapPromise) return;
+      reapBound = setTimeout(() => settle(true), REAP_BOUND_MS);
+      reapPromise = reapTree(child);
+      reapPromise.then((outcome) => { reapOutcome = outcome; settle(false); }, (error) => {
+        // reapTree is written never to reject; this is the belt on the braces.
+        reapOutcome = { reaped: false, target: "reaper", reason: `the reaper raised ${error && error.message}` };
+        settle(false);
+      });
+    };
+
+    /** Stop a run that is still going and reap its tree. */
+    const stop = (cause) => {
+      if (reapPromise) return;
+      stopped = stopped || cause;
+      beginReap();
+    };
+
+    const settle = (forced) => {
+      if (settled) return;
+      const childGone = Boolean(spawnError || exitInfo);
+      // A run that ended badly can still have left the tree alive: the direct child is gone but its
+      // build grandchild is not, and the grandchild writes into the step directory after the step
+      // has been reported failed. Reap before reporting; a clean exit 0 is left alone.
+      const failed = Boolean(spawnError) || overflow || Boolean(stopped)
+        || Boolean(exitInfo && (exitInfo.code !== 0 || exitInfo.signal !== null));
+      if (!forced && childGone && failed && !reapPromise) { beginReap(); return; }
+      const reaperAnswered = !reapPromise || Boolean(reapOutcome);
+      if (!forced && (!childGone || !reaperAnswered)) return;
+      settled = true;
+      clear();
+      if (forced) {
+        try { child.kill("SIGKILL"); } catch { /* already gone */ }
+        // The bound expired before the reaper answered. Say so rather than report a failure that
+        // looks like no reap was attempted.
+        if (reapPromise && !reapOutcome) {
+          reapOutcome = { reaped: false, target: "reaper", reason: `the reaper did not answer within ${REAP_BOUND_MS} ms` };
+        }
+      }
+      const stdout = out.parts.join("");
+      const stderr = err.parts.join("");
+      const evidence = { ...call, stdout, stderr };
+      /** Every failure the boundary reports carries what the reaper did, when it ran one. */
+      const rejectFailure = (runError) => {
+        if (reapOutcome) {
+          runError.reaped = reapOutcome.reaped;
+          runError.reapTarget = reapOutcome.target;
+          if (reapOutcome.reason) runError.reapReason = reapOutcome.reason;
+        }
+        reject(runError);
+      };
+      if (spawnError) { rejectFailure(classify(spawnError, evidence)); return; }
+      const code = exitInfo ? exitInfo.code : null;
+      const signal = exitInfo ? exitInfo.signal : null;
+      if (!forced && !overflow && !stopped && code === 0 && signal === null) {
+        resolve({ stdout, stderr });
+        return;
+      }
+      rejectFailure(classify(stoppedError({ stopped, overflow, code, signal, timeoutMs }), evidence));
+    };
+
+    child.on("exit", (code, signal) => { exitInfo = { code, signal }; settle(false); });
+    child.on("error", (error) => { spawnError = error; settle(false); });
+
+    timer = setTimeout(() => stop("timeout"), timeoutMs);
+    if (options.signal) {
+      abortListener = () => stop("cancelled");
+      options.signal.addEventListener("abort", abortListener, { once: true });
+    }
   });
+}
+
+function cancelledError() {
+  const error = new Error("The run was aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+/**
+ * Shape the exit into the error `classify` already understands, so a spawn-based boundary reports
+ * exactly the kinds the rest of the toolkit was reviewed against: cancelled, timeout, buffer, exit.
+ */
+function stoppedError({ stopped, overflow, code, signal, timeoutMs }) {
+  if (stopped === "cancelled") return cancelledError();
+  if (overflow) {
+    const error = new Error(`Exceeded the ${MAX_BUFFER_BYTES} byte capture limit`);
+    error.code = "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
+    error.signal = signal || null;
+    return error;
+  }
+  if (stopped === "timeout") {
+    const error = new Error(`Command timed out after ${timeoutMs} ms`);
+    error.killed = true;
+    error.signal = signal || null;
+    return error;
+  }
+  const error = new Error("Command failed");
+  error.code = typeof code === "number" ? code : null;
+  error.signal = signal || null;
+  return error;
 }
 
 function classify(error, call) {
@@ -88,6 +316,7 @@ function describe(runError, hint) {
   const where = `cwd ${runError.cwd}`;
   const seconds = (ms) => `${ms >= 1000 ? Math.round(ms / 1000) : ms} ${ms >= 1000 ? "s" : "ms"}`;
   if (runError.kind === "cancelled") return `${subject} was cancelled. Completed files were preserved; run setup again to resume.`;
+  if (runError.kind === "policy") return `${subject} was refused before it ran: ${runError.policyReason || LOCK_POLICY_SENTENCE} (${where}). No process was started.`;
   if (runError.kind === "timeout") {
     // The bound is per attempt. When more than one attempt ran, the operator waited for all of them,
     // and saying so is the difference between "increase the timeout" and "the network is the problem".
@@ -151,6 +380,12 @@ const CONFLICTING_UV_VARIABLES = [
   "UV_LOCKED", "UV_FROZEN", "UV_UPGRADE", "UV_NO_SYNC", "UV_OFFLINE", "UV_NO_DEV", "UV_SYSTEM_PYTHON",
   "UV_EXCLUDE_NEWER", "UV_PYTHON_PREFERENCE",
 ];
+// W12: the toolkit's own python calls are isolated with `-I`, but a python that **uv** starts for a
+// source build is not. Measured with uv 0.13.6 building a package whose PEP 517 backend dumps its own
+// environment: `isolated 0`, `no_site 0`, `safe_path false`, `PYTHONPATH` present in the child's
+// environment **and** in its `sys.path`. A host `PYTHONPATH` therefore reaches the code that builds a
+// locked dependency, and `PYTHONHOME` can point that python at the wrong prefix.
+const CONFLICTING_PYTHON_VARIABLES = ["PYTHONHOME", "PYTHONPATH"];
 // Windows environment names are case-insensitive and Node keeps the OS spelling in `process.env`, so a
 // host can hold `uv_locked` or `Uv_Index_Url`. Matching only the exact spellings let such a variable
 // reach `uv.exe` — where it is the same setting — while the toolkit reported that it had removed it.
@@ -159,22 +394,38 @@ const CONFLICTING_UV_VARIABLES = [
 const CONFLICTING_UV_NAMES = new Set(
   [...CONFLICTING_UV_VARIABLES, ...Object.keys(REVIEWED_UV_ENVIRONMENT), "UV_PROJECT_ENVIRONMENT"].map((name) => name.toLowerCase()),
 );
+const CONFLICTING_PYTHON_NAMES = new Set(CONFLICTING_PYTHON_VARIABLES.map((name) => name.toLowerCase()));
 // Reported in the reviewed order so the same host always produces the same sentence.
 const OVERRIDDEN_UV_VARIABLES = [...CONFLICTING_UV_VARIABLES, ...Object.keys(REVIEWED_UV_ENVIRONMENT), "UV_PROJECT_ENVIRONMENT"];
 
-function conflictingUvVariables(environment = process.env) {
+function matchingNames(candidates, environment) {
   const hostNames = Object.keys(environment);
-  return OVERRIDDEN_UV_VARIABLES.flatMap((candidate) => hostNames.filter((name) => name.toLowerCase() === candidate.toLowerCase()));
+  return candidates.flatMap((candidate) => hostNames.filter((name) => name.toLowerCase() === candidate.toLowerCase()));
 }
 
+function conflictingUvVariables(environment = process.env) {
+  return matchingNames(OVERRIDDEN_UV_VARIABLES, environment);
+}
+
+function conflictingPythonVariables(environment = process.env) {
+  return matchingNames(CONFLICTING_PYTHON_VARIABLES, environment);
+}
+
+/**
+ * Build the environment a setup call actually receives. `base` is the environment the caller asked
+ * for — `options.env` when one was given, the editor process otherwise — so the caller's own
+ * environment is the thing being scrubbed (W11), not an unrelated `process.env`.
+ */
 function setupEnvironment(cwd, environment = process.env) {
   const kept = {};
   for (const [name, value] of Object.entries(environment)) {
     // Every name the toolkit sets itself is dropped from the inherited environment too, whatever the
     // host spelled it: a host `uv_link_mode=hardlink` sitting beside `UV_LINK_MODE=copy` leaves the
     // child free to read the host's copy, and `copy` was chosen precisely to avoid the Windows
-    // cross-device hardlink failure.
-    if (!CONFLICTING_UV_NAMES.has(name.toLowerCase())) kept[name] = value;
+    // cross-device hardlink failure. The python interpreter variables are dropped for the same
+    // reason: they change which interpreter a uv-spawned build runs, which is meaning, not cost.
+    if (CONFLICTING_UV_NAMES.has(name.toLowerCase()) || CONFLICTING_PYTHON_NAMES.has(name.toLowerCase())) continue;
+    kept[name] = value;
   }
   return {
     ...kept,
@@ -186,12 +437,42 @@ function setupEnvironment(cwd, environment = process.env) {
 /**
  * What the toolkit removed from the inherited environment, in the operator's own terms. Stripping a
  * variable silently makes a host-specific problem look like a generic one, so the names are reported
- * alongside the failure they may have caused.
+ * alongside the failure they may have caused — and they are the names of the environment the command
+ * was actually built from (W11), not of whatever the editor process happens to hold.
  */
 function scrubbedUvVariables(environment = process.env) {
-  const names = conflictingUvVariables(environment);
-  if (!names.length) return "";
-  return ` Before this command ran, the toolkit removed ${names.length} uv setting(s) inherited from the editor process (${names.join(", ")}) and applied its own reviewed uv settings; if this command depends on those settings, run it yourself in a terminal.`;
+  const uvNames = conflictingUvVariables(environment);
+  const pythonNames = conflictingPythonVariables(environment);
+  if (!uvNames.length && !pythonNames.length) return "";
+  if (!pythonNames.length) {
+    return ` Before this command ran, the toolkit removed ${uvNames.length} uv setting(s) inherited from the editor process (${uvNames.join(", ")}) and applied its own reviewed uv settings; if this command depends on those settings, run it yourself in a terminal.`;
+  }
+  const parts = [];
+  if (uvNames.length) parts.push(`${uvNames.length} uv setting(s) (${uvNames.join(", ")})`);
+  if (pythonNames.length) parts.push(`${pythonNames.length} python interpreter setting(s) (${pythonNames.join(", ")})`);
+  return ` Before this command ran, the toolkit removed ${uvNames.length + pythonNames.length} setting(s) inherited from the environment this command was built from — ${parts.join(" and ")} — and applied its own reviewed uv settings; if this command depends on those settings, run it yourself in a terminal.`;
+}
+
+/**
+ * gates.md: "No path in extension/ issues `uv lock` inside a managed runtime or a plain `uv sync`."
+ * The claim used to be true only by inspection. It is enforced here, at the one place a tool can be
+ * started, so a future release cannot add `uv lock` to a managed step without a test failing.
+ */
+const UV_EXECUTABLE_NAME = /^uv(\.exe|\.cmd|\.bat|\.com)?(-[\w.]+)?$/i;
+const LOCK_POLICY_SENTENCE = "the toolkit never runs `uv lock` in a managed runtime and never runs a plain `uv sync`";
+
+/** @returns the refusal reason, or null when the command is one the toolkit is allowed to run. */
+function uvCommandPolicy(executable, args) {
+  const name = path.basename(String(executable || "")).toLowerCase();
+  if (!UV_EXECUTABLE_NAME.test(name)) return null;
+  const list = (Array.isArray(args) ? args : []).map((arg) => String(arg));
+  if (list.includes("lock")) {
+    return { reason: "the toolkit never runs `uv lock` in a managed runtime — it does not rewrite a lockfile inside the workspace, it installs from the lockfile this build ships" };
+  }
+  if (list.includes("sync") && !list.includes("--locked") && !list.includes("--frozen")) {
+    return { reason: "a managed uv sync must carry `--locked`, or the recorded `--frozen` fallback — a plain `uv sync` would resolve dependencies outside the lockfile this build ships" };
+  }
+  return null;
 }
 
 /**
@@ -222,6 +503,21 @@ async function runProcess(executable, args, options = {}) {
       throw rejection;
     }
   }
+  // The reviewed uv commands are the ones a managed directory is built from. A call that would
+  // rewrite the lockfile, or resolve outside it, is refused here rather than discovered later in
+  // uv's own output — and nothing is spawned, so nothing can have been written.
+  const policy = options.kind === "setup" ? uvCommandPolicy(executable, args) : null;
+  if (policy) {
+    const rejection = classify(new Error(policy.reason), { executable, args, cwd: options.cwd || os.tmpdir(), timeout: timeoutMs, stdout: "", stderr: "" });
+    rejection.kind = "policy";
+    rejection.policyReason = policy.reason;
+    rejection.attempts = 0;
+    rejection.durationMs = Date.now() - started;
+    rejection.hint = options.hint || "";
+    rejection.message = describe(rejection, rejection.hint);
+    throw rejection;
+  }
+  const baseEnvironment = options.env || process.env;
   const attemptLimit = options.retry ? MAX_ATTEMPTS : 1;
   let lastError;
   let attemptsRun = 0;
@@ -230,7 +526,7 @@ async function runProcess(executable, args, options = {}) {
     try {
       const output = await execute(executable, args, {
         timeout: options.timeout, cwd: options.cwd, signal: options.signal,
-        env: options.kind === "setup" ? setupEnvironment(options.cwd) : options.env,
+        env: options.kind === "setup" ? setupEnvironment(options.cwd, baseEnvironment) : options.env,
       });
       const durationMs = Date.now() - started;
       return {
@@ -262,7 +558,7 @@ async function runProcess(executable, args, options = {}) {
   // reporting the limit here would tell the operator "2 attempts" when one process ran.
   lastError.attempts = attemptsRun;
   lastError.hint = options.hint || "";
-  if (options.kind === "setup") lastError.scrubbedUv = scrubbedUvVariables();
+  if (options.kind === "setup") lastError.scrubbedUv = scrubbedUvVariables(baseEnvironment);
   lastError.message = describe(lastError, lastError.hint);
   throw lastError;
 }
@@ -291,5 +587,5 @@ async function runFile(executable, args, options = {}) {
 module.exports = {
   DEFAULT_TIMEOUT_MS, asRunProcess, MAX_BUFFER_BYTES, REPORT_LIMIT, RETRY_DELAY_MS, MAX_ATTEMPTS,
   CONFLICTING_UV_VARIABLES, REVIEWED_UV_ENVIRONMENT,
-  runProcess, runFile, describe, retryable, stderrTail, setupEnvironment, conflictingUvVariables, scrubbedUvVariables,
+  runProcess, runFile, describe, retryable, stderrTail, setupEnvironment, conflictingUvVariables, conflictingPythonVariables, scrubbedUvVariables, uvCommandPolicy,
 };

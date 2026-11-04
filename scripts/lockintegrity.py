@@ -46,6 +46,7 @@ pair up to date.
 from __future__ import annotations
 
 import re
+import sys
 import tomllib
 from pathlib import Path
 
@@ -69,15 +70,36 @@ _EXTRAS = re.compile(r"^\[([^\[\]]*)\]")
 # declared uv floor — it is not a pair uv calls stale.
 EXPECTED_REVISION_MAX = 5
 
-# `[tool.uv]` keys that change what uv resolves to and that this reader does not model. Measured with
-# uv 0.13.6 against the shipped worker pair, changing only the manifest: each of these six made uv refuse
-# the lock (`lock --check` exit 1) while a reader that ignores `[tool.uv]` called the pair current.
-# `default-groups`, `index`, `default-index`, `find-links` and `no-build-isolation-package` were measured
-# too and uv accepted the lock unchanged, so they are deliberately not flagged here.
+# `[tool.uv]` keys that change what uv resolves to. Measured with uv 0.13.6 against the shipped worker
+# pair, changing only the manifest: each of these six made uv refuse the lock (`lock --check` exit 1)
+# while a reader that ignores `[tool.uv]` called the pair current. `default-groups`, `index`,
+# `default-index`, `find-links` and `no-build-isolation-package` were measured too and uv accepted the
+# lock unchanged, so they are deliberately not flagged here.
+#
+# Three of the six are resolution inputs uv RECORDS in the lock it writes, and are certifiable when the
+# lock carries them (see `UV_RECORDED_RESOLUTION_KEYS`): refusing them there is a false alarm that
+# blocks `npm run package` on a pair uv itself produced.
 UV_RESOLUTION_KEYS = frozenset({
     "override-dependencies", "constraint-dependencies", "environments", "required-environments",
     "sources", "exclude-newer",
 })
+
+# `[tool.uv]` key -> where uv records that same input in the lock it writes. Measured on this host, on
+# probe projects whose `uv.lock` uv 0.13.6 wrote itself (adversarial pairs P06, P07, P08): beside the
+# lock it wrote, `override-dependencies` (the lock carries `[manifest] overrides`),
+# `constraint-dependencies` (`[manifest] constraints`) and `required-environments` (top-level
+# `required-markers`) all pass `uv lock --check` at exit 0 on 0.6.10, 0.7.22, 0.8.5, 0.9.30, 0.10.7 and
+# 0.13.6, and `uv-0.5.0 sync --locked --python 3.12` at exit 0. The reverse is a real defect: the same
+# lock beside a manifest that dropped the key is refused by all seven (P10, exit 1 everywhere).
+#
+# `environments` is NOT in this table. Measured (P09): `environments = ["python_full_version >= '3.12'"]`
+# beside the lock uv wrote for it, which records `supported-markers = []`, is refused by every uv in the
+# matrix — exit 2 on 0.5.0, 0.6.10 and 0.7.22, exit 1 on 0.8.5 through 0.13.6. It stays refused.
+UV_RECORDED_RESOLUTION_KEYS = {
+    "override-dependencies": ("manifest", "overrides"),
+    "constraint-dependencies": ("manifest", "constraints"),
+    "required-environments": ("", "required-markers"),
+}
 
 
 def canonical_name(name: str) -> str:
@@ -124,14 +146,35 @@ def _strip_marker(text: str) -> str:
     return text
 
 
+def _specifier_bounds(text: object) -> list[str]:
+    """The bounds of a specifier, one operator/bound pair per item, whitespace dropped."""
+    return [re.sub(r"\s+", "", part) for part in str(text).split(",") if re.sub(r"\s+", "", part)]
+
+
 def _normalize_specifier(text: str) -> str:
-    """`">= 3.12, <3.15"` -> `">=3.12,<3.15"`: uv re-serialises specifiers without the spaces."""
-    return re.sub(r"\s+", "", str(text))
+    """`"pypdf<7,>=6.4"`'s specifier `"<7,>=6.4"` -> `"<7,>=6.4"`; `">=6.4, <7"` -> the same string.
+
+    A requirement specifier is compared as the SET of its parsed bounds, not as normalised text.
+    Measured on this host against the shipped worker pair (adversarial pair P63) and a probe pair
+    (P01): the manifest writes `pypdf<7,>=6.4` / `packaging<25,>=24.0`, and uv 0.13.6 writes
+    `specifier = ">=6.4,<7"` / `">=24.0,<25"` — the order **uv itself writes** — and `uv-0.13.6
+    lock --check` exits 0 on all of 0.6.10, 0.7.22, 0.8.5, 0.9.30, 0.10.7 and 0.13.6, and
+    `uv-0.5.0 sync --locked --python 3.12` exits 0. Comparing the two texts calls the pair the toolkit
+    ships stale, which is what made `scripts/build_worker_bundle.py` refuse to build.
+    A strict subset or superset is still a different set, so the pairs uv really refuses stay refused:
+    manifest `>=24.0` against lock `>=24.0,<25` (P02) and manifest `<25,>=24.0,!=24.1` against the same
+    lock (P03) are both exit 2 on 0.5.0-0.7.22 and exit 1 from 0.8.5 on.
+    Each bound is kept verbatim — uv writes `===6.4.1`, `~=6.4.1` and `>=6.4.1,!=6.5.0` back unchanged,
+    so a bound's own text is not normalised.
+    """
+    return ",".join(sorted(set(_specifier_bounds(text))))
 
 
 # --- PEP 508 markers, compared after uv's own rewrite ---------------------------------------------
 
-_MARKER_ATOM = re.compile(r"^([A-Za-z_][A-Za-z0-9_.]*)\s*(<=|>=|==|!=|~=|<|>)\s*(['\"])(.*?)\3$")
+_MARKER_ATOM = re.compile(
+    r"^([A-Za-z_][A-Za-z0-9_.]*)\s*(<=|>=|==|!=|~=|not in|in|<|>)\s*(['\"])(.*?)\3$"
+)
 _WORD_CHAR = re.compile(r"[A-Za-z0-9_.]")
 
 # Measured with uv 0.13.6 on a probe project (`uv lock`, then `uv lock --check` on what it wrote, exit 0
@@ -151,10 +194,249 @@ _WORD_CHAR = re.compile(r"[A-Za-z0-9_.]")
 #
 # uv also sorts the atoms of a conjunction, and canonicalises an `extra` name the way it canonicalises
 # an extra in `provides-extras` (`cli_tools` locks as `extra == 'cli-tools'`). The rows this reader
-# models are the six comparison operators on a one- or two-component `python_version` bound; a `~=`,
-# `in`/`not in`, prefix (`'3.13.*'`) or three-component bound is left unmodelled on purpose, because a
-# reader that guessed at those rewrites would call a uv-current pair stale and stop the package build.
+# models are the six comparison operators on a one-, two- or three-component `python_version` bound,
+# plus `~=`, `in` and `not in` through the interval model below; a prefix bound (`'3.13.*'`), a
+# parenthesised marker, or a `~=`/`==`/`!=` against a three-component bound is left unmodelled on
+# purpose, because a reader that guessed at those rewrites would call a uv-current pair stale and stop
+# the package build.
 _PYTHON_VERSION_OPERATORS = {">=", "<", ">", "<=", "==", "!="}
+
+# --- the `python_version` interval model -----------------------------------------------------------
+#
+# `python_version` only ever holds `major.minor`, so a `python_version` constraint is a set of
+# `major.minor` points, and uv rewrites it into `python_full_version` bounds that select exactly the
+# same points. Measured on this host with uv 0.13.6 (`uv lock` on a probe project, then `uv lock
+# --check` on what it wrote — exit 0 for every row), the spelling uv settles on is:
+#
+#     python_version ~= '3.12'        -> python_full_version >= '3.12' and python_full_version < '4'
+#     python_version in '3.12 3.13'   -> python_full_version >= '3.12' and python_full_version < '3.14'
+#     python_version in '3.12 3.14'   -> python_full_version == '3.12.*' or python_full_version == '3.14.*'
+#     python_version not in '3.12 3.14'-> python_full_version < '3.12' or python_full_version == '3.13.*'
+#                                        or python_full_version >= '3.15'
+#
+# That is a union of half-open `major.minor` intervals, adjacent intervals merged, printed bound by
+# bound — which is what `_python_version_intervals` and `_spell_intervals` below reproduce. A single
+# point prints as uv prints a single point (`== '3.12.*'`), a run of points prints as one bounded
+# interval, and the complement of a run prints as the open ends plus the holes. `~=` with a
+# three-component bound is left unmodelled: measured, uv 0.13.6 writes `python_version < '0'` for it,
+# which is a construct this reader will not guess at.
+
+_MINOR_POINT = re.compile(r"^(?P<major>\d{1,2})(?:\.(?P<minor>\d{1,2}))?$")
+
+
+def _minor_point(text: object) -> tuple[int, int] | None:
+    match = _MINOR_POINT.match(str(text).strip())
+    if match is None:
+        return None
+    return (int(match.group("major")), int(match.group("minor") or 0))
+
+
+def _next_minor(point: tuple[int, int]) -> tuple[int, int]:
+    return (point[0], point[1] + 1)
+
+
+def _spell_minor(point: tuple[int, int]) -> str:
+    """uv prints `4` for `4.0` and `3.12` for `3.12`."""
+    return str(point[0]) if point[1] == 0 else f"{point[0]}.{point[1]}"
+
+
+def _merge_intervals(intervals: list[tuple[tuple[int, int] | None, tuple[int, int] | None]]):
+    """Sort half-open `major.minor` intervals and merge the ones that touch or overlap."""
+    kept = [(lo, hi) for lo, hi in intervals if lo is None or hi is None or lo < hi]
+    kept.sort(key=lambda pair: (pair[0] is not None, pair[0] or (0, 0), pair[1] is None, pair[1] or (0, 0)))
+    merged: list = []
+    for lo, hi in kept:
+        if merged:
+            previous_lo, previous_hi = merged[-1]
+            if previous_hi is None:
+                continue
+            if lo is None or previous_hi >= lo:
+                # The two intervals touch or overlap: keep the lower start and the higher end. An
+                # unbounded end stays unbounded — `resolution-markers = ["… >= '3.14'", "… < '3.14'"]`
+                # is the whole line, and a merge that dropped the open end called the shipped pair's own
+                # markers a coverage gap.
+                merged[-1] = (previous_lo, None if hi is None else (hi if previous_hi < hi else previous_hi))
+                continue
+        merged.append((lo, hi))
+    return merged
+
+
+def _complement_intervals(intervals):
+    """Everything the merged intervals do not cover, over the whole `major.minor` line."""
+    out: list = []
+    cursor: tuple[int, int] | None = None
+    for lo, hi in intervals:
+        if lo is None:
+            cursor = hi
+            continue
+        out.append((cursor, lo))
+        cursor = hi
+    if cursor is not None:
+        out.append((cursor, None))
+    return out
+
+
+def _spell_intervals(intervals) -> list[tuple[str, ...]] | None:
+    """One conjunction of `python_full_version` atoms per interval, in uv's own spelling.
+
+    None when the spelling would not be uv's. Measured with uv 0.13.6 (adversarial probe
+    `python_version not in '3.12 4'`), uv parenthesises a multi-atom clause inside a disjunction and
+    spells its upper bound `python_full_version < '4.0'` there, while the same bound in a single
+    clause (`python_version ~= '3.12'`) comes out as `python_full_version < '4'`. A disjunction that
+    contains a conjunction is therefore not reproducible from the interval model, and guessing at it
+    would report drift for a pair uv accepts.
+    """
+    groups: list[tuple[str, ...]] = []
+    for lo, hi in intervals:
+        if lo is None and hi is None:
+            continue
+        if lo is None:
+            groups.append((f"python_full_version < {_spell_minor(hi)}",))
+        elif hi is None:
+            groups.append((f"python_full_version >= {_spell_minor(lo)}",))
+        elif hi == _next_minor(lo):
+            # uv writes the point in full here: `python_version in '3 3.12'` measures as
+            # `python_full_version == '3.0.*' or python_full_version == '3.12.*'`, not `== '3.*'`.
+            groups.append((f"python_full_version == {lo[0]}.{lo[1]}.*",))
+        else:
+            groups.append((f"python_full_version >= {_spell_minor(lo)}",
+                           f"python_full_version < {_spell_minor(hi)}"))
+    if len(groups) > 1 and any(len(group) > 1 for group in groups):
+        return None
+    return groups
+
+
+def _python_version_expansion(operator: str, value: str):
+    """A `~=`, `in` or `not in` `python_version` atom as uv's own conjunctions, or None if unmodelled."""
+    if operator == "~=":
+        components = str(value).split(".")
+        # Measured with uv 0.13.6: `~= '3.12'` locks as `>= '3.12' and < '4'`, `~= '3.12.1'` locks as
+        # `python_version < '0'`, and `~= '3'` locks with the marker dropped altogether. Only the
+        # two-component spelling is a thing this reader models.
+        if len(components) != 2 or not all(component.isdigit() for component in components):
+            return None
+        low = _minor_point(value)
+        if low is None:
+            return None
+        groups = _spell_intervals([(low, (low[0] + 1, 0))])
+        return None if groups is None else tuple(groups)
+    points: list[tuple[int, int]] = []
+    for item in re.split(r"[\s,]+", str(value).strip()):
+        if not item:
+            continue
+        point = _minor_point(item)
+        if point is None:
+            return None
+        points.append(point)
+    if not points:
+        return None
+    intervals = _merge_intervals([(point, _next_minor(point)) for point in points])
+    if operator == "not in":
+        intervals = _complement_intervals(intervals)
+    groups = _spell_intervals(intervals)
+    if groups is None:
+        return None
+    return tuple(groups) or ((),)
+
+
+def _normalize_marker_atom(atom: str):
+    """One `name operator 'value'` atom in the form uv writes it.
+
+    A plain atom comes back as one string. A `~=`, `in` or `not in` `python_version` atom comes back as
+    a tuple of conjunctions — uv's own rewrite of it — because uv expands those three into a
+    disjunction over `python_full_version` bounds, and `_marker_form` has to distribute them over the
+    rest of the conjunction to compare the marker the way uv records it. None means this reader does
+    not model the atom.
+    """
+    match = _MARKER_ATOM.match(atom)
+    if match is None:
+        return None
+    variable, operator, value = match.group(1).lower(), match.group(2), match.group(4)
+    if variable == "extra":
+        return f"extra {operator} {canonical_name(value)}"
+    if variable != "python_version":
+        return f"{variable} {operator} {value}"
+    if operator in ("~=", "in", "not in"):
+        return _python_version_expansion(operator, value)
+    components = value.split(".")
+    if not all(component.isdigit() for component in components) or len(components) > 3:
+        return None
+    if operator not in _PYTHON_VERSION_OPERATORS:
+        return None
+    # `python_version` holds `major.minor`, so uv compares that point against the bound the way PEP 440
+    # compares versions — `3.12` equals `3.12.0` and is below `3.12.2` — and prints the bounds of the
+    # minors that survive. Measured with uv 0.13.6 on a probe project (`uv lock`, then `uv lock --check`
+    # on what it wrote, exit 0 for every row):
+    #
+    #     >= '3.12'   -> >= '3.12'      >= '3.12.0' -> >= '3.12'     >= '3.12.2' -> >= '3.13'
+    #     >= '4.0.0'  -> >= '4'         >  '3'       -> >= '3.1'      >  '3.12.0' -> >= '3.13'
+    #     <  '3.13.0' -> <  '3.13'      <  '3.13.1'  -> <  '3.14'     <= '3'      -> <  '3.1'
+    #     <= '3.12.0' -> <  '3.13'      == '3'       -> == '3.0.*'    == '3.13.0' -> == '3.13.*'
+    #     != '3.13.0' -> != '3.13.*'
+    #
+    # A `==` or `!=` against a three-component bound is left unmodelled: measured, uv 0.13.6 writes
+    # `python_version < '0'` for `== '3.12.1'` and drops the requirement's marker altogether for
+    # `!= '3.12.1'`.
+    major = int(components[0])
+    minor = int(components[1]) if len(components) > 1 else 0
+    patch = int(components[2]) if len(components) > 2 else 0
+    point = _spell_minor((major, minor))
+    above = _spell_minor((major, minor + 1))
+    lower = above if patch > 0 else point
+    if operator == ">=":
+        return f"python_full_version >= {lower}"
+    if operator == ">":
+        return f"python_full_version >= {above}"
+    if operator == "<":
+        return f"python_full_version < {lower}"
+    if operator == "<=":
+        return f"python_full_version < {above}"
+    if patch > 0:
+        return None
+    if operator == "==":
+        return f"python_full_version == {major}.{minor}.*"
+    return f"python_full_version != {major}.{minor}.*"
+
+
+def _marker_form(text: object) -> tuple[tuple[str, ...], ...] | None:
+    """A marker as a comparable form: sorted `or` clauses of sorted atoms, or None when unmodelled.
+
+    `()` is the empty marker — uv records no `marker` key at all for an unmarked requirement, so an
+    unmarked manifest requirement and an unmarked lock entry have to compare equal.
+
+    A conjunction is a SET of atoms, not a sequence: measured with uv 0.13.6 (adversarial pair P41), a
+    manifest writing `platform_machine == 'x86_64' and os_name == 'posix'` beside the lock uv wrote,
+    which records `os_name == 'posix' and platform_machine == 'x86_64'`, passes `lock --check` at exit 0
+    on all seven uv binaries. Sorting the atoms is what makes that pair read as the pair uv wrote.
+    """
+    text = str(text).strip()
+    if not text:
+        return ()
+    clauses: list[tuple[str, ...]] = []
+    for clause in _split_marker_expression(text, "or"):
+        atoms: list[str] = []
+        expansions: list[tuple[tuple[str, ...], ...]] = []
+        for atom in _split_marker_expression(clause, "and"):
+            atom = atom.strip()
+            if not atom or atom[0] in "([":
+                return None
+            normalized = _normalize_marker_atom(atom)
+            if normalized is None:
+                return None
+            if isinstance(normalized, tuple):
+                expansions.append(normalized)
+            else:
+                atoms.append(normalized)
+        if len(expansions) > 1:
+            # Two interval-modelled `python_version` atoms in one conjunction: uv intersects their
+            # intervals and this reader has not measured that intersection, so it says nothing.
+            return None
+        if expansions:
+            for extra in expansions[0]:
+                clauses.append(tuple(sorted(atoms + list(extra))))
+        else:
+            clauses.append(tuple(sorted(atoms)))
+    return tuple(sorted(clauses))
 
 
 def _split_marker_expression(text: str, separator: str) -> list[str]:
@@ -186,61 +468,6 @@ def _split_marker_expression(text: str, separator: str) -> list[str]:
         index += 1
     parts.append(text[start:])
     return parts
-
-
-def _normalize_marker_atom(atom: str) -> str | None:
-    """One `name operator 'value'` atom in the form uv writes it, or None if this reader does not model it."""
-    match = _MARKER_ATOM.match(atom)
-    if match is None:
-        return None
-    variable, operator, value = match.group(1).lower(), match.group(2), match.group(4)
-    if variable == "extra":
-        return f"extra {operator} {canonical_name(value)}"
-    if variable != "python_version":
-        return f"{variable} {operator} {value}"
-    components = value.split(".")
-    if not all(component.isdigit() for component in components) or len(components) > 2:
-        return None
-    if operator not in _PYTHON_VERSION_OPERATORS:
-        return None
-    if len(components) == 1:
-        if operator not in (">=", "<"):
-            return None
-        return f"python_full_version {operator} {value}"
-    next_minor = f"{int(components[0])}.{int(components[1]) + 1}"
-    if operator in (">=", "<"):
-        return f"python_full_version {operator} {value}"
-    if operator == ">":
-        return f"python_full_version >= {next_minor}"
-    if operator == "<=":
-        return f"python_full_version < {next_minor}"
-    if operator == "==":
-        return f"python_full_version == {value}.*"
-    return f"python_full_version != {value}.*"
-
-
-def _marker_form(text: object) -> tuple[tuple[str, ...], ...] | None:
-    """A marker as a comparable form: sorted `or` clauses of sorted atoms, or None when unmodelled.
-
-    `()` is the empty marker — uv records no `marker` key at all for an unmarked requirement, so an
-    unmarked manifest requirement and an unmarked lock entry have to compare equal.
-    """
-    text = str(text).strip()
-    if not text:
-        return ()
-    clauses: list[tuple[str, ...]] = []
-    for clause in _split_marker_expression(text, "or"):
-        atoms: list[str] = []
-        for atom in _split_marker_expression(clause, "and"):
-            atom = atom.strip()
-            if not atom or atom[0] in "([":
-                return None
-            normalized = _normalize_marker_atom(atom)
-            if normalized is None:
-                return None
-            atoms.append(normalized)
-        clauses.append(tuple(sorted(atoms)))
-    return tuple(sorted(clauses))
 
 
 def _combine_marker_forms(left: tuple[tuple[str, ...], ...] | None,
@@ -276,7 +503,8 @@ def _requirement_marker(text: str) -> tuple[str, tuple[tuple[str, ...], ...] | N
 
 _PEP440 = re.compile(
     r"""
-    ^(?:(?P<epoch>[0-9]+)!)?
+    v?
+    (?:(?P<epoch>[0-9]+)!)?
     (?P<release>[0-9]+(?:\.[0-9]+)*)
     (?:[-_.]?(?P<pre>alpha|a|beta|b|preview|pre|c|rc)[-_.]?(?P<pre_n>[0-9]+)?)?
     (?:-(?P<post_n1>[0-9]+)|[-_.]?(?P<post>post|rev|r)[-_.]?(?P<post_n2>[0-9]+)?)?
@@ -296,6 +524,15 @@ def _normalize_pep440(text: object) -> str | None:
     `uv lock --check` exits 0, so the root version has to compare as a normalised PEP 440 version.
     Dependency specifiers are a different matter — uv writes `==2.2.0.0`, `>=6.4.1,!=6.5.0`, `~=1.2` and
     `===6.4.1` back verbatim and accepts them, so those stay compared as text.
+
+    The spellings this normalisation has to absorb, each measured on this host against a lock uv itself
+    wrote (adversarial pairs): a leading `v` (`version = "v1.0.0"` against `version = "1.0.0"`, P12,
+    `lock --check` exit 0 on all seven uv binaries); a zero-padded component (`"1.0.00"` against
+    `"1.0.0"`, P13, exit 0 on all seven); and the dash spelling of a post release (`"1.0-1"` against
+    `"1.0.post1"`, P11, exit 0 on all seven). The epoch and the local segment are NOT absorbed — a lock
+    root version of `1!0.3.7` (P15) or `0.3.7+local` (P14) beside a manifest `0.3.7` is refused by every
+    uv in the matrix (exit 2 on 0.5.0-0.7.22, exit 1 from 0.8.5 on), and a real drift like 0.3.4 against
+    0.3.7 is the defect this release exists to catch.
     """
     match = _PEP440.match(str(text).strip())
     if match is None:
@@ -332,39 +569,57 @@ _SDIST_FILENAME = re.compile(
 
 
 def _artifact_filename(artifact: object) -> str:
-    """The filename uv recorded for one sdist or wheel entry."""
+    """The filename uv recorded for one sdist or wheel entry.
+
+    `url` wins over `filename`. Measured with uv 0.13.6 against the shipped worker lock (adversarial
+    pair P27): a wheels entry carrying `filename = "pypdf-6.4.2-py3-none-any.whl"` beside
+    `url = ".../pypdf-6.4.1-py3-none-any.whl"` is accepted by every uv in the matrix (`lock --check`
+    exit 0 on all seven), so the pair is current and the name uv actually fetches is the one in `url`.
+    Reading the stale `filename` first reported a version mismatch uv does not see.
+    """
     if isinstance(artifact, dict):
+        url = artifact.get("url")
+        if isinstance(url, str) and url.strip():
+            return url.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
         filename = artifact.get("filename")
         if isinstance(filename, str) and filename.strip():
             return filename.strip()
-        url = artifact.get("url")
-        if isinstance(url, str) and url.strip():
-            return url.rstrip("/").rsplit("/", 1)[-1]
     return ""
 
 
-def _artifact_versions(package: dict) -> list[tuple[str, str]]:
-    """`(filename, claimed version)` for every sdist and wheel in one `[[package]]` block.
+def _artifact_wheels(package: dict) -> list[tuple[str, str, str]]:
+    """`(filename, name, claimed version)` for every WHEEL in one `[[package]]` block.
+
+    Only wheels. Measured with uv 0.13.6 against the shipped worker lock (adversarial pair P25b): the
+    pypdf entry's `sdist` rewritten to `pypdf-6.4.2.tar.gz` beside an entry whose version is 6.4.1 is
+    accepted by all seven uv binaries (`lock --check` exit 0 on 0.5.0 through 0.13.6, and
+    `uv-0.5.0 sync --locked --python 3.12` exit 0), while the same edit on the wheel filename is
+    refused by all seven (P25c: exit 2 on 0.5.0-0.7.22, exit 1 from 0.8.5 on). uv validates the wheel
+    filename against the entry and ignores whether the sdist filename agrees. That is measured uv
+    behaviour, not a style preference, so this reader checks wheels and says nothing about sdist names.
 
     A filename this reader cannot read is skipped rather than guessed at: uv 0.13.6 accepts a package
     whose `sdist` and `wheels` keys were removed outright, so a missing artifact list is not drift and a
     filename in a shape this reader does not know is not evidence of drift either.
     """
-    found: list[tuple[str, str]] = []
-    artifacts: list[object] = []
-    if isinstance(package.get("sdist"), dict):
-        artifacts.append(package["sdist"])
-    if isinstance(package.get("wheels"), list):
-        artifacts.extend(package["wheels"])
-    for artifact in artifacts:
+    found: list[tuple[str, str, str]] = []
+    wheels = package.get("wheels")
+    if not isinstance(wheels, list):
+        return found
+    for artifact in wheels:
         filename = _artifact_filename(artifact)
         if not filename:
             continue
-        match = _WHEEL_FILENAME.match(filename) or _SDIST_FILENAME.match(filename)
+        match = _WHEEL_FILENAME.match(filename)
         if match is None:
             continue
-        found.append((filename, match.group("version")))
+        found.append((filename, match.group("name"), match.group("version")))
     return found
+
+
+def _artifact_versions(package: dict) -> list[tuple[str, str]]:
+    """Kept for callers that only want `(filename, claimed version)` of the wheels in a block."""
+    return [(filename, version) for filename, _name, version in _artifact_wheels(package)]
 
 
 def split_requirement(text: str) -> tuple[str, str]:
@@ -452,14 +707,32 @@ def lock_document(lock_path: Path) -> dict:
     return lock_document_text(lock_path.read_text(encoding="utf-8-sig"), str(lock_path))
 
 
+def _normalize_source_path(path: object) -> str:
+    """`"./"` -> `"."`: uv accepts both spellings of the project directory.
+
+    Measured with uv 0.13.6 against the shipped worker lock (adversarial pair P31): rewriting the root
+    entry to `source = { editable = "./" }` leaves `lock --check` at exit 0 on every uv in the matrix
+    and `uv-0.5.0 sync --locked --python 3.12` at exit 0, while `editable = "packages/other-member"` is
+    a workspace member and is not this project's root. A trailing slash is the only difference uv does
+    not see, so it is the only difference this reader drops.
+    """
+    text = str(path)
+    stripped = text.rstrip("/")
+    return stripped if stripped else "."
+
+
 def _local_source(entry: dict) -> tuple[str, str] | None:
-    """`(mode, path)` for a lock entry with an `editable`/`virtual` source, else None."""
+    """`(mode, path)` for a lock entry with an `editable`/`virtual` source, else None.
+
+    The path comes back normalised (`"./"` reads as `"."`), because that is the spelling uv accepts
+    interchangeably for the project directory itself.
+    """
     source = entry.get("source")
     if not isinstance(source, dict):
         return None
     for key in LOCAL_SOURCE_KEYS:
         if key in source:
-            return key, str(source[key])
+            return key, _normalize_source_path(source[key])
     return None
 
 
@@ -538,7 +811,16 @@ def _requirement_map(
         if extra_name is not None:
             marker = _combine_marker_forms(marker, _marker_form(f"extra == '{extra_name}'"))
             marker_text = f"{marker_text} and extra == '{extra_name}'".strip()
-        mapping.setdefault((name, specifier), []).append((marker, marker_text))
+        entry = (marker, marker_text)
+        # A requirement written twice in the manifest is one requirement to uv. Measured (adversarial
+        # pair P04): `[project.dependencies] = ["packaging==24.0", "packaging==24.0"]` locks as ONE
+        # `requires-dist` entry and `uv lock --check` on that pair exits 0 on all seven uv binaries,
+        # while counting the duplicate reported drift for the pair uv wrote. Two entries with different
+        # markers stay two entries — that is how a package that is both a plain dependency and an extra
+        # member is recorded.
+        if entry in mapping.setdefault((name, specifier), []):
+            continue
+        mapping.setdefault((name, specifier), []).append(entry)
     return mapping, problems
 
 
@@ -739,7 +1021,14 @@ def _declared_extras(meta: dict, label: str) -> tuple[dict[tuple[str, str], list
 
 
 def _normalize_python(constraint: str) -> str:
-    return re.sub(r"\s+", "", str(constraint))
+    """`requires-python` compared as the set of its bounds, exactly as a requirement specifier is.
+
+    Measured on this host (adversarial pairs P64 and P51): the manifest writes
+    `requires-python = "<3.15,>=3.12"` and uv writes `">=3.12, <3.15"` in the lock it produces;
+    `uv lock --check` exits 0 on every uv in the matrix and `uv-0.5.0 sync --locked --python 3.12`
+    exits 0. Comparing the two texts refuses the pair the toolkit ships.
+    """
+    return _normalize_specifier(constraint)
 
 
 _UV_DEFAULT_REQUIRES_PYTHON = re.compile(r"^>=[^,]+$")
@@ -755,6 +1044,172 @@ def _is_uv_default_requires_python(constraint: object) -> bool:
     anything with an upper bound is a constraint the manifest no longer declares.
     """
     return bool(_UV_DEFAULT_REQUIRES_PYTHON.match(_normalize_python(constraint)))
+
+
+# --- resolution-markers against requires-python -----------------------------------------------------
+#
+# `resolution-markers` is the fork uv resolved under: every Python version the lock claims to support
+# has to fall inside one of them. Measured on the shipped worker lock (adversarial pair P37), changing
+# one marker from `python_full_version >= '3.14'` to `python_full_version >= '3.20'` beside
+# `requires-python = ">=3.12, <3.15"` is refused by uv 0.9.30, 0.10.7 and 0.13.6 (`lock --check` exit 1,
+# uv's ordinary staleness sentence) and by 0.6.10 and 0.7.22 (exit 2); uv 0.5.0 accepts it (exit 0), so
+# the row in `extension/test/lockfile-adversarial.test.js` records that floor divergence. Dropping one
+# marker out of the set is refused the same way (the "one resolution-marker dropped" row).
+#
+# What is modelled: the `python_full_version` / `python_version` bounds of each marker, as half-open
+# `major.minor` intervals, and the requires-python range, as one such interval. A marker whose interval
+# cannot intersect the declared range is named, and a range no marker covers is named. What is NOT
+# modelled: the non-Python atoms of a marker (`sys_platform`, `os_name`, …) are ignored, which makes the
+# coverage test an over-approximation — it can only report a gap that is real for every platform, never
+# invent one. A marker whose Python bounds this reader cannot read is skipped rather than guessed at.
+
+_PYTHON_MARKER_VARIABLES = ("python_full_version", "python_version")
+
+
+def _python_atom_interval(atom: str):
+    """The `major.minor` range one Python-version atom allows, as `(lo, hi)` with None for unbounded."""
+    match = re.match(r"^(python_full_version|python_version)\s*(<=|>=|==|!=|<|>)\s*(.+)$", atom.strip())
+    if match is None:
+        return None
+    operator, raw = match.group(2), match.group(3).strip().strip("'\"")
+    prefix = raw.endswith(".*")
+    point = _minor_point(raw[:-2] if prefix else raw)
+    if point is None:
+        return None
+    if operator == "==":
+        return (point, _next_minor(point))
+    if operator == "!=":
+        return None
+    if operator == ">=":
+        return (point, None)
+    if operator == ">":
+        return (_next_minor(point), None)
+    if operator == "<":
+        return (None, point)
+    return (None, _next_minor(point))
+
+
+def _marker_python_intervals(marker_text: object):
+    """The union of `major.minor` ranges a marker allows, or None when it holds an unreadable atom."""
+    text = str(marker_text or "").strip()
+    if not text:
+        return [(None, None)]
+    union: list = []
+    for clause in _split_marker_expression(text, "or"):
+        interval: tuple | None = (None, None)
+        found_python = False
+        for atom in _split_marker_expression(clause, "and"):
+            atom = atom.strip()
+            if not atom or atom[0] in "([":
+                return None
+            if not atom.startswith(_PYTHON_MARKER_VARIABLES):
+                continue
+            found_python = True
+            span = _python_atom_interval(atom)
+            if span is None:
+                return None
+            # A conjunction intersects: a clause keeps only the `major.minor` points every one of its
+            # Python atoms allows. `None` means unbounded, so it never wins an argument with a bound.
+            lo, hi = interval
+            if lo is None:
+                lo = span[0]
+            elif span[0] is not None and span[0] > lo:
+                lo = span[0]
+            if hi is None:
+                hi = span[1]
+            elif span[1] is not None and span[1] < hi:
+                hi = span[1]
+            interval = (lo, hi)
+        if not found_python:
+            # A marker with no Python bound applies to every Python version.
+            union.append((None, None))
+        else:
+            union.append(interval)
+    return _merge_intervals(union)
+
+
+def _requires_python_interval(constraint: object):
+    """The `major.minor` range a `requires-python` declares, or None when it is not a plain range."""
+    interval: tuple | None = (None, None)
+    for bound in _specifier_bounds(constraint):
+        match = re.match(r"^(<=|>=|<|>)(.+)$", bound)
+        if match is None:
+            return None
+        operator, raw = match.group(1), match.group(2)
+        point = _minor_point(raw[:-2] if raw.endswith(".*") else raw)
+        if point is None:
+            return None
+        if operator == ">=":
+            interval = (point, interval[1])
+        elif operator == ">":
+            interval = (_next_minor(point), interval[1])
+        elif operator == "<":
+            interval = (interval[0], point)
+        else:
+            interval = (interval[0], _next_minor(point))
+    return interval
+
+
+def _intervals_cover(target, intervals) -> bool:
+    """True when every point of `target` falls inside at least one of `intervals`."""
+    lo, hi = target
+    cursor = lo
+    for ilo, ihi in _merge_intervals(list(intervals)):
+        if cursor is not None and ihi is not None and ihi <= cursor:
+            continue
+        if ilo is not None and (cursor is None or ilo > cursor):
+            return False
+        if ihi is None:
+            return True
+        cursor = ihi
+        if hi is not None and cursor >= hi:
+            return True
+    return hi is None or (cursor is not None and cursor >= hi)
+
+
+def _resolution_marker_problems(document: dict, label: str) -> list[str]:
+    """The same coverage rule `extension/lockfile.js` applies, in the same words: a marker set that
+    partitions the declared range covers it, and a set that leaves a sub-range of the declared range with
+    no marker, or whose markers cannot intersect the declared range at all, does not.
+
+    Measured: the shipped pair's `resolution-markers = ["python_full_version >= '3.14'",
+    "python_full_version < '3.14'"]` beside `requires-python = ">=3.12, <3.15"` is what uv 0.13.6 wrote
+    itself and reads back with exit 0, so it must read clean here; dropping one marker is exit 1, and
+    pair P37 — a marker outside the declared range — is exit 2 on uv 0.6.10 and 0.7.22 and exit 1 on
+    0.8.5 through 0.13.6. A marker this reader does not model is skipped rather than guessed at.
+    """
+    markers = document.get("resolution-markers")
+    if not isinstance(markers, list) or not markers:
+        return []
+    target = _requires_python_interval(document.get("requires-python"))
+    if target is None:
+        return []
+    problems: list[str] = []
+    covered: list = []
+    for marker in markers:
+        if not isinstance(marker, str):
+            continue
+        intervals = _marker_python_intervals(marker)
+        if intervals is None:
+            continue
+        covered.extend(intervals)
+        if not any(
+            (lo is None or target[1] is None or lo < target[1])
+            and (hi is None or target[0] is None or hi > target[0])
+            for lo, hi in intervals
+        ):
+            problems.append(
+                f"{label}: resolution-marker {marker!r} cannot select any Python version the lock's "
+                f"requires-python {document.get('requires-python')!r} declares — uv resolved this lock "
+                "under a fork its own requires-python excludes"
+            )
+    if not problems and covered and not _intervals_cover(target, covered):
+        problems.append(
+            f"{label}: the lock's resolution-markers do not cover requires-python "
+            f"{document.get('requires-python')!r} — uv resolved this lock under a fork set that leaves "
+            "part of the declared Python range unresolved"
+        )
+    return problems
 
 
 def _implied_source_mode(project: dict) -> str:
@@ -777,19 +1232,66 @@ def _implied_source_mode(project: dict) -> str:
     return "editable" if isinstance(project.get("build-system"), dict) else "virtual"
 
 
+def _lock_edge_names(item: dict) -> set[str]:
+    """Every distribution name one `[[package]]` block resolves to: its own `dependencies` list plus
+    its `[package.optional-dependencies]` and `[package.dev-dependencies]` tables."""
+    names: set[str] = set()
+
+    def collect(values: object) -> None:
+        for value in values or []:
+            if isinstance(value, dict) and value.get("name"):
+                names.add(canonical_name(str(value["name"])))
+
+    collect(item.get("dependencies"))
+    for table in ("dev-dependencies", "optional-dependencies"):
+        groups = item.get(table)
+        if isinstance(groups, dict):
+            for values in groups.values():
+                collect(values)
+    return names
+
+
+def _marker_can_never_select(marker: tuple[tuple[str, ...], ...] | None, known_extras: set[str]) -> bool:
+    """True when a requirement's marker can never be satisfied, so uv resolves nothing for it.
+
+    Measured with uv 0.13.6 (adversarial pair P45): a manifest whose plain `[project.dependencies]`
+    carries `packaging==24.0; extra == 'pdf'` while the manifest declares no `pdf` extra locks with
+    `requires-dist = [{ name = "packaging", marker = "extra == 'pdf'", specifier = "==24.0" }]` and NO
+    `[[package]]` entry for packaging, and `uv lock --check` on that pair exits 0 on all seven uv
+    binaries. The marker can never select the requirement, so demanding an entry for it reports a
+    defect uv does not have.
+    """
+    if not marker:
+        return False
+    for clause in marker:
+        for atom in clause:
+            match = re.match(r"^extra == (.+)$", atom)
+            if match is not None and match.group(1) not in known_extras:
+                return True
+    return False
+
+
 def _package_entry_problems(
     document: dict,
     locked: dict[tuple[str, str], list[tuple[object, str]]],
     locked_groups: dict[str, dict[tuple[str, str], list[tuple[object, str]]]],
     label: str,
+    known_extras: set[str] | None = None,
+    root_name: str = "",
 ) -> list[str]:
-    """Every requirement the lock claims has to resolve to exactly one `[[package]]` block.
+    """Every dependency edge the lock resolves has to name exactly one `[[package]]` block.
 
     Measured with uv 0.13.6 against a lock uv itself wrote: deleting the whole `[[package]]` block of a
     direct dependency makes `uv lock --check` exit 2 — "Dependency `pypdf` has missing `source` field but
     has more than one matching package" — while a reader that only compares `requires-dist` certifies the
     pair, because the metadata still names the dependency and the specifier still matches. The resolution
     the lock records is part of the pair, not just its metadata.
+
+    The edges are taken from **every** `[[package]]` block, not only the root entry. Measured on the
+    shipped worker lock (adversarial pairs P23 and P24): deleting the `h11` block, which only `httpcore2`
+    and `uvicorn` name, makes every uv in the matrix answer "Failed to parse `uv.lock`" (exit 2 on
+    0.5.0-0.7.22, exit 1 from 0.8.5 on), and duplicating that same block does the same. A reader that
+    looks only at the root entry's dependency lists sees neither.
     """
     counts: dict[str, int] = {}
     for item in document["package"]:
@@ -798,34 +1300,49 @@ def _package_entry_problems(
         name = canonical_name(item.get("name", ""))
         if name:
             counts[name] = counts.get(name, 0) + 1
+    # A project named like a registry package it depends on has two blocks with the same name, and the
+    # local one is the root, not the dependency the edge resolves to.
+    root = canonical_name(root_name)
+    if root and root in counts:
+        counts[root] -= 1
 
+    known_extras = known_extras or set()
+    wanted: set[str] = set()
     problems: list[str] = []
-    seen: set[str] = set()
-    mappings: list[dict[tuple[str, str], list[tuple[object, str]]]] = [locked, *locked_groups.values()]
-    for mapping in mappings:
-        for pair in mapping:
-            # `mcp[cli]` is a requirement on the distribution `mcp`; the extras are not part of the
-            # package name uv looks the entry up by.
+
+    def consider(base: str, marker: tuple[tuple[str, ...], ...] | None) -> None:
+        if not base or base in wanted:
+            return
+        if _marker_can_never_select(marker, known_extras):
+            return
+        wanted.add(base)
+        found = counts.get(base, 0)
+        if found == 0:
+            problems.append(
+                f"{label}: requirement {base} has no [[package]] entry in the lock — uv reports the "
+                "dependency as missing and refuses this pair"
+            )
+        elif found > 1:
+            problems.append(
+                f"{label}: requirement {base} resolves to {found} [[package]] entries in the lock — "
+                "uv reports more than one matching package and refuses this pair"
+            )
+
+    for mapping in (locked, *locked_groups.values()):
+        for pair, markers in mapping.items():
             base = canonical_name(str(pair[0]).split("[", 1)[0])
-            if not base or base in seen:
-                continue
-            seen.add(base)
-            found = counts.get(base, 0)
-            if found == 0:
-                problems.append(
-                    f"{label}: requirement {base} has no [[package]] entry in the lock — uv reports the "
-                    "dependency as missing and refuses this pair"
-                )
-            elif found > 1:
-                problems.append(
-                    f"{label}: requirement {base} resolves to {found} [[package]] entries in the lock — "
-                    "uv reports more than one matching package and refuses this pair"
-                )
+            consider(base, markers[0][0] if markers else None)
+
+    for item in document["package"]:
+        if not isinstance(item, dict):
+            continue
+        for base in sorted(_lock_edge_names(item)):
+            consider(base, None)
     return problems
 
 
-def _package_version_problems(document: dict, label: str) -> list[str]:
-    """Each `[[package]]` version has to agree with the sdist and wheel filenames in its own block.
+def _package_version_problems(document: dict, label: str, root_name: str = "") -> list[str]:
+    """Each `[[package]]` version has to agree with the wheels in its own block, and has to be there.
 
     Measured with uv 0.13.6 against a lock uv itself wrote: editing one transitive pin from `4.15.1` to
     `4.15.0`, metadata untouched, makes `uv lock --check` exit 2 — "The entry for package `anyio` (4.15.0)
@@ -836,19 +1353,46 @@ def _package_version_problems(document: dict, label: str) -> list[str]:
     A package with no sdist and no wheels is not drift: uv 0.13.6 accepts a lock whose `sdist` and
     `wheels` keys were deleted outright (`lock --check` exit 0). A filename this reader cannot parse is
     skipped for the same reason — an unverifiable claim is not evidence.
+
+    Two measured boundaries shape this check:
+
+    * The SDIST filename is not checked. Measured on the shipped worker lock (adversarial pair P25b),
+      `pypdf-6.4.2.tar.gz` beside an entry whose version is 6.4.1 is accepted by all seven uv binaries
+      — `lock --check` exit 0 on 0.6.10 through 0.13.6 and `uv-0.5.0 sync --locked --python 3.12` exit 0
+      — while the same edit on the wheel filename (P25c) is refused by all seven. uv validates wheel
+      filenames and ignores sdist filename/version agreement. That is measured uv behaviour, not a style
+      preference, and calling it drift would refuse a pair every uv this toolkit supports accepts.
+    * An entry with no `version` key at all is refused (adversarial pair P28): `uv-0.13.6 lock --check`
+      and `uv-0.5.0 sync --locked --python 3.12` both exit 2, "Failed to parse `uv.lock`". uv 0.6.10
+      through 0.10.7 read that lock, so this is a floor-and-pinned-build verdict rather than a
+      whole-matrix one, and it is recorded as such in `extension/test/lockfile-adversarial.test.js`.
+      The root entry of a `dynamic = ["version"]` manifest is exempt: uv writes no version there and
+      accepts the pair (`lock --check` exit 0).
     """
     problems: list[str] = []
     for item in document["package"]:
         if not isinstance(item, dict):
             continue
+        name = canonical_name(item.get("name", ""))
         version = item.get("version")
         if version is None:
+            if name != canonical_name(root_name):
+                problems.append(
+                    f"{label}: [[package]] entry {item.get('name')!r} records no version at all — "
+                    "uv 0.13.6 and uv 0.5.0 both answer 'Failed to parse `uv.lock`' (exit 2) for this lock"
+                )
             continue
         normalized = _normalize_pep440(version)
         if normalized is None:
             continue
         mismatched = []
-        for filename, claimed in _artifact_versions(item):
+        for filename, artifact_name, claimed in _artifact_wheels(item):
+            if canonical_name(artifact_name) != name:
+                # A wheel that belongs to another distribution: measured (adversarial pair P26), pasting
+                # `foreign-9.9.9-py3-none-any.whl` into the pypdf entry makes every uv in the matrix
+                # answer "Failed to parse `uv.lock`" (exit 2).
+                mismatched.append(f"its artifact {filename!r} belongs to {artifact_name!r}, not to {item.get('name')!r}")
+                continue
             claimed_normalized = _normalize_pep440(claimed)
             if claimed_normalized is None or claimed_normalized == normalized:
                 continue
@@ -857,7 +1401,17 @@ def _package_version_problems(document: dict, label: str) -> list[str]:
             problems.append(
                 f"{label}: {item.get('name')!r} records version {version!r} but "
                 + ", and ".join(mismatched)
-                + " — uv refuses a lock whose package version does not match its own sdist or wheel"
+                + " — uv refuses a lock whose package version does not match its own wheel"
+            )
+        if isinstance(item.get("sdist"), list):
+            # `sdist = [ {…} ]` is not the shape uv writes (`sdist = {…}`), and uv cannot read it:
+            # measured (adversarial pairs P25 and P25d, the list with an entry and the empty list), every
+            # uv in the matrix exits 2 — "Failed to parse `uv.lock`" from 0.6.10 on, "Failed to prepare
+            # distributions" on 0.5.0. An artifact form this reader cannot parse is a problem, not an
+            # absence of artifacts.
+            problems.append(
+                f"{label}: [[package]] entry {item.get('name')!r} writes its sdist as a list — "
+                "uv writes `sdist = { url = … }` and refuses to parse this lock"
             )
     return problems
 
@@ -918,6 +1472,48 @@ def _root_resolution_problems(document: dict, label: str) -> list[str]:
         "records no such requirement — uv writes both halves of the root entry, and a lock whose resolved "
         "half names a distribution its metadata half does not record is not the lock uv wrote"
     ]
+
+
+def _uv_resolution_problems(project: dict, document: dict, label: str) -> list[str]:
+    """Compare the `[tool.uv]` resolution inputs against what the lock records for them.
+
+    A key uv records in the lock is certifiable when both sides carry it; a key the manifest declares
+    and the lock does not record is the pair uv refuses; a key the lock records and the manifest no
+    longer declares is the same defect seen from the other side.
+    """
+    tool = project.get("tool")
+    tool_uv = tool.get("uv") if isinstance(tool, dict) else None
+    declared_keys = {str(key) for key in tool_uv} if isinstance(tool_uv, dict) else set()
+    manifest_table = document.get("manifest") if isinstance(document.get("manifest"), dict) else {}
+    recorded = {
+        key: (document.get("required-markers") if where[0] == "" else manifest_table.get(where[1]))
+        for key, where in UV_RECORDED_RESOLUTION_KEYS.items()
+    }
+    problems: list[str] = []
+    unmodelled = sorted(key for key in declared_keys if key in UV_RESOLUTION_KEYS and key not in recorded)
+    if unmodelled:
+        problems.append(
+            f"{label}: pyproject declares [tool.uv] {', '.join(unmodelled)}; this reader cannot model "
+            "those resolution inputs, so the pair cannot be certified up to date"
+        )
+    certifiable = sorted(key for key in declared_keys if key in recorded)
+    for key in certifiable:
+        if recorded[key] is None:
+            problems.append(
+                f"{label}: pyproject declares [tool.uv] {key} but the lock records no "
+                f"{UV_RECORDED_RESOLUTION_KEYS[key][1] or 'required-markers'} for it — measured on this "
+                "host, uv refuses that pair (`lock --check` exit 1 on 0.8.5 through 0.13.6, exit 2 on "
+                "0.5.0 through 0.7.22)"
+            )
+    for key in sorted(recorded):
+        if key in declared_keys or recorded.get(key) is None:
+            continue
+        problems.append(
+            f"{label}: the lock records {UV_RECORDED_RESOLUTION_KEYS[key][1]} but pyproject declares no "
+            f"[tool.uv] {key} — measured on this host (adversarial pair P10), uv 0.5.0 through 0.13.6 "
+            "all refuse that pair (`lock --check` exit 1)"
+        )
+    return problems
 
 
 def check_pair_text(pyproject_text: str, lock_text: str, label: str = "uv.lock") -> list[str]:
@@ -1068,6 +1664,15 @@ def check_pair_text(pyproject_text: str, lock_text: str, label: str = "uv.lock")
     if provides is not None:
         if not isinstance(provides, list):
             problems.append(f"{label}: lock metadata provides-extras is not a list of extra names")
+        elif dynamic_optional:
+            # `dynamic = ["optional-dependencies"]` is resolved by the build backend, so the manifest
+            # half of this comparison does not exist. Measured on this host (adversarial pair P48): a
+            # project whose extras come from `[tool.setuptools.dynamic] optional-dependencies = { pdf =
+            # { file = ["extras.txt"] } }` locks with `provides-extras = ["pdf"]`, and uv accepts that
+            # pair — `lock --check` exit 0 on 0.6.10 through 0.13.6 and `uv-0.5.0 sync --locked --python
+            # 3.12` exit 0. Comparing it against the empty `[project.optional-dependencies]` this reader
+            # can see calls the pair uv wrote stale.
+            pass
         else:
             # Extra names are canonicalised the same way package names are, so `PDF`, `cli_tools` and
             # `pdf` compare equal on both sides: measured with uv 0.13.6, an extra declared as
@@ -1078,7 +1683,19 @@ def check_pair_text(pyproject_text: str, lock_text: str, label: str = "uv.lock")
                     f"{label}: the lock records provides-extras {sorted(locked_extras)} but the manifest "
                     f"declares optional-dependencies {sorted(extras_declared)}"
                 )
-    elif extras_declared and not dynamic_optional and "revision" in document:
+    elif dynamic_optional and "revision" in document:
+        # The same key uv records for a dynamic extra, missing from a lock that carries a `revision`:
+        # measured (adversarial pair P49), deleting `provides-extras = ["pdf"]` from the lock uv wrote
+        # for a `dynamic = ["optional-dependencies"]` project is refused by uv 0.6.10 and 0.7.22 (exit 2)
+        # and by 0.8.5, 0.9.30, 0.10.7 and 0.13.6 (exit 1). uv 0.5.0 accepts it (exit 0) because it
+        # writes no `provides-extras` and no `revision` at all, which is why the `revision` test is what
+        # separates "written by a uv that records extras" from "written by one that does not".
+        problems.append(
+            f"{label}: the manifest resolves its optional-dependencies dynamically and the lock carries "
+            "a revision, but the lock records no provides-extras — uv 0.6.10 through 0.13.6 refuse this "
+            "pair (measured: exit 2 on 0.6.10 and 0.7.22, exit 1 from 0.8.5 on)"
+        )
+    elif extras_declared and "revision" in document:
         problems.append(
             f"{label}: the manifest declares optional-dependencies {sorted(extras_declared)} but the lock "
             "records no provides-extras — uv would re-lock this pair"
@@ -1115,23 +1732,33 @@ def check_pair_text(pyproject_text: str, lock_text: str, label: str = "uv.lock")
                                        f"dependency group {group_name!r} requirement")
             )
 
-    problems.extend(_package_entry_problems(document, locked, locked_groups, label))
-    problems.extend(_package_version_problems(document, label))
+    known_extras = set(extras_declared)
+    if isinstance(provides, list):
+        known_extras |= {canonical_name(item) for item in provides if str(item).strip()}
+    problems.extend(_package_entry_problems(document, locked, locked_groups, label,
+                                            known_extras=known_extras, root_name=name))
+    problems.extend(_package_version_problems(document, label, root_name=name))
     problems.extend(_root_resolution_problems(document, label))
+    problems.extend(_resolution_marker_problems(document, label))
 
-    # `[tool.uv]` keys that change what uv resolves to are not modelled by this reader. Measured on a
-    # pair that differs only by `override-dependencies`: uv 0.13.6 refuses it (exit 1), uv 0.5.0 refuses
-    # it (exit 2), and a reader that ignores `[tool.uv]` calls the same pair current — which would let a
-    # stale resolution through the packaging gate and into a `--frozen` install.
-    tool = project.get("tool")
-    tool_uv = tool.get("uv") if isinstance(tool, dict) else None
-    if isinstance(tool_uv, dict):
-        unmodelled = sorted(key for key in tool_uv if key in UV_RESOLUTION_KEYS)
-        if unmodelled:
-            problems.append(
-                f"{label}: pyproject declares [tool.uv] {', '.join(unmodelled)}; this reader cannot model "
-                "those resolution inputs, so the pair cannot be certified up to date"
-            )
+    # The lockfile's own format key. uv writes `version = 1` and refuses any other: measured on the
+    # shipped worker lock (adversarial pair P34), raising it to `version = 2` makes every uv in the
+    # matrix answer "Failed to parse `uv.lock`" (exit 2) with "this lockfile uses an unsupported schema
+    # version (v2, but only v1 is supported)". A reader that parses the header and never uses it
+    # certifies a lock no uv can open.
+    lock_format = document.get("version")
+    if lock_format is not None and (isinstance(lock_format, bool) or lock_format != 1):
+        problems.append(
+            f"{label}: lockfile format version {lock_format!r} is not 1 — uv writes `version = 1` and "
+            "answers 'this lockfile uses an unsupported schema version' for anything else"
+        )
+
+    # `[tool.uv]` keys that change what uv resolves to. Measured on a pair that differs only by
+    # `override-dependencies`: uv 0.13.6 refuses it (exit 1), uv 0.5.0 refuses it (exit 2), and a reader
+    # that ignores `[tool.uv]` calls the same pair current — which would let a stale resolution through
+    # the packaging gate and into a `--frozen` install. Three of them are certifiable when the lock
+    # carries the record uv writes for them; see `UV_RECORDED_RESOLUTION_KEYS`.
+    problems.extend(_uv_resolution_problems(project, document, label))
 
     revision = document.get("revision", 1)
     if "revision" in document and (isinstance(revision, bool) or not isinstance(revision, int)):
@@ -1201,15 +1828,26 @@ def lock_dependency_set(lock_path: Path) -> set[tuple[str, str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """`python scripts/lockintegrity.py [root]` — JSON verdict, exit 1 when any shipped pair is stale."""
+    """`python scripts/lockintegrity.py [root]` — JSON verdict, exit 1 when any shipped pair is stale.
+
+    The documented argument is honoured: `root` is the tree whose shipped pairs get audited, so
+    `python scripts/lockintegrity.py /path/to/extract` audits the extract, not this repository. With no
+    argument it audits this module's own tree. A second argument is refused (exit 2) rather than
+    silently ignored — silently ignoring it is how an audit of the wrong tree reads as an audit of the
+    right one.
+    """
     import json
     import sys
 
-    root = Path(argv[1]) if argv and len(argv) > 1 else Path(__file__).resolve().parents[1]
+    argv = list(sys.argv if argv is None else argv)
+    if len(argv) > 2:
+        sys.stderr.write(f"usage: {argv[0]} [root]  (unexpected arguments: {' '.join(argv[2:])})\n")
+        return 2
+    root = Path(argv[1]) if len(argv) > 1 else Path(__file__).resolve().parents[1]
     report = check_tree(root)
     sys.stdout.write(json.dumps(report, indent=2, sort_keys=True) + "\n")
     return 0 if report["ok"] else 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv))

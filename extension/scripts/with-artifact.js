@@ -24,6 +24,47 @@ if (!fs.existsSync(artifact)) throw new Error(`No artifact for this release: ${a
 
 const [command, ...args] = process.argv.slice(2);
 if (!command) throw new Error("Usage: node scripts/with-artifact.js <command> [args…]");
+const attempted = [command, ...args, artifact].join(" ");
+
+/**
+ * A tool the shell cannot start is an instruction, not a stack trace (0.3.7 e2e review D9).
+ * `Error: spawnSync uv ENOENT` named no command, did not say that uv was the missing tool, and
+ * left the operator to guess that this build gate and the extension look for uv in different ways.
+ */
+function explainMissingTool(command) {
+  const lines = [
+    `This release gate could not run: ${command} was not found on PATH.`,
+    "",
+    `  Command attempted: ${attempted}`,
+    "",
+  ];
+  if (command === "uv") {
+    lines.push(
+      "  What this gate needs: uv on the PATH of the shell that runs this npm script.",
+      "  The audit runs as `uv run --locked python ../scripts/verify_vsix.py`, so with no uv on",
+      "  PATH nothing was audited and nothing was verified.",
+      "",
+      "  This is not the lookup the extension performs. Setup resolves uv from the",
+      "  researchStack.uvPath setting first, then PATH, then the documented install locations.",
+      "  A researchStack.uvPath that works inside the editor does not put uv on this shell's PATH.",
+      "",
+      "  To run the gate: put the folder that holds the uv executable on PATH, for example",
+      '      export PATH="/path/to/the/uv/folder:$PATH"',
+      "  then run the same npm script again.",
+    );
+    return lines.join("\n");
+  }
+  lines.push(
+    `  Install ${command}, or put the folder that holds it on the PATH of the shell that runs`,
+    "  this npm script, then run the same npm script again.",
+  );
+  return lines.join("\n");
+}
+
 const run = spawnSync(command, [...args, artifact], { stdio: "inherit", cwd: projectRoot, shell: false });
+if (run.error && run.error.code === "ENOENT") {
+  console.error(explainMissingTool(command));
+  process.exit(1);
+}
 if (run.error) throw run.error;
 process.exitCode = run.status === null ? 1 : run.status;

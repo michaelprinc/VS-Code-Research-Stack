@@ -13,8 +13,9 @@ const {
   STEPS_BY_ID, RECEIPT_NAME, stepsForPackage, stepsForComponents, resolveStepSelection,
   readReceipt, writeReceipt, stepStatus, componentStatus, planView, outdatedSteps, failedSteps,
   overlayStepFor, writeOverlayFiles, runPlan, verifyStepArtifacts, planArtifacts, inspectNotebookProject, explainStepSelection, refreshPlanStatus,
-  commandLine, attemptRecord,
+  commandLine, rerunInstruction, runAttempts, attemptRecord, nextActionFor,
 } = require("../installer");
+const { diagnosticsText, outcomeLine, stepRow } = require("../status");
 
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-install-test-"));
@@ -427,11 +428,187 @@ test("the command an operator is told to re-run is quotable, and a fallback atte
   assert.match(line, /"K:\\Soukromé aktivity\\Bankovní účet SVJ ČSA368\\\.research-toolkit\\managed\\worker-0\.3\.7"/, line);
   assert.match(line, /\(in "K:\\Soukromé aktivity\\Bankovní účet SVJ ČSA368"\)/, line);
   assert.ok(!/--project K:\\/.test(line), "an unquoted path with spaces cannot be pasted into a terminal");
-  assert.equal(commandLine({ command: "uv", args: ["--version"] }), "uv --version", "a path without spaces is left as it is");
+  assert.equal(commandLine({ command: "uv", args: ["--version"] }), "uv --version (working directory not recorded)", "a missing directory is named, not silently dropped");
 
   const attempt = attemptRecord({ id: "worker", label: "Isolated locked worker" }, {
     status: "installed", attempts: 1, evidence: "Locked worker synced", lockFallback: { detectedAt: "2026-11-02T21:00:00.000Z", problems: [] },
   });
   assert.deepEqual(attempt.lockFallback, { detectedAt: "2026-11-02T21:00:00.000Z", problems: [] }, "the fallback marker has to survive into the status record");
   assert.equal(attemptRecord({ id: "worker", label: "w" }, { status: "installed" }).lockFallback, null);
+});
+
+test("D4: a command line whose error carries no cwd says the directory is unknown (receipts/19c)", () => {
+  const args = ["sync", "--frozen", "--no-dev", "--python", "3.12", "--project", "/tmp/e2e-037/work/Bankovní účet SVJ ČSA368/.research-toolkit/managed/worker-0.3.7", "--no-config"];
+  // The shape the runtime's combined lock-fallback error has today: command and args, no cwd.
+  const noCwd = commandLine({ command: "/tmp/uvs/uv-0.13.6", args });
+  assert.ok(!/\(in /.test(noCwd), `no phantom directory: ${noCwd}`);
+  assert.match(noCwd, /\(working directory not recorded\)$/, noCwd);
+  assert.match(noCwd, /"\/tmp\/e2e-037\/work\/Bankovní účet SVJ ČSA368\/\.research-toolkit\/managed\/worker-0\.3\.7"/, "the spaced path is still quoted");
+  // The shape it has once the runtime carries the cwd through: the suffix must appear.
+  const withCwd = commandLine({ command: "/tmp/uvs/uv-0.13.6", args, cwd: "/tmp/e2e-037/work/Bankovní účet SVJ ČSA368/.research-toolkit/managed/worker-0.3.7" });
+  assert.match(withCwd, /\(in "\/tmp\/e2e-037\/work\/Bankovní účet SVJ ČSA368\/\.research-toolkit\/managed\/worker-0\.3\.7"\)$/, withCwd);
+  assert.ok(!/working directory not recorded/.test(withCwd), withCwd);
+  assert.equal(commandLine(null), "");
+  assert.equal(commandLine({}), "");
+});
+
+test("W7: the re-run instruction is two lines and quotable in cmd.exe and PowerShell (0.3.7 Windows review)", () => {
+  const czech = "K:\\Soukromé aktivity\\Bankovní účet SVJ ČSA368\\.research-toolkit\\managed\\worker-0.3.7";
+  const instruction = rerunInstruction({ command: "C:\\Users\\sestra\\AppData\\Local\\uv\\uv.exe", args: ["sync", "--locked", "--no-dev", "--python", "3.12", "--project", czech, "--no-config"], cwd: czech }, { platform: "win32" });
+  const lines = instruction.split("\n");
+  assert.equal(lines.length, 3, `cd line, command line and the encoding note: ${instruction}`);
+  assert.match(lines[0], /UTF-8/, "W8: the OEM code page warning is part of the instruction");
+  assert.match(lines[0], /chcp 65001/, "and it names the command that fixes the code page");
+  assert.equal(lines[1], `cd "${czech}"`, lines[1]);
+  assert.equal(lines[2], `"C:\\Users\\sestra\\AppData\\Local\\uv\\uv.exe" "sync" "--locked" "--no-dev" "--python" "3.12" "--project" "${czech}" "--no-config"`, lines[2]);
+  assert.ok(!/\(in "/.test(instruction), `a trailing "(in …)" block is not pasteable: ${instruction}`);
+
+  // A path with no whitespace but a cmd separator must still be quoted.
+  const ampersand = rerunInstruction({ command: "C:\\tools\\uv.exe", args: ["sync", "--project", "K:\\A&B\\účet"], cwd: "K:\\A&B" }, { platform: "win32" });
+  assert.ok(ampersand.includes('"K:\\A&B\\účet"'), ampersand);
+  assert.ok(ampersand.includes('cd "K:\\A&B"'), ampersand);
+
+  // An embedded double quote is escaped, not left to close the argument early.
+  const quoted = rerunInstruction({ command: "C:\\tools\\uv.exe", args: ["-c", 'print("x")', "--project", 'K:\\weird\\"quoted\\" dir'], cwd: 'K:\\weird\\"quoted\\" dir' }, { platform: "win32" });
+  assert.ok(quoted.includes('"K:\\weird\\\\\\"quoted\\\\\\" dir"'), quoted);
+  assert.ok(quoted.includes('"print(\\"x\\")"'), quoted);
+
+  // A trailing backslash must not swallow the closing quote.
+  const trailing = rerunInstruction({ command: "C:\\tools\\uv.exe", args: ["sync", "--project", "K:\\dir with space\\"], cwd: "K:\\dir with space\\" }, { platform: "win32" });
+  assert.ok(trailing.includes('"K:\\dir with space\\\\"'), trailing);
+
+  // No recorded cwd: the instruction says so instead of guessing a directory.
+  const noCwd = rerunInstruction({ command: "C:\\tools\\uv.exe", args: ["sync", "--locked"] }, { platform: "win32" });
+  assert.ok(!/^cd /m.test(noCwd), noCwd);
+  assert.match(noCwd, /working directory was not recorded/, noCwd);
+
+  // The same instruction on a POSIX host uses shell quoting.
+  const posix = rerunInstruction({ command: "/tmp/uvs/uv-0.13.6", args: ["sync", "--locked", "--project", "/w/Bankovní účet SVJ ČSA368"], cwd: "/w/Bankovní účet SVJ ČSA368" }, { platform: "linux" });
+  assert.equal(posix.split("\n")[1], `cd '/w/Bankovní účet SVJ ČSA368'`, posix);
+  assert.ok(posix.includes(`'/tmp/uvs/uv-0.13.6' 'sync' '--locked' '--project' '/w/Bankovní účet SVJ ČSA368'`), posix);
+
+  // An argument containing a line break cannot be pasted as one line, and the instruction says so.
+  const multiline = rerunInstruction({ command: "C:\\tools\\uv.exe", args: ["-c", "import sys\nprint(1)"], cwd: "K:\\w" }, { platform: "win32" });
+  assert.match(multiline, /cannot be pasted as one line/, multiline);
+  assert.ok(!multiline.includes("import sys\nprint(1)"), multiline);
+});
+
+test("D7: attempts=0 is recorded as 0, and a real attempt count from the run record is consumed (receipts/11a, 11b, 13)", () => {
+  assert.equal(attemptRecord({ id: "worker", label: "w" }, { status: "failed", attempts: 0, error: "no process ran" }).attempts, 0, "a refusal where nothing ran must not read as one attempt");
+  assert.equal(runAttempts({ attempts: 0 }), 0);
+  assert.equal(runAttempts({ attempts: 2 }), 2, "two uv processes ran, so the record says two");
+  assert.equal(runAttempts({ processAttempts: 2 }), 2, "the count is consumed whatever name the runner layer publishes it under");
+  assert.equal(runAttempts({ attemptsRun: 2 }), 2);
+  assert.equal(runAttempts({ attemptCount: 2 }), 2);
+  assert.equal(runAttempts({}), 1, "a step result with no count still records one attempt");
+  assert.equal(runAttempts({ attempts: null }), 1);
+  assert.equal(runAttempts({ attempts: "two" }), 1);
+  assert.equal(runAttempts({ attempts: -1 }), 1);
+  assert.equal(runAttempts({ attempts: 2.9 }), 2, "an attempt count is a whole number");
+});
+
+test("D4 + D7 end to end: a refusal where no process ran records 0 attempts, an honest command line and the fallback marker", async (t) => {
+  const { root, folder } = await fixture(t);
+  const harness = makeHarness({ folders: [folder] });
+  const backend = services(root);
+  const refuses = (withCwd) => async (executable, args, options = {}) => {
+    if (args[0] !== "sync") return backend.runFile(executable, args, options);
+    // The runner's own shape for a refusal where nothing started (runner.js sets attempts = 0),
+    // and the shape of the combined lock-fallback error (command/args, no cwd).
+    const error = new Error("run failure");
+    error.name = "RunError";
+    error.kind = "cwd";
+    error.exitCode = null;
+    error.attempts = 0;
+    error.command = executable;
+    error.args = args;
+    error.stderr = "";
+    if (withCwd) error.cwd = options.cwd;
+    error.lockFallback = { detectedAt: "2026-11-03T11:00:50.383Z", problems: [], uvMessage: "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.", fallbackFailure: "cause: Connection refused (os error 111)" };
+    throw error;
+  };
+  backend.runProcess = refuses(false);
+  const result = await runPlan({ vscode: harness.vscode, context: harness.context, folder, packageId: "recommended", stepIds: ["worker"], services: backend });
+  assert.deepEqual(result.failed, ["worker"]);
+  const record = await readStatus(root);
+  const row = record.steps.find((item) => item.id === "worker");
+  assert.equal(row.attempts, 0, "the status record says no attempt ran");
+  assert.match(row.command, /working directory not recorded/, row.command);
+  assert.ok(row.lockFallback, "the fallback marker survives into the status record");
+  assert.match(row.lockFallback.fallbackFailure, /Connection refused/);
+  assert.ok(row.rerun, "the record carries the pasteable re-run instruction");
+  assert.match(row.rerun, /working directory was not recorded/, row.rerun);
+  assert.ok(!/^cd /m.test(row.rerun), "no cd line is invented when the directory is unknown");
+  const text = diagnosticsText(record);
+  assert.match(text, /attempted the reviewed lockfile fallback, which did not install this step/, text);
+  assert.ok(!/installed through a lockfile fallback/.test(text), text);
+  assert.match(text, /^    To re-run this step yourself, use a UTF-8 terminal:/m, "the instruction is printed as its own lines in the copied diagnostics");
+
+  // Once the layer below carries the directory, the same record names it instead of apologising.
+  backend.runProcess = refuses(true);
+  await runPlan({ vscode: harness.vscode, context: harness.context, folder, packageId: "recommended", stepIds: ["worker"], services: backend });
+  const named = (await readStatus(root)).steps.find((item) => item.id === "worker");
+  assert.match(named.command, /\(in /, named.command);
+  assert.ok(!/working directory not recorded/.test(named.command), named.command);
+  assert.match(named.rerun, /^cd '/m, named.rerun);
+});
+
+test("a carried step keeps its lockfile fallback marker in a retry record (D2 support)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const harness = makeHarness({ folders: [folder] });
+  const first = await runPlan({ vscode: harness.vscode, context: harness.context, folder, packageId: "recommended", stepIds: ["worker"], services: services(root) });
+  assert.equal(first.outcome, "success");
+  const workerDirectory = path.join(root, WORKER_FOLDER);
+  const receipt = await readReceipt(workerDirectory);
+  receipt.steps.worker.lockFallback = { detectedAt: "2026-11-03T09:06:02.825Z", problems: [], uvMessage: "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided." };
+  await writeReceipt(workerDirectory, receipt);
+  await runPlan({ vscode: harness.vscode, context: harness.context, folder, packageId: "recommended", stepIds: ["research-overlay"], services: services(root) });
+  const record = await readStatus(root);
+  const carried = record.steps.find((item) => item.id === "worker");
+  assert.equal(carried.carried, true);
+  assert.ok(carried.lockFallback, "a step installed through the fallback is still marked as such after a retry");
+  assert.match(outcomeLine(record).line, /installed through a lockfile fallback/, outcomeLine(record).line);
+});
+
+test("D7 success half: a step that ran two uv processes records 2 attempts, not 1 (receipts/13)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const harness = makeHarness({ folders: [folder] });
+  const backend = services(root);
+  const syncCalls = [];
+  // The runner's own success shape: `attempts` is how many processes the step started, so a locked
+  // attempt plus the reviewed --frozen fallback reports 2 (runner.js returns the same field).
+  backend.runProcess = async (executable, args, options = {}) => {
+    if (args[0] !== "sync") return { ok: true, stdout: await backend.runFile(executable, args, options), stderr: "", exitCode: 0, durationMs: 1, attempts: 1, command: executable, args, cwd: options.cwd || "" };
+    syncCalls.push(args[1]);
+    const stdout = await backend.runFile(executable, args, options);
+    return { ok: true, stdout, stderr: "", exitCode: 0, durationMs: 1, attempts: 2, command: executable, args, cwd: options.cwd || "" };
+  };
+  const result = await runPlan({ vscode: harness.vscode, context: harness.context, folder, packageId: "recommended", stepIds: ["worker"], services: backend });
+  assert.equal(result.outcome, "success", JSON.stringify(result.statusRecord.steps.map((row) => [row.id, row.status, row.attempts])));
+  const row = result.statusRecord.steps.find((item) => item.id === "worker");
+  assert.equal(row.attempts, 2, "the run record's real count is what the status record shows");
+  assert.match(stepRow(row).statusText, /installed · 2 attempts/, stepRow(row).statusText);
+  assert.equal((await readStatus(root)).steps.find((item) => item.id === "worker").attempts, 2, "and it survives into the record the panel reads back");
+});
+
+test("a refusal raised by the reviewed tool policy is answered as a build defect, not as a retry (DD7-12)", () => {
+  // runner.js refuses `uv lock` and a plain `uv sync` before starting anything (kind "policy").
+  // Falling through to "Retry this step" would tell the operator to press the same button on a
+  // sentence that only this build could have produced.
+  const error = {
+    kind: "policy", exitCode: null, attempts: 0, cwd: "/ws/.research-toolkit/managed/worker-0.3.7",
+    command: "/host/uv", args: ["lock", "--check"],
+    message: "uv lock was refused before it ran: the toolkit never runs `uv lock` in a managed runtime (cwd /ws). No process was started.",
+  };
+  const action = nextActionFor(error, { id: "worker", label: "Isolated locked worker (Python 3.12)" });
+  assert.match(action, /reviewed policy refuses/);
+  assert.match(action, /Reinstall the VSIX from this release/);
+  assert.ok(!/Retry this step/.test(action), action);
+  // The other failure classes keep their own answers; a policy refusal must not crowd them out.
+  assert.match(nextActionFor({ kind: "spawn", message: "x" }, {}), /researchStack\.uvPath/);
+  assert.match(nextActionFor({ kind: "timeout", message: "x" }, {}), /setupTimeoutSeconds/);
+  assert.match(nextActionFor({ kind: "buffer", message: "x" }, {}), /more output than the toolkit captures/);
+  assert.match(nextActionFor({ kind: "cwd", message: "x" }, {}), /workspace folder/);
+  assert.match(nextActionFor({ kind: "cancelled", message: "x" }, {}), /resume where this run stopped/);
+  assert.match(nextActionFor({ kind: "exit", hint: "Named answer", message: "x" }, {}), /Named answer/);
 });

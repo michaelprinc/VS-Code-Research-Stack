@@ -1,0 +1,101 @@
+{
+  "workspace": "/tmp/round5/work-broken/Bankovní účet SVJ ČSA368",
+  "uvPath": "/tmp/uvs/uv-0.13.6",
+  "package": "recommended",
+  "outcome": "partial",
+  "ran": [
+    "research-overlay"
+  ],
+  "skipped": [],
+  "failed": [
+    "worker"
+  ],
+  "blocked": [
+    "notebook-env"
+  ],
+  "hostTool": [
+    {
+      "name": "uv",
+      "path": "/tmp/uvs/uv-0.13.6",
+      "version": "0.13.6",
+      "source": "setting",
+      "verified": true
+    }
+  ],
+  "preflightChecks": [
+    "trust: ok — This workspace folder is trusted.",
+    "local: ok — Setup will run in /tmp/round5/work-broken/Bankovní účet SVJ ČSA368.",
+    "host-tool-uv: ok — uv 0.13.6 resolved from setting: /tmp/uvs/uv-0.13.6",
+    "managed-path: ok — .research-toolkit/managed does not exist yet and will be created inside the workspace.",
+    "managed-writable: ok — /tmp/round5/work-broken/Bankovní účet SVJ ČSA368 accepts writes.",
+    "setup-lock: ok — No setup is running."
+  ],
+  "steps": [
+    {
+      "id": "worker",
+      "status": "failed",
+      "durationMs": 33,
+      "attempts": 0,
+      "exitCode": null,
+      "command": "",
+      "evidence": "",
+      "error": "This toolkit build ships a locked dependency file that does not match its own project file: lock root package version 0.3.7 does not match pyproject version 9.9.9. No process ran and no file was written. Reinstall the Research Stack Toolkit VSIX; this is a defect in the toolkit build, not in this workspace.",
+      "hint": "Reinstall the VSIX from this release; the toolkit's own build gate should have refused to package this pair.",
+      "lockFallback": null,
+      "artifacts": {
+        "stepId": "worker",
+        "verified": false,
+        "missing": [
+          ".research-toolkit/managed/worker-0.3.7/src/research_stack/mcp_server.py",
+          ".research-toolkit/managed/worker-0.3.7/.venv/bin/python"
+        ],
+        "observedCount": 0
+      }
+    },
+    {
+      "id": "research-overlay",
+      "status": "installed",
+      "durationMs": 41,
+      "attempts": 1,
+      "exitCode": null,
+      "command": "",
+      "evidence": "8 overlay file(s) created, 0 unchanged file(s) preserved.",
+      "error": "",
+      "hint": "",
+      "lockFallback": null,
+      "artifacts": {
+        "stepId": "research-overlay",
+        "verified": true,
+        "missing": [],
+        "observedCount": 9
+      }
+    },
+    {
+      "id": "notebook-env",
+      "status": "blocked",
+      "durationMs": null,
+      "attempts": 1,
+      "exitCode": null,
+      "command": "",
+      "evidence": "",
+      "error": "",
+      "hint": "Fix worker first, then retry this step.",
+      "lockFallback": null,
+      "artifacts": null
+    }
+  ],
+  "installationLine": "Installation incomplete — 1 step(s) verified, 2 need attention (Isolated locked worker (Python 3.12), Notebook analysis environment). 1 of 3 package steps are installed in this workspace.",
+  "statusOutcome": "partial",
+  "statusFile": "/tmp/round5/work-broken/Bankovní účet SVJ ČSA368/.research-toolkit/logs/last-setup.json",
+  "diagnostics": "Research Stack component setup — Installation incomplete — 1 step(s) verified, 2 need attention (Isolated locked worker (Python 3.12), Notebook analysis environment). 1 of 3 package steps are installed in this workspace.\nPackage: recommended · Toolkit: 0.3.7 · Workspace: Bankovní účet SVJ ČSA368\nStarted: 11/4/2026, 12:16:30 AM · Finished: 11/4/2026, 12:16:30 AM · Duration: 0 s\nHost tools:\n  uv: 0.13.6 at /tmp/uvs/uv-0.13.6 (resolved from setting)\nPreflight:\n  Workspace trust: ok — This workspace folder is trusted.\n  Local desktop workspace: ok — Setup will run in /tmp/round5/work-broken/Bankovní účet SVJ ČSA368.\n  uv on this machine: ok — uv 0.13.6 resolved from setting: /tmp/uvs/uv-0.13.6\n  Managed toolkit paths: ok — .research-toolkit/managed does not exist yet and will be created inside the workspace.\n  Workspace is writable: ok — /tmp/round5/work-broken/Bankovní účet SVJ ČSA368 accepts writes.\n  Setup lock: ok — No setup is running. → Wait for the running setup to finish.\nSteps:\n  Isolated locked worker (Python 3.12) (worker): failed · no process ran · 0 s · last attempt 11/4/2026, 12:16:30 AM\n    error: This toolkit build ships a locked dependency file that does not match its own project file: lock root package version 0.3.7 does not match pyproject version 9.9.9. No process ran and no file was written. Reinstall the Research Stack Toolkit VSIX; this is a defect in the toolkit build, not in this workspace.\n    next action: Reinstall the VSIX from this release; the toolkit's own build gate should have refused to package this pair.\n  Research overlay files (research-overlay): installed · 0 s · last attempt 11/4/2026, 12:16:30 AM\n  Notebook analysis environment (notebook-env): blocked · blocked by worker · — · last attempt 11/4/2026, 12:16:30 AM\n    next action: Fix worker first, then retry this step.\nSetup log (1 file(s)): step worker failed; step research-overlay installed; step notebook-env blocked; plan  partial\nSetup log file: /tmp/round5/work-broken/Bankovní účet SVJ ČSA368/.research-toolkit/logs/last-setup.json",
+  "refreshed": "Component status refresh · toolkit 0.3.7 · 2026-11-04T00:16:30.378Z\nPackage setup for Recommended Research: 1 of 3 component steps installed, 1 not installed, 1 optional step(s) deliberately not installed · G2 not passed.\nSteps: worker=missing, research-overlay=installed, notebook-env=missing\nNo recorded step is missing its produced files.\nDeliberately omitted optional steps: notebook-env\nManaged runtimes in this workspace: 0.3.7 (unverified)\nThe functional MCP reading check was not run by this refresh; it stays a separate action.",
+  "progress": [
+    "Step 1 of 3: Isolated locked worker (Python 3.12)",
+    "Isolated locked worker (Python 3.12) did not complete: This toolkit build ships a locked dependency file that does not match its own project file: lock root package version 0.3.7 does not match pyproject version 9.9.9. No process ran and no file was written. Reinstall the Research Stack Toolkit VSIX; this is a defect in the toolkit build, not in this workspace.",
+    "Step 2 of 3: Research overlay files",
+    "Prepared the reviewed research overlay files.",
+    "[output] Component setup partial in /tmp/round5/work-broken/Bankovní účet SVJ ČSA368/.research-toolkit/managed/worker-0.3.7: ran research-overlay; failed: worker; blocked: notebook-env.",
+    "[output] Research Stack component setup — Installation incomplete — 1 step(s) verified, 2 need attention (Isolated locked worker (Python 3.12), Notebook analysis environment). 1 of 3 package steps are installed in this workspace.\nPackage: recommended · Toolkit: 0.3.7 · Workspace: Bankovní účet SVJ ČSA368\nStarted: 11/4/2026, 12:16:30 AM · Finished: 11/4/2026, 12:16:30 AM · Duration: 0 s\nHost tools:\n  uv: 0.13.6 at /tmp/uvs/uv-0.13.6 (resolved from setting)\nPreflight:\n  Workspace trust: ok — This workspace folder is trusted.\n  Local desktop workspace: ok — Setup will run in /tmp/round5/work-broken/Bankovní účet SVJ ČSA368.\n  uv on this machine: ok — uv 0.13.6 resolved from setting: /tmp/uvs/uv-0.13.6\n  Managed toolkit paths: ok — .research-toolkit/managed does not exist yet and will be created inside the workspace.\n  Workspace is writable: ok — /tmp/round5/work-broken/Bankovní účet SVJ ČSA368 accepts writes.\n  Setup lock: ok — No setup is running. → Wait for the running setup to finish.\nSteps:\n  Isolated locked worker (Python 3.12) (worker): failed · no process ran · 0 s · last attempt 11/4/2026, 12:16:30 AM\n    error: This toolkit build ships a locked dependency file that does not match its own project file: lock root package version 0.3.7 does not match pyproject version 9.9.9. No process ran and no file was written. Reinstall the Research Stack Toolkit VSIX; this is a defect in the toolkit build, not in this workspace.\n    next action: Reinstall the VSIX from this release; the toolkit's own build gate should have refused to package this pair.\n  Research overlay files (research-overlay): installed · 0 s · last attempt 11/4/2026, 12:16:30 AM\n  Notebook analysis environment (notebook-env): blocked · blocked by worker · — · last attempt 11/4/2026, 12:16:30 AM\n    next action: Fix worker first, then retry this step.\nSetup log (1 file(s)): step worker failed; step research-overlay installed; step notebook-env blocked; plan  partial\nSetup log file: /tmp/round5/work-broken/Bankovní účet SVJ ČSA368/.research-toolkit/logs/last-setup.json",
+    "[output] Component status refresh · toolkit 0.3.7 · 2026-11-04T00:16:30.378Z\nPackage setup for Recommended Research: 1 of 3 component steps installed, 1 not installed, 1 optional step(s) deliberately not installed · G2 not passed.\nSteps: worker=missing, research-overlay=installed, notebook-env=missing\nNo recorded step is missing its produced files.\nDeliberately omitted optional steps: notebook-env\nManaged runtimes in this workspace: 0.3.7 (unverified)\nThe functional MCP reading check was not run by this refresh; it stays a separate action."
+  ]
+}

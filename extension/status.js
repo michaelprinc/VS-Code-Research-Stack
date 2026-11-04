@@ -81,6 +81,25 @@ function sentence(value, limit = 180) {
 }
 
 /**
+ * What the recorded `--frozen` fallback actually achieved for this step.
+ *
+ * "installed" only when the step is recorded as an install. A step whose locked attempt was refused
+ * *and* whose fallback also failed carries the same marker, and calling it installed told the
+ * operator the packages were there when nothing was (0.3.7 e2e defect D2, receipts/19).
+ */
+function fallbackState(step) {
+  if (!step || !step.lockFallback) return null;
+  return ["installed", "skipped", "repaired"].includes(step.status) ? "installed" : "attempted";
+}
+
+/** Why the fallback ran, from what the run recorded. */
+function fallbackReason(step) {
+  const problems = step.lockFallback && Array.isArray(step.lockFallback.problems) ? step.lockFallback.problems : [];
+  if (problems.length) return problems.join("; ");
+  return "this host's uv refused the shipped lockfile and the toolkit's own check of the same pair agreed";
+}
+
+/**
  * The one-line verdict the panel shows.
  *
  * The headline names how many steps are trustworthy and which ones are not; the detail belongs to
@@ -112,11 +131,18 @@ function outcomeLine(record, { toolkitVersion } = {}) {
     line += ` ${coverage.installed} of ${coverage.total} package steps are installed in this workspace.`;
   }
   // A step that installed through the `--frozen` fallback is installed, but not from the lockfile this
-  // build shipped. The headline must not read as an unqualified success.
+  // build shipped. The headline must not read as an unqualified success. A step whose fallback also
+  // failed is a failed step that attempted the fallback — it is never counted as installed (D2).
   const fallbacks = steps.filter((step) => step.lockFallback);
-  if (fallbacks.length) {
-    const names = fallbacks.map((step) => step.label || step.id).join(", ");
-    line += ` ${fallbacks.length} step(s) installed through a lockfile fallback (${names}) — this host's uv refused the shipped lockfile; see that step's evidence.`;
+  const installedFallback = fallbacks.filter((step) => fallbackState(step) === "installed");
+  const attemptedFallback = fallbacks.filter((step) => fallbackState(step) === "attempted");
+  if (installedFallback.length) {
+    const names = installedFallback.map((step) => step.label || step.id).join(", ");
+    line += ` ${installedFallback.length} step(s) installed through a lockfile fallback (${names}) — this host's uv refused the shipped lockfile; see that step's evidence.`;
+  }
+  if (attemptedFallback.length) {
+    const names = attemptedFallback.map((step) => step.label || step.id).join(", ");
+    line += ` ${attemptedFallback.length} step(s) attempted the reviewed lockfile fallback and did not install (${names}) — this host's uv refused the shipped lockfile; see that step's evidence.`;
   }
   if (toolkitVersion && record.toolkitVersion && record.toolkitVersion !== toolkitVersion) {
     line += ` Recorded by toolkit ${record.toolkitVersion}; this release has not run in this workspace yet.`;
@@ -136,8 +162,13 @@ function stepRow(step) {
   const parts = [statusText];
   if (step.status === "failed" && Number.isInteger(step.exitCode)) parts.push(`exit ${step.exitCode}`);
   if (step.attempts > 1) parts.push(`${step.attempts} attempts`);
+  // 0.3.7 e2e defect D7: the runner records 0 when a refusal stopped the step before a process
+  // started. Saying nothing left "1 attempt" as the only number an operator could read.
+  if (step.attempts === 0 && !["installed", "skipped", "repaired"].includes(step.status)) parts.push("no process ran");
   if (step.blockedBy) parts.push(`blocked by ${step.blockedBy}`);
-  if (step.lockFallback) parts.push("lockfile fallback used");
+  const fallback = fallbackState(step);
+  if (fallback === "installed") parts.push("lockfile fallback used");
+  else if (fallback === "attempted") parts.push("lockfile fallback attempted, step not installed");
   return {
     id: step.id,
     label: step.label || step.id,
@@ -147,10 +178,13 @@ function stepRow(step) {
     attemptedAt: timeText(step.finishedAt || step.startedAt),
     error: step.error || (step.artifacts && step.artifacts.verified === false ? `missing: ${(step.artifacts.missing || []).join(", ")}` : ""),
     command: step.command || "",
+    rerun: step.rerun || "",
     artifactsText: artifactsText(step),
-    note: step.lockFallback
-      ? `installed through a lockfile fallback: ${step.lockFallback.problems && step.lockFallback.problems.length ? step.lockFallback.problems.join("; ") : "this host's uv refused the shipped lockfile and the toolkit's own check of the same pair agreed"}`
-      : "",
+    note: fallback === "installed"
+      ? `installed through a lockfile fallback: ${fallbackReason(step)}`
+      : fallback === "attempted"
+        ? `attempted the reviewed lockfile fallback, which did not install this step: ${fallbackReason(step)}`
+        : "",
     hint: step.hint || "",
   };
 }
@@ -197,6 +231,9 @@ function diagnosticsText(record, log) {
     const identity = row.label && row.label !== row.id ? `${row.label} (${row.id})` : row.id;
     lines.push(`  ${identity}: ${row.statusText} · ${row.duration} · last attempt ${row.attemptedAt}`);
     if (row.command) lines.push(`    command: ${row.command}`);
+    // The re-run instruction is deliberately two lines: `cd` first, then the command. A single line
+    // with a trailing "(in "<cwd>")" is not something an operator can paste into a shell.
+    if (row.rerun) for (const instruction of String(row.rerun).split(/\r?\n/)) lines.push(`    ${instruction}`);
     if (row.error) lines.push(`    error: ${row.error}`);
     if (row.note) lines.push(`    note: ${row.note}`);
     if (row.hint) lines.push(`    next action: ${row.hint}`);
@@ -208,4 +245,4 @@ function diagnosticsText(record, log) {
   return lines.join("\n");
 }
 
-module.exports = { OUTCOMES, OUTCOME_LABEL, outcomeOf, outcomeLine, firstProblem, stepRow, artifactsText, diagnosticsText, durationText, timeText };
+module.exports = { OUTCOMES, OUTCOME_LABEL, outcomeOf, outcomeLine, firstProblem, stepRow, fallbackState, artifactsText, diagnosticsText, durationText, timeText };

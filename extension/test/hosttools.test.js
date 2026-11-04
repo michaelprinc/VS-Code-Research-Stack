@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const os = require("node:os");
+const { spawnSync } = require("node:child_process");
 const hosttools = require("../hosttools");
 const { resolveHostTool, knownLocations, pathEntries, pathScan, compareVersions, versionOf, clearHostToolCache, resolverFrom, settingProblem } = hosttools;
 
@@ -272,4 +273,222 @@ test("a 0-byte uv.exe on a Windows host is found but refused, not offered as a u
   assert.equal(result.path, await fs.realpath(empty), "it is still reported where it was found");
   assert.match(result.reason, /uv was found at .*uv\.exe but it is an empty file/, result.reason);
   assert.match(result.hint, /uv/, "the operator still gets the setting that can fix it");
+});
+
+/**
+ * 0.3.7 e2e review D10. The 0-byte check above was limited to win32. On a POSIX host the
+ * executable bit can be set on an empty file: it spawns, exits 0 and prints nothing, and 0.3.7
+ * reported it as a usable tool whose version was missing — receipts/15b and receipts/16b show
+ * `usable: true`, "did not report a version" and the hint "Update uv and retry" for a file that
+ * contains nothing. A 0-byte file is not a tool on any platform.
+ */
+test("a 0-byte executable uv on a POSIX host is refused as what it is, and never spawned (e2e D10)", async (t) => {
+  const host = await fakeHost(t);
+  for (const platform of ["linux", "darwin"]) {
+    const empty = path.join(host.known, "uv");
+    await fs.writeFile(empty, "");
+    await fs.chmod(empty, 0o755);
+    const launched = [];
+    clearHostToolCache();
+    const result = await resolveHostTool("uv", {
+      platform,
+      roots: [host.workspace],
+      env: { PATH: "", HOME: host.root },
+      runProcess: async (executable) => { launched.push(executable); return { stdout: "", stderr: "" }; },
+    });
+    assert.equal(result.usable, false, `${platform}: a 0-byte file is not a tool`);
+    assert.equal(result.verified, false, `${platform}: nothing ran to verify`);
+    assert.equal(result.version, null, `${platform}: no version is invented`);
+    assert.equal(launched.length, 0, `${platform}: the empty file is never spawned`);
+    assert.equal(result.path, await fs.realpath(empty), `${platform}: it is reported where it was found`);
+    assert.match(result.reason, /uv was found at .*\/uv but it is an empty file \(0 bytes\), which cannot be a tool/, result.reason);
+    assert.ok(!/did not report a version/.test(result.reason), `the diagnosis must not blame the version probe: ${result.reason}`);
+    assert.ok(!/Update uv and retry/.test(result.hint), `the hint must not tell the operator to update uv: ${result.hint}`);
+    assert.match(result.hint, /Replace .*\/uv with a working uv executable, or set researchStack\.uvPath to the uv executable you intend setup to run\./, result.hint);
+    assert.ok(!/was not found/.test(result.reason), `the file exists; the report must not claim it is missing: ${result.reason}`);
+  }
+});
+
+test("a 0-byte file in an earlier location does not stop the search from finding a working uv (e2e D10)", async (t) => {
+  const host = await fakeHost(t);
+  const broken = path.join(host.root, "broken-bin");
+  await fs.mkdir(broken, { recursive: true });
+  await fs.writeFile(path.join(broken, "uv"), "");
+  await fs.chmod(path.join(broken, "uv"), 0o755);
+  const working = await host.write(host.onPath, "uv", "#!/bin/sh\necho 'uv 0.13.6'\n");
+  const launched = [];
+  clearHostToolCache();
+  const result = await resolveHostTool("uv", {
+    platform: "linux",
+    roots: [host.workspace],
+    env: { PATH: `${broken}${path.delimiter}${host.onPath}`, HOME: path.join(host.root, "no-home") },
+    runProcess: async (executable) => { launched.push(executable); return { stdout: "uv 0.13.6", stderr: "" }; },
+  });
+  assert.equal(result.path, await fs.realpath(working), "the refusal is not the end of the search");
+  assert.equal(result.version, "0.13.6");
+  assert.equal(result.verified, true);
+  assert.deepEqual(launched, [await fs.realpath(working)], "only the working tool is spawned");
+});
+
+/**
+ * Confirmed while fixing D10, unchanged by it: a directory is refused on a POSIX host too, and an
+ * unusable candidate never masks a usable one later in the search.
+ */
+test("a directory in a searched location is refused on a POSIX host and does not mask a usable tool (confirmed)", async (t) => {
+  const host = await fakeHost(t);
+  await fs.mkdir(path.join(host.known, "uv"), { recursive: true });
+  const working = await host.write(host.onPath, "uv", "#!/bin/sh\necho 'uv 0.13.6'\n");
+  clearHostToolCache();
+  const masked = await resolveHostTool("uv", { roots: [host.workspace], env: { PATH: `${host.known}${path.delimiter}${host.onPath}`, HOME: path.join(host.root, "no-home") } });
+  assert.equal(masked.path, await fs.realpath(working), "the directory is recorded, the search continues");
+  assert.equal(masked.verified, true);
+  clearHostToolCache();
+  const alone = await resolveHostTool("uv", { roots: [host.workspace], env: { PATH: host.known, HOME: path.join(host.root, "no-home") } });
+  assert.equal(alone.usable, false);
+  assert.equal(alone.path, await fs.realpath(path.join(host.known, "uv")));
+  assert.match(alone.reason, /uv was found at .* but it is a directory, not an executable file/, alone.reason);
+});
+
+/**
+ * Confirmed while fixing D10: the version probe does not accept a clean exit as a version.
+ * A 0-byte file no longer reaches this branch at all.
+ */
+test("a tool that exits 0 and prints nothing is not a usable version (confirmed)", async (t) => {
+  const host = await fakeHost(t);
+  const file = await host.write(host.known, "uv", "#!/bin/sh\nexit 0\n");
+  clearHostToolCache();
+  const result = await resolveHostTool("uv", { roots: [host.workspace], env: { PATH: host.known, HOME: path.join(host.root, "no-home") } });
+  assert.equal(result.version, null, "empty stdout is not a version");
+  assert.equal(result.verified, false, "exit 0 with no output is not a verified tool");
+  assert.equal(result.usable, true, "a non-empty executable is launchable; only its version is unproven");
+  assert.match(result.reason, /uv at .* did not report a version\./, result.reason);
+});
+
+/**
+ * Windows portability review W1. `probeCandidate` answers with the realpath of the candidate while
+ * the workspace roots were compared unresolved, so a workspace handed over through a link — a
+ * symlink here, a junction or a mapped drive on Windows — hid a workspace-local tool from the
+ * refusal and it was spawned.
+ */
+test("a workspace-local tool reached through a link at the workspace root is refused (Windows review W1)", async (t) => {
+  if (process.platform === "win32") return t.skip("needs a POSIX symlink; the junction variant is measured on the Windows host");
+  const host = await fakeHost(t);
+  const bin = path.join(host.workspace, ".venv", "bin");
+  await fs.mkdir(bin, { recursive: true });
+  const inside = await host.write(bin, "uv", "#!/bin/sh\necho 'uv 0.13.6'\n");
+  const link = path.join(host.root, "link-to-workspace");
+  await fs.symlink(host.workspace, link, "dir");
+  const resolvedInside = await fs.realpath(inside);
+
+  const launched = [];
+  clearHostToolCache();
+  const throughLink = await resolveHostTool("uv", {
+    roots: [link],
+    configuredPath: path.join(link, ".venv", "bin", "uv"),
+    env: { PATH: "", HOME: path.join(host.root, "no-home") },
+    runProcess: async (executable) => { launched.push(executable); return { stdout: "uv 0.13.6", stderr: "" }; },
+  });
+  assert.equal(throughLink.path, null, "the root is resolved the same way the candidate is");
+  assert.deepEqual(throughLink.workspaceRefusals, [resolvedInside]);
+  assert.equal(launched.length, 0, "a workspace-local tool is never spawned");
+  assert.match(throughLink.reason, /1 candidate\(s\) inside the workspace were refused/, throughLink.reason);
+
+  clearHostToolCache();
+  const viaPath = await resolveHostTool("uv", {
+    roots: [link],
+    env: { PATH: bin, HOME: path.join(host.root, "no-home") },
+    runProcess: async (executable) => { launched.push(executable); return { stdout: "uv 0.13.6", stderr: "" }; },
+  });
+  assert.equal(viaPath.path, null, "the same refusal applies to a tool found through PATH");
+  assert.deepEqual(viaPath.workspaceRefusals, [resolvedInside]);
+
+  clearHostToolCache();
+  const control = await resolveHostTool("uv", { roots: [host.workspace], configuredPath: inside, env: { PATH: "", HOME: path.join(host.root, "no-home") } });
+  assert.deepEqual(control.workspaceRefusals, [resolvedInside], "the refusal wording is the one 0.3.7 already had for a resolved root");
+});
+
+/**
+ * Windows portability review W13. Some installers write a PATH entry with surrounding quotes;
+ * quoted, the entry was joined into a candidate path that realpath could not resolve, so the
+ * folder was skipped without being counted. And on Windows the same folder is routinely spelled
+ * two ways, which the case-sensitive dedupe probed twice.
+ */
+test("PATH entries are de-quoted, and on Windows the same folder spelled two ways is probed once (Windows review W13)", async (t) => {
+  const host = await fakeHost(t);
+  const file = await host.write(host.onPath, "uvfixture", "#!/bin/sh\necho 'uvfixture 1.2.3'\n");
+  clearHostToolCache();
+  const quoted = await resolveHostTool("uvfixture", { roots: [host.workspace], env: { PATH: `"${host.onPath}"`, HOME: path.join(host.root, "no-home") } });
+  assert.equal(quoted.path, await fs.realpath(file), "a quoted PATH entry names a folder the operator meant to search");
+  assert.equal(quoted.version, "1.2.3");
+  assert.equal(quoted.searched.pathEntries, 1, "the entry is counted as searched, not silently skipped");
+
+  const scan = pathScan({ PATH: `"${host.onPath}"${path.delimiter}'${host.onPath}'` });
+  assert.deepEqual(scan.entries, [host.onPath], "surrounding quotes are removed before the entry is used");
+  assert.equal(scan.duplicates, 1);
+  assert.equal(pathScan({ PATH: `""${path.delimiter}.` }).skippedRelative, 2, "an entry that is only quotes is refused as a relative entry, and counted");
+
+  const win = pathScan({ PATH: "/tmp/A/Bin:/tmp/a/bin" }, "win32");
+  assert.deepEqual(win.entries, ["/tmp/A/Bin"], "on Windows C:\\Windows and c:\\windows are the same folder, probed once");
+  assert.equal(win.duplicates, 1);
+  const posix = pathScan({ PATH: "/tmp/A/Bin:/tmp/a/bin" }, "linux");
+  assert.deepEqual(posix.entries, ["/tmp/A/Bin", "/tmp/a/bin"], "on a case-sensitive host they are two folders");
+  assert.equal(posix.duplicates, 0);
+});
+
+/**
+ * Windows portability review W18. The win32 list was built with the host's `path.join`, so on a
+ * POSIX host it mixed `/` and `\` and every entry was rejected by `path.isAbsolute` — the branch
+ * could not be asserted on this host. The list is now built with the separators of the platform
+ * argument, whatever machine builds it.
+ */
+test("the win32 documented-location list uses Windows separators whatever host builds it (Windows review W18)", () => {
+  const env = { USERPROFILE: "C:\\Users\\u", LOCALAPPDATA: "C:\\Users\\u\\AppData\\Local", APPDATA: "C:\\Users\\u\\AppData\\Roaming", HOME: "/home/u" };
+  const list = knownLocations("win32", env);
+  assert.equal(list.length, 7, "the documented win32 list is unchanged in content");
+  for (const entry of list) {
+    assert.ok(path.win32.isAbsolute(entry), `a win32 location must be win32-absolute: ${entry}`);
+    assert.ok(!entry.includes("/"), `no mixed separators: ${entry}`);
+    assert.equal(path.win32.normalize(entry), entry, `already in Windows form: ${entry}`);
+  }
+  assert.ok(list.includes("C:\\Program Files\\uv"), "the fixed location is still there");
+  const fromPosixSpelling = knownLocations("win32", { USERPROFILE: "/home/u" });
+  assert.ok(fromPosixSpelling.every((entry) => !entry.includes("/")), `the win32 list never mixes separators: ${JSON.stringify(fromPosixSpelling)}`);
+  const posix = knownLocations("linux", { HOME: "/home/u", XDG_BIN_HOME: "" });
+  assert.ok(posix.every((entry) => path.posix.isAbsolute(entry) && !entry.includes("\\")), `the POSIX list stays POSIX: ${JSON.stringify(posix)}`);
+});
+
+/**
+ * 0.3.7 e2e review D9. `npm run verify-package` in a shell without uv on PATH died with
+ * `Error: spawnSync uv ENOENT` and a Node stack trace. The gate is real and does need uv; the
+ * failure has to read as an instruction, and has to name the setting the extension itself uses so
+ * the operator does not confuse the two lookups.
+ */
+test("the release gate names the missing uv instead of throwing a stack trace (e2e D9)", async (t) => {
+  const extensionRoot = path.resolve(__dirname, "..");
+  const manifest = JSON.parse(await fs.readFile(path.join(extensionRoot, "vsix-manifest.json"), "utf8"));
+  const artifact = path.join(extensionRoot, "..", "dist", `research-stack-toolkit-${manifest.version}.vsix`);
+  try { await fs.access(artifact); } catch { return t.skip(`the gate audits the packaged artifact, which is not built here: ${artifact}`); }
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), "research-gate-"));
+  t.after(() => fs.rm(scratch, { recursive: true, force: true }));
+  const gate = ["scripts/with-artifact.js", "uv", "run", "--locked", "python", "../scripts/verify_vsix.py"];
+
+  const missing = spawnSync(process.execPath, gate, { cwd: extensionRoot, encoding: "utf8", env: { PATH: "" } });
+  assert.equal(missing.status, 1, "the gate fails, it does not crash");
+  assert.match(missing.stderr, /uv was not found on PATH/, missing.stderr);
+  assert.match(missing.stderr, /Command attempted: uv run --locked python \.\.\/scripts\/verify_vsix\.py .*research-stack-toolkit-.*\.vsix/, missing.stderr);
+  assert.match(missing.stderr, /researchStack\.uvPath/, "the operator is told which setting the extension uses");
+  assert.match(missing.stderr, /export PATH=/, "the operator is told what to change", missing.stderr);
+  assert.ok(!/spawnSync uv ENOENT/.test(missing.stderr), `no raw spawn error: ${missing.stderr}`);
+  assert.ok(!/at (Object|Module|node:)/.test(missing.stderr), `no stack trace: ${missing.stderr}`);
+  assert.ok(!/Node\.js v\d/.test(missing.stderr), `no Node version banner: ${missing.stderr}`);
+
+  if (process.platform !== "win32") {
+    const shim = path.join(scratch, "uv");
+    await fs.writeFile(shim, "#!/bin/sh\necho \"shim argv: $*\"\nexit 3\n");
+    await fs.chmod(shim, 0o755);
+    const present = spawnSync(process.execPath, gate, { cwd: extensionRoot, encoding: "utf8", env: { PATH: scratch } });
+    assert.equal(present.status, 3, "with uv on PATH the command's own exit status is still the gate's status");
+    assert.ok(present.stdout.includes(artifact), `the artifact is still appended: ${present.stdout}`);
+    assert.ok(!/was not found on PATH/.test(present.stderr), `no instruction text when uv is present: ${present.stderr}`);
+  }
 });

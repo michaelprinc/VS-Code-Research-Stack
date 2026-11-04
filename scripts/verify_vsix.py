@@ -83,9 +83,15 @@ for _component in _COMPONENTS:
 MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 MAX_UNPACKED_BYTES = 1 * 1024 * 1024
 SENSITIVE_NAMES = re.compile(r"(^|/)(\.env(\.|$)|\.venv|node_modules|\.git|corpus|models?|secrets?)(/|$)", re.I)
+# The capability scan is about starting a process or opening a socket. A method call on an object
+# (`SOME_PATTERN.exec(text)` on a RegExp, which `extension/lockfile.js` uses to read a version) is
+# neither, so the call must be unqualified to count: `exec(`, `execFile(`, `spawn(`, `execSync(`.
+# A process call still cannot hide behind that rule, because every one of them needs
+# `require("node:child_process")`, which is forbidden here outright and counted exactly once for the
+# one reviewed boundary member in the loop below.
 FORBIDDEN_ENTRY = re.compile(
     rb"\b(?:fetch\s*\(|XMLHttpRequest|WebSocket|child_process|subprocess|"
-    rb"(?:exec|execFile|spawn)(?:Sync)?\s*\()|require\s*\(\s*['\"](?:node:)?"
+    rb"(?<![.\w])(?:exec|execFile|spawn)(?:Sync)?\s*\()|require\s*\(\s*['\"](?:node:)?"
     rb"(?:http|https|net|tls|child_process)['\"]",
     re.I,
 )
@@ -188,20 +194,61 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
                 script = archive.read(member)
                 if member == "extension/runner.js":
                     # The shared runner is the only reviewed process boundary in the extension.
-                    allowed_import = b'const { execFile } = require("node:child_process");'
-                    if script.count(allowed_import) != 1 or script.count(b"execFile(") != 1:
+                    # DD7-12: the boundary is one bounded `childProcess.spawn(` — the tool run, started
+                    # in its own POSIX process group so a stopped run can be reaped with `kill(-pid)` —
+                    # plus one `childProcess.execFile(` for the Windows `taskkill` tree reaper. It is no
+                    # longer an `execFile` run because Node builds `execFile`'s own spawn options and
+                    # drops `detached`, which would point `kill(-pid)` at the editor's own group. The
+                    # capture limit is enforced by the boundary itself, not by an option it ignores.
+                    allowed_import = b'const childProcess = require("node:child_process");'
+                    reviewed_calls = {b"childProcess.spawn(": 1, b"childProcess.execFile(": 1}
+                    if script.count(allowed_import) != 1:
                         raise ValueError("runner process boundary differs from reviewed pattern")
+                    for call, reviewed_count in reviewed_calls.items():
+                        found = script.count(call)
+                        if found != reviewed_count:
+                            raise ValueError(
+                                "runner process boundary differs from reviewed pattern: "
+                                f"{call.decode()} occurs {found} times, {reviewed_count} is reviewed"
+                            )
+                    if b"shell: true" in script:
+                        raise ValueError("runner process boundary differs from reviewed pattern: shell: true")
+                    # The boundary is exactly one bounded spawn and one bounded taskkill reaper. Any other
+                    # process primitive in the one reviewed file — a synchronous run, a fork, or a bare
+                    # `exec` — is unreviewed even if the counts above still add up.
+                    for forbidden in (b"execSync", b"spawnSync", b"forkSync", b".exec(", b".fork("):
+                        if forbidden in script:
+                            raise ValueError(
+                                "runner process boundary differs from reviewed pattern: "
+                                f"{forbidden.decode()} is not part of the reviewed boundary"
+                            )
                     for required in (
                         b"const DEFAULT_TIMEOUT_MS = 8000;",
                         b"const MAX_BUFFER_BYTES = 8 * 1024 * 1024;",
-                        b"timeout: options.timeout || DEFAULT_TIMEOUT_MS",
+                        b"const timeoutMs = options.timeout || DEFAULT_TIMEOUT_MS;",
                         b"maxBuffer: MAX_BUFFER_BYTES",
+                        b"sink.total >= MAX_BUFFER_BYTES",
                         b"windowsHide: true",
                         b"shell: false",
+                        b'detached: os.platform() !== "win32"',
+                        b'process.kill(-pid, "SIGKILL")',
+                        b'const TASKKILL = "taskkill.exe";',
+                        b"function taskkillArguments(pid)",
+                        b'"/PID", String(pid), "/T", "/F"',
                     ):
                         if required not in script:
                             raise ValueError(f"runner process bounds missing: {required.decode()!r}")
-                    script = script.replace(allowed_import, b"").replace(b"execFile(", b"reviewedCall(")
+                    for bound, reviewed_count in ((b"shell: false", 2), (b"windowsHide: true", 2)):
+                        if script.count(bound) < reviewed_count:
+                            raise ValueError(
+                                f"runner process bounds missing: {bound.decode()} must guard both call sites "
+                                f"({script.count(bound)} found, at least {reviewed_count} reviewed)"
+                            )
+                    script = (
+                        script.replace(allowed_import, b"")
+                        .replace(b"childProcess.spawn(", b"reviewedCall(")
+                        .replace(b"childProcess.execFile(", b"reviewedCall(")
+                    )
                 if FORBIDDEN_ENTRY.search(script):
                     raise ValueError(f"extension introduces unreviewed network/process capabilities: {member}")
             elif member.endswith(".py"):

@@ -75,14 +75,29 @@ test("exactly one module reaches an external tool, and it is the reviewed runner
   const importers = shippedModules().filter((file) => /require\("node:child_process"\)/.test(localRequires(file).source));
   assert.deepEqual(importers, ["runner.js"], "the VSIX audit names runner.js as the single process boundary");
   const { source } = localRequires("runner.js");
-  assert.equal(source.match(/execFile\(/g).length, 1, "one call site, so every run is bounded in one place");
+  // DD7-12: the boundary is one bounded run plus one reaper, both in this module. Counting
+  // `execFile(` alone proved the wrong thing — it found the reaper and missed the run itself.
+  const count = (pattern) => (source.match(pattern) || []).length;
+  assert.equal(count(/childProcess\.spawn\(/g), 1, "one bounded tool run, in one place");
+  assert.equal(count(/childProcess\.execFile\(/g), 1, "one taskkill reaper call, in the same place");
+  assert.equal(count(/\bspawn\(/g), 1, "no second spawn anywhere in the boundary");
+  assert.equal(count(/\bexecFile\(/g), 1, "no second execFile either");
+  assert.equal(count(/require\("node:child_process"\)/g), 1, "one import of the process module");
   for (const bound of ['const DEFAULT_TIMEOUT_MS = 8000;', "windowsHide: true", "shell: false", "maxBuffer: MAX_BUFFER_BYTES"]) {
     assert.ok(source.includes(bound), `runner.js must keep ${bound}`);
   }
+  assert.ok(count(/shell: false/g) >= 2, "shell:false guards both call sites");
+  assert.ok(count(/windowsHide: true/g) >= 2, "windowsHide:true guards both call sites");
+  assert.equal(count(/shell:\s*true/g), 0, "the boundary never runs a tool through a shell");
+  // W2: a stopped run must be able to take its whole tree with it.
+  assert.ok(/detached: os\.platform\(\) !== "win32"/.test(source), "the POSIX child leads its own process group");
+  assert.ok(/process\.kill\(-pid, "SIGKILL"\)/.test(source), "a stopped run kills the process group, not only the direct child");
+  assert.ok(/"taskkill\.exe"/.test(source) && /function taskkillArguments\(pid\)/.test(source), "the Windows tree is taken by taskkill /T /F");
+  assert.ok(/sink\.total >= MAX_BUFFER_BYTES/.test(source), "the capture limit is enforced by the boundary itself");
   // No other shipped module may reach a process, a socket or dynamic code at all.
   for (const file of shippedModules().filter((name) => name !== "runner.js")) {
-    const { source } = localRequires(file);
-    assert.ok(!/child_process|require\("node:(http|https|net|dgram|tls|worker_threads)"\)|\bFunction\(|\beval\(/.test(source),
+    const { source: other } = localRequires(file);
+    assert.ok(!/child_process|require\("node:(http|https|net|dgram|tls|worker_threads)"\)|\bFunction\(|\beval\(/.test(other),
       `${file} must not reach a process, a socket or dynamic code`);
   }
 });

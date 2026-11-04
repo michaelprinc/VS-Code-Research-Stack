@@ -59,3 +59,41 @@ Durable process lessons. Release-specific decisions live in `specs/phase-N/desig
 18. **Do not let a delegated agent's number become a documented fact before it is re-measured.** The
     synthetic-fixture count moved twice while agents were editing the same file; quote it from a command
     run at freeze time, with the grep caveat spelled out.
+19. **Line endings are only half of a reproducible artifact.** Two builds of the same commit produced
+    312,471-byte VSIXes with byte-identical members and three different digests, because vsce writes the
+    copy time of each staged file and a `new Date()` for the members it generates; a build from a fresh
+    clone then differed again because 32 members carried 0664 here and 0644 in the clone. `SOURCE_DATE_EPOCH`
+    (which vsce honours by stamping every entry and sorting members) plus `chmod 0644` on the staged tree
+    made the digest reproducible, and `scripts/verify_vsix.py` now refuses an artifact whose entries carry
+    any other timestamp or mode.
+20. **A documented reproduce command must be read-only, or say where it writes.** `run_uv_matrix.py` and
+    `run_lock_provenance.py` write their JSON into the evidence folder, so following the README's own
+    reproduce line modified two tracked receipts and created a third file; a child agent then "undid" it
+    with `git checkout --` plus `rm -f` and destroyed an untracked receipt. Both scripts now take `--out`.
+21. **Compare parsed semantics, not normalised text.** Both readers refused `pypdf<7,>=6.4` beside the
+    `>=6.4,<7` that uv itself writes, and the same for `requires-python` — uv accepts those pairs, so the
+    false alarm would have blocked the toolkit's own build. Bounds are compared as sets now.
+22. **A reader that walks only the root entry cannot see the rest of the file.** A deleted or duplicated
+    transitive `[[package]]` block, a lock header uv cannot read, and an `sdist` written as a list were all
+    certified clean while uv refused them with exit 2.
+23. **A gate that is true "by inspection" is not a gate.** "No `uv lock` inside a managed runtime" had no
+    test and no verifier. It is now enforced where the call is made: the boundary refuses a `lock`
+    subcommand and a `sync` with neither `--locked` nor `--frozen`, without spawning.
+24. **When no real host can produce a failure, drive the path with a stand-in that emits measured real
+    output, and label it.** No uv from 0.5.0 to 0.13.6 rejects the shipped pairs, so the fallback paths were
+    exercised with a stand-in uv that replays the sentences captured from real uv runs and otherwise execs
+    the real binary. The label belongs in the receipt, not in a footnote.
+25. **A measurement harness can invent a verdict.** `uv lock --check --no-config` makes uv ignore
+    `[tool.uv]` completely, and a fixture whose `dynamic` dependencies come from `requirements.txt` needs
+    that side file on disk. Four adversarial rows measured the opposite of their recorded exit code until
+    both harness details were fixed (`--no-config` dropped, `requirements.txt` / `extras.txt` written).
+    Reproduce uv's own command line, and copy every file the fixture references.
+26. **An internal error must not be returned as a verdict.** `pairProblems` wrapped its comparison in a
+    catch that returned `lock comparison failed: <message>`; the pre-flight and the packager read that as a
+    finding about the dependency pair, so a reader bug blocked the release gate while saying nothing about
+    the files. Parse failures are verdicts — uv itself refuses to open those files — a failure inside the
+    comparison propagates to the caller, which reports it in its own words.
+27. **An interval merge is only proven by its open end.** `_merge_intervals` folded
+    `[(None,(3,14)), ((3,14),None)]` into `(None,(3,14))`, so the shipped `resolution-markers` partition
+    read as a coverage hole on the toolkit's own release pair. Assert the unbounded result, and run the
+    same corpus through both readers: 52 marker/range cases, 0 divergences, is what made the fix provable.

@@ -1,10 +1,11 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fsSync = require("node:fs");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const os = require("node:os");
-const { runProcess, runFile, retryable, stderrTail, describe, setupEnvironment, conflictingUvVariables, scrubbedUvVariables, CONFLICTING_UV_VARIABLES, REVIEWED_UV_ENVIRONMENT, MAX_BUFFER_BYTES, REPORT_LIMIT, asRunProcess } = require("../runner");
+const { runProcess, runFile, retryable, stderrTail, describe, setupEnvironment, conflictingUvVariables, conflictingPythonVariables, scrubbedUvVariables, uvCommandPolicy, CONFLICTING_UV_VARIABLES, REVIEWED_UV_ENVIRONMENT, MAX_BUFFER_BYTES, REPORT_LIMIT, asRunProcess } = require("../runner");
 
 const node = process.execPath;
 
@@ -319,6 +320,467 @@ test("a stripped host uv setting is named in the failure the operator reads (R7-
       scrubbedUv: scrubbedUvVariables(host),
     }, "hint");
     assert.match(message, /removed 2 uv setting\(s\) inherited from the editor process \(UV_INDEX_URL, UV_OFFLINE\)/);
+  } finally {
+    process.env = previous;
+  }
+});
+
+/**
+ * W2 (HIGH, Windows portability review): a stopped run must take its whole process tree with it.
+ *
+ * `uv sync` is not one process — it starts a managed python and build children that write into the
+ * step's own directory. The reviewer's probe (probe6_process_tree.js) showed a grandchild writing
+ * its file 1.6 s after the RunError on this host. These tests spawn that shape for real: a direct
+ * child that spawns a grandchild which writes on a timer, and assert that after a timeout or a
+ * cancel the grandchild is dead, wrote nothing, and the promise still failed fast.
+ */
+async function treeFixture(t) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-tree-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const marker = path.join(root, "grandchild-wrote-after-the-stop.txt");
+  const grandScript = path.join(root, "grandchild.js");
+  const childScript = path.join(root, "child.js");
+  // Stands for a uv-spawned wheel build or managed python: it writes late, 1.2 s after it starts.
+  await fs.writeFile(grandScript, `
+    const fs = require("node:fs");
+    setTimeout(() => {
+      fs.writeFileSync(${JSON.stringify(marker)}, "written " + new Date().toISOString() + "\\n");
+      process.exit(0);
+    }, 1200);
+    process.on("SIGTERM", () => {
+      fs.writeFileSync(${JSON.stringify(marker)} + ".sigterm", "grandchild received SIGTERM\\n");
+      process.exit(0);
+    });
+  `);
+  // Stands for uv.exe: it spawns the grandchild with the run's own stdio pipes and then hangs.
+  await fs.writeFile(childScript, `
+    const { spawn } = require("node:child_process");
+    const grandchild = spawn(process.execPath, [${JSON.stringify(grandScript)}], { stdio: "inherit" });
+    console.log("child pid " + process.pid);
+    console.log("grandchild pid " + grandchild.pid);
+    setTimeout(() => {}, 30000);
+  `);
+  return { root, marker, childScript };
+}
+
+const pidOf = (text, label) => {
+  const match = new RegExp(`${label} pid (\\d+)`).exec(String(text || ""));
+  return match ? Number(match[1]) : null;
+};
+
+const alive = (pid) => {
+  try { process.kill(pid, 0); return true; } catch (error) { return error.code !== "ESRCH"; }
+};
+
+/**
+ * A pid in the process table is not the same thing as a process that can still write: a killed
+ * grandchild stays in `/proc` as a zombie (state Z) until somebody reaps it, and `kill(pid, 0)`
+ * answers "yes" to a zombie. On Linux `/proc` says which of the two this is; elsewhere the pid
+ * check is all there is.
+ */
+const running = (pid) => {
+  if (!alive(pid)) return false;
+  try {
+    const stat = fsSync.readFileSync(`/proc/${pid}/stat`, "utf8");
+    return stat.slice(stat.lastIndexOf(")") + 2).trim().split(" ")[0] !== "Z";
+  } catch {
+    return true; // no /proc on this platform: fall back to "the pid is still there"
+  }
+};
+
+test("a timed-out run reaps its grandchildren, not only its direct child (W2, POSIX)", async (t) => {
+  if (process.platform === "win32") return t.skip("the POSIX path is a process-group kill");
+  const { root, marker, childScript } = await treeFixture(t);
+  const started = Date.now();
+  const error = await runProcess(node, [childScript], { cwd: root, timeout: 400, retry: false }).then(
+    () => null,
+    (caught) => caught,
+  );
+  assert.ok(error, "the run failed as a timeout");
+  assert.equal(error.kind, "timeout");
+  assert.equal(error.attempts, 1);
+  assert.equal(error.timeoutMs, 400);
+  assert.equal(error.command, node);
+  assert.deepEqual(error.args, [childScript]);
+  assert.equal(error.cwd, root);
+  assert.equal(error.exitCode, null);
+  assert.equal(error.reaped, true, "the boundary reports that it reaped the tree");
+  assert.match(error.message, /did not finish within 400 ms per attempt/, "the operator-facing timeout sentence is unchanged");
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 2500, `the step still failed fast (${elapsed} ms)`);
+
+  const grandchild = pidOf(error.stdout, "grandchild");
+  assert.ok(grandchild, "the grandchild's pid is reported as evidence");
+  assert.ok(!await fs.stat(marker).catch(() => null), "the grandchild wrote nothing at the moment of the RunError");
+  // SIGKILL is delivered asynchronously: the kernel takes a process a moment after kill() returns,
+  // so "is it dead yet" is only answerable after a short settle. The write is the real proof.
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  assert.equal(running(grandchild), false, "the grandchild is dead");
+  await new Promise((resolve) => setTimeout(resolve, 1550));
+  assert.ok(!await fs.stat(marker).catch(() => null), "the grandchild wrote nothing 1.8 s after the RunError either");
+  assert.ok(!await fs.stat(`${marker}.sigterm`).catch(() => null), "it was killed outright, not asked politely");
+});
+
+test("a cancelled run reaps its grandchildren too (W2, POSIX, the Cancel button)", async (t) => {
+  if (process.platform === "win32") return t.skip("the POSIX path is a process-group kill");
+  const { root, marker, childScript } = await treeFixture(t);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), 300);
+  const started = Date.now();
+  const error = await runProcess(node, [childScript], { cwd: root, timeout: 8000, signal: controller.signal, retry: false }).then(
+    () => null,
+    (caught) => caught,
+  );
+  assert.ok(error, "the run failed as a cancellation");
+  assert.equal(error.kind, "cancelled");
+  assert.match(error.message, /was cancelled/, "the cancellation sentence is unchanged");
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 2500, `the step still failed fast (${elapsed} ms)`);
+
+  const grandchild = pidOf(error.stdout, "grandchild");
+  assert.ok(grandchild, "the grandchild's pid is reported as evidence");
+  assert.ok(!await fs.stat(marker).catch(() => null), "the grandchild had written nothing when the cancellation was reported");
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  assert.equal(running(grandchild), false, "the grandchild is dead");
+  await new Promise((resolve) => setTimeout(resolve, 1550));
+  assert.ok(!await fs.stat(marker).catch(() => null), "the cancelled run left no grandchild writing into the step directory");
+});
+
+/**
+ * The other half of the same field failure: the tool **exits** with a non-zero code while its own
+ * child is still alive. `uv sync --locked` refusing is exactly this shape — uv exits 1 and a build
+ * child outlives it. Measured on this host before the reap was extended (scratch harness
+ * /tmp/reap-exit/measure.js + probe-state.js): the RunError was reported at 35 ms with the
+ * grandchild in `/proc` state R, and the orphan wrote its file at 1.2 s — into the step directory,
+ * after the step had been reported failed.
+ */
+async function exitTreeFixture(t, exitCode) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-exit-tree-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const marker = path.join(root, "grandchild-wrote-after-the-failure.txt");
+  const pidsFile = path.join(root, "pids.json");
+  const grandScript = path.join(root, "grandchild.js");
+  const childScript = path.join(root, "child.js");
+  // Stands for a uv-spawned wheel build or managed python: it writes late, 1.2 s after it starts.
+  await fs.writeFile(grandScript, `
+    const fs = require("node:fs");
+    setTimeout(() => {
+      fs.writeFileSync(${JSON.stringify(marker)}, "written " + new Date().toISOString() + "\\n");
+      process.exit(0);
+    }, 1200);
+    process.on("SIGTERM", () => {
+      fs.writeFileSync(${JSON.stringify(marker)} + ".sigterm", "grandchild received SIGTERM\\n");
+      process.exit(0);
+    });
+  `);
+  // Stands for uv itself: it starts the build child, records both pids synchronously, and exits.
+  await fs.writeFile(childScript, `
+    const fs = require("node:fs");
+    const { spawn } = require("node:child_process");
+    const grandchild = spawn(process.execPath, [${JSON.stringify(grandScript)}], { stdio: "inherit" });
+    fs.writeFileSync(${JSON.stringify(pidsFile)}, JSON.stringify({ child: process.pid, grandchild: grandchild.pid }));
+    console.log("child pid " + process.pid);
+    console.log("grandchild pid " + grandchild.pid);
+    process.exit(${exitCode});
+  `);
+  // The pids come from a file the child writes synchronously before it exits, so the measurement
+  // never depends on whether the pipe's data event beat the exit event.
+  const readPids = async () => JSON.parse(await fs.readFile(pidsFile, "utf8"));
+  return { root, marker, childScript, readPids };
+}
+
+test("a run that exits non-zero reaps the tree it leaves alive (the field failure: uv exits 1, its build child keeps writing)", async (t) => {
+  if (process.platform === "win32") return t.skip("the POSIX path is a process-group kill");
+  const { root, marker, childScript, readPids } = await exitTreeFixture(t, 1);
+  const started = Date.now();
+  const error = await runProcess(node, [childScript], { cwd: root, timeout: 8000, retry: false }).then(
+    () => null,
+    (caught) => caught,
+  );
+  const elapsed = Date.now() - started;
+  assert.ok(error, "the run failed as an exit failure");
+  assert.equal(error.kind, "exit", "the kind the rest of the toolkit reads is unchanged");
+  assert.equal(error.exitCode, 1);
+  assert.equal(error.signal, null);
+  assert.equal(error.launchCode, null);
+  assert.equal(error.attempts, 1);
+  assert.equal(error.cwd, root);
+  assert.equal(retryable(error), false, "a refusal is still not retried");
+  assert.match(error.message, /failed with exit code 1/, "the operator-facing exit sentence is unchanged");
+  assert.ok(elapsed < 2500, `the failure was still reported fast (${elapsed} ms)`);
+
+  const ids = await readPids();
+  assert.equal(error.reaped, true, "the boundary reaped the tree before it reported the failure");
+  assert.equal(error.reapTarget, `process group -${ids.child}`, "the tree is taken from the direct child's own group");
+  assert.ok(!await fs.stat(marker).catch(() => null), "the grandchild wrote nothing at the moment of the RunError");
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  assert.equal(running(ids.grandchild), false, "the grandchild is not running once the kill has landed");
+  await new Promise((resolve) => setTimeout(resolve, 1550));
+  assert.equal(running(ids.grandchild), false, "the grandchild is still not running 1.8 s later");
+  assert.ok(!await fs.stat(marker).catch(() => null), "the grandchild wrote nothing 1.8 s after the failure either");
+  assert.ok(!await fs.stat(`${marker}.sigterm`).catch(() => null), "it was killed outright, not asked politely");
+});
+
+test("a run that exits 0 leaves its tree alone — no reap after a successful run", async (t) => {
+  if (process.platform === "win32") return t.skip("the POSIX path is a process-group kill");
+  const { root, marker, childScript, readPids } = await exitTreeFixture(t, 0);
+  const result = await runProcess(node, [childScript], { cwd: root, timeout: 8000, retry: false });
+  assert.equal(result.ok, true);
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.reaped, undefined, "a successful run claims no reap");
+  const ids = await readPids();
+  assert.equal(running(ids.grandchild), true, "the grandchild the tool left behind is untouched");
+  assert.ok(!await fs.stat(marker).catch(() => null), "it had not written yet when the run resolved");
+  await new Promise((resolve) => setTimeout(resolve, 1800));
+  assert.ok(await fs.stat(marker), "the tree was left alone: the grandchild wrote its own file at 1.2 s");
+});
+
+test("a spawn failure keeps its spawn shape and says what the reaper did (kind unchanged)", async () => {
+  const missing = path.join(os.tmpdir(), "definitely-not-a-tool-reap-0.3.7");
+  const error = await runProcess(missing, ["--version"], { timeout: 2000, retry: true }).then(() => null, (e) => e);
+  assert.equal(error.name, "RunError");
+  assert.equal(error.kind, "spawn");
+  assert.equal(error.launchCode, "ENOENT");
+  assert.equal(error.exitCode, null);
+  assert.equal(error.attempts, 1, "a missing tool is still not retried");
+  assert.match(error.message, /could not be launched/, "the operator-facing spawn sentence is unchanged");
+  assert.equal(error.reaped, false, "nothing was started, so nothing was reaped — and the boundary says so");
+  assert.equal(error.reapTarget, "no pid");
+  assert.match(error.reapReason, /never got a pid/, error.reapReason);
+});
+
+test("SHAPE TEST (not Windows proof): a reaper that never answers cannot hang the failure (W2 bound, on the exit path)", async (t) => {
+  // The win32 branch is taken by stubbing the platform, and its reaper is a real process that is
+  // started and never answers. Nothing here observes Windows: no taskkill.exe, no TerminateProcess,
+  // no job object. What is measured is the bound — the failure arrives, and it arrives on time.
+  const os = require("node:os");
+  const childProcess = require("node:child_process");
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-reap-bound-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const childScript = path.join(root, "exit-1.js");
+  await fs.writeFile(childScript, 'console.log("child pid " + process.pid); process.exit(1);');
+  const calls = [];
+  let hung = null;
+  const realPlatform = os.platform;
+  const realExecFile = childProcess.execFile;
+  const realSpawn = childProcess.spawn;
+  os.platform = () => "win32";
+  childProcess.execFile = (file, args, options) => {
+    calls.push({ file, args, options });
+    // A reaper that starts and never answers: the callback is never called, the process stays up.
+    hung = realSpawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { cwd: os.tmpdir(), shell: false, stdio: "ignore" });
+    return hung;
+  };
+  try {
+    const started = Date.now();
+    const error = await runProcess(node, [childScript], { cwd: root, timeout: 8000, retry: false }).then(
+      () => null,
+      (caught) => caught,
+    );
+    const elapsed = Date.now() - started;
+    assert.ok(error, "the run still fails as an exit failure when the reaper hangs");
+    assert.equal(error.kind, "exit");
+    assert.equal(error.exitCode, 1);
+    assert.equal(calls.length, 1, "exactly one reaper call");
+    assert.equal(calls[0].file, "taskkill.exe", "the reaper that hung is the reviewed one");
+    assert.equal(calls[0].options.timeout, 2000, "the reaper call itself carries the bound");
+    assert.equal(error.reaped, false, "a reaper that never answers is honestly reported as not reaped");
+    assert.match(error.reapReason, /did not answer within 2000 ms/, error.reapReason);
+    assert.ok(elapsed >= 1900, `the boundary waited for the reaper (${elapsed} ms)`);
+    assert.ok(elapsed < 2800, `and it gave up inside the bound (${elapsed} ms)`);
+  } finally {
+    os.platform = realPlatform;
+    childProcess.execFile = realExecFile;
+    if (hung) { try { hung.kill("SIGKILL"); } catch { /* already gone */ } }
+  }
+});
+
+test("SHAPE TEST (not Windows proof): the win32 branch calls taskkill with /PID <pid> /T /F and shell:false (W2)", async (t) => {
+  // This is a shape test on a Linux host: the platform is stubbed so the win32 branch is taken, and
+  // the reaper's execFile is stubbed so the exact call can be read. It proves the arguments and the
+  // options the Windows code path uses. It does NOT prove anything about Windows itself — no
+  // taskkill.exe, no TerminateProcess, no job object was observed here.
+  const os = require("node:os");
+  const childProcess = require("node:child_process");
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-win32-shape-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const childScript = path.join(root, "hang.js");
+  await fs.writeFile(childScript, 'console.log("child pid " + process.pid); setTimeout(() => {}, 30000);');
+  const calls = [];
+  const realPlatform = os.platform;
+  const realExecFile = childProcess.execFile;
+  os.platform = () => "win32";
+  childProcess.execFile = (file, args, options, callback) => {
+    calls.push({ file, args, options });
+    setImmediate(() => callback(null, "", ""));
+    return { kill: () => true };
+  };
+  try {
+    const error = await runProcess(node, [childScript], { cwd: root, timeout: 400, retry: false }).then(
+      () => null,
+      (caught) => caught,
+    );
+    assert.ok(error, "the run still fails as a timeout when the reaper is stubbed");
+    assert.equal(error.kind, "timeout");
+    assert.equal(error.timeoutMs, 400);
+    assert.equal(error.attempts, 1);
+    assert.equal(error.exitCode, null);
+    assert.equal(error.command, node);
+    assert.equal(error.cwd, root);
+    assert.match(error.message, /did not finish within 400 ms per attempt/);
+
+    assert.equal(calls.length, 1, "exactly one reaper call");
+    assert.equal(calls[0].file, "taskkill.exe");
+    assert.deepEqual(calls[0].args.slice(0, 1), ["/PID"], `the first argument is /PID: ${JSON.stringify(calls[0].args)}`);
+    assert.ok(/^\d+$/.test(calls[0].args[1]), `the pid is passed as a string: ${JSON.stringify(calls[0].args)}`);
+    assert.deepEqual(calls[0].args.slice(2), ["/T", "/F"], "/T takes the tree, /F forces it");
+    assert.deepEqual(calls[0].args, ["/PID", calls[0].args[1], "/T", "/F"]);
+    assert.equal(calls[0].args[1], String(pidOf(error.stdout, "child")), "the tree is taken from the direct child's own pid");
+    assert.equal(calls[0].options.shell, false, "the reaper is not a shell");
+    assert.equal(calls[0].options.windowsHide, true, "no console window flashes on the desktop");
+    assert.equal(calls[0].options.maxBuffer, MAX_BUFFER_BYTES);
+    assert.ok(calls[0].options.timeout > 0, "the reaper itself is bounded, so it cannot hang the step");
+  } finally {
+    os.platform = realPlatform;
+    childProcess.execFile = realExecFile;
+  }
+});
+
+test("the timeout and cancellation error shape the rest of the toolkit reads is unchanged (W2 regression)", async (t) => {
+  const { root, childScript } = await treeFixture(t);
+  const timedOut = await runProcess(node, [childScript], { cwd: root, timeout: 300, retry: false }).then(() => null, (e) => e);
+  assert.equal(timedOut.kind, "timeout");
+  assert.equal(timedOut.name, "RunError");
+  assert.equal(timedOut.exitCode, null);
+  assert.equal(timedOut.launchCode, null);
+  assert.equal(timedOut.attempts, 1, "one bounded attempt ran");
+  assert.equal(timedOut.command, node);
+  assert.deepEqual(timedOut.args, [childScript]);
+  assert.equal(timedOut.cwd, root);
+  assert.equal(typeof timedOut.durationMs, "number");
+  assert.equal(typeof timedOut.stderr, "string");
+  assert.equal(retryable(timedOut), true, "a timeout is still transport-shaped");
+
+  const controller = new AbortController();
+  controller.abort();
+  const cancelled = await runProcess(node, [childScript], { cwd: root, timeout: 8000, signal: controller.signal, retry: true }).then(() => null, (e) => e);
+  assert.equal(cancelled.kind, "cancelled");
+  assert.equal(cancelled.exitCode, null);
+  assert.equal(cancelled.signal, null);
+  assert.equal(retryable(cancelled), false);
+});
+
+/**
+ * gates.md:21 claims "No path in extension/ issues `uv lock` inside a managed runtime or a plain
+ * `uv sync`." Until now the `uv lock` half was true only by inspection — nothing failed if a future
+ * release added one. These tests are the enforced form of that rule: the boundary refuses the
+ * command before a process exists, and the marker file proves nothing was spawned.
+ */
+async function fakeUv(t) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-policy-uv-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const ran = path.join(root, "uv-actually-ran.txt");
+  const uvScript = path.join(root, "uv");
+  await fs.writeFile(uvScript, `#!${process.execPath}\nrequire("node:fs").writeFileSync(${JSON.stringify(ran)}, "a uv process ran");\nconsole.log("uv ran " + process.argv.slice(2).join(" "));\n`);
+  await fs.chmod(uvScript, 0o755);
+  return { root, ran, uvScript };
+}
+
+test("the boundary refuses `uv lock` in a managed setup call and never spawns it (gates.md lock policy)", async (t) => {
+  const { root, ran, uvScript } = await fakeUv(t);
+  const error = await runProcess(uvScript, ["lock", "--project", root], { kind: "setup", cwd: root, timeout: 8000, retry: true }).then(() => null, (e) => e);
+  assert.ok(error, "the command is refused");
+  assert.equal(error.name, "RunError");
+  assert.equal(error.kind, "policy");
+  assert.equal(error.exitCode, null);
+  assert.equal(error.attempts, 0, "no process ran, so no attempt is claimed");
+  assert.equal(error.command, uvScript);
+  assert.deepEqual(error.args, ["lock", "--project", root]);
+  assert.equal(error.cwd, root);
+  assert.equal(retryable(error), false, "a policy refusal is not retried");
+  assert.match(error.message, /was refused before it ran: the toolkit never runs `uv lock` in a managed runtime/, error.message);
+  assert.match(error.message, /does not rewrite a lockfile inside the workspace/, error.message);
+  assert.match(error.message, /No process was started\./, error.message);
+  assert.ok(!await fs.stat(ran).catch(() => null), "nothing was spawned");
+});
+
+test("the boundary refuses a plain `uv sync` and accepts the reviewed --locked and --frozen forms (gates.md lock policy)", async (t) => {
+  const { root, ran, uvScript } = await fakeUv(t);
+  const plain = await runProcess(uvScript, ["sync", "--no-dev", "--python", "3.12", "--project", root, "--no-config"], { kind: "setup", cwd: root, timeout: 8000, retry: true }).then(() => null, (e) => e);
+  assert.ok(plain, "a sync with no lock mode is refused");
+  assert.equal(plain.kind, "policy");
+  assert.equal(plain.attempts, 0);
+  assert.match(plain.message, /a managed uv sync must carry `--locked`, or the recorded `--frozen` fallback/, plain.message);
+  assert.match(plain.message, /No process was started\./, plain.message);
+  assert.ok(!await fs.stat(ran).catch(() => null), "nothing was spawned");
+
+  // The shipped argument lists must pass unchanged.
+  const locked = await runProcess(uvScript, ["sync", "--locked", "--no-dev", "--python", "3.12", "--project", root, "--no-config"], { kind: "setup", cwd: root, timeout: 8000 });
+  assert.equal(locked.ok, true);
+  assert.match(locked.stdout, /uv ran sync --locked/);
+  await fs.rm(ran, { force: true });
+  const frozen = await runProcess(uvScript, ["sync", "--frozen", "--no-dev", "--python", "3.12", "--project", root, "--no-config"], { kind: "setup", cwd: root, timeout: 8000 });
+  assert.equal(frozen.ok, true);
+  assert.match(frozen.stdout, /uv ran sync --frozen/);
+  assert.equal(uvCommandPolicy(uvScript, ["--version"]), null, "a tool probe is not a managed uv command");
+  assert.equal(uvCommandPolicy("python3", ["lock"]), null, "the policy is about uv, not about any tool holding the word lock");
+});
+
+test("a setup call built from an explicit environment scrubs that environment, not process.env (W11)", async () => {
+  const previous = process.env;
+  process.env = { PATH: process.env.PATH, HOME: process.env.HOME, UV_LOCKED: "1", UV_CACHE_DIR: "/from-editor" };
+  try {
+    const result = await runProcess(node, ["-e", 'console.log(JSON.stringify({ index: process.env.UV_INDEX_URL, locked: process.env.UV_LOCKED, cache: process.env.UV_CACHE_DIR, noConfig: process.env.UV_NO_CONFIG, project: process.env.UV_PROJECT_ENVIRONMENT, path: process.env.PATH }))'], {
+      kind: "setup", cwd: os.tmpdir(), timeout: 8000,
+      env: { PATH: process.env.PATH, UV_INDEX_URL: "https://mirror.example.org/simple/", UV_CACHE_DIR: "/from-caller" },
+    });
+    const seen = JSON.parse(result.stdout.trim());
+    assert.equal(seen.index, undefined, "the mirror in the caller's environment is scrubbed like any other");
+    assert.equal(seen.locked, undefined, "process.env is not silently merged into an explicit environment");
+    assert.equal(seen.cache, "/from-caller", "the caller's environment is the base the reviewed values are applied to");
+    assert.equal(seen.noConfig, "1");
+    assert.equal(seen.project, path.join(os.tmpdir(), ".venv"));
+    assert.ok(seen.path, "PATH still reaches the child");
+  } finally {
+    process.env = previous;
+  }
+});
+
+test("the scrubbed-setting sentence names the environment the command was actually built from (W11)", async () => {
+  const previous = process.env;
+  process.env = { PATH: "/usr/bin", UV_OFFLINE: "1" };
+  try {
+    const error = await runProcess(node, ["-e", 'console.error("error: Request failed after 3 retries"); process.exit(2);'], {
+      kind: "setup", cwd: os.tmpdir(), timeout: 8000, retry: false,
+      env: { PATH: "/usr/bin", UV_INDEX_URL: "https://mirror.example.org/simple/" },
+    }).then(() => null, (e) => e);
+    assert.ok(error);
+    assert.match(error.scrubbedUv, /removed 1 uv setting\(s\) inherited from the editor process \(UV_INDEX_URL\)/, error.scrubbedUv);
+    assert.ok(!error.scrubbedUv.includes("UV_OFFLINE"), "the sentence names what the command was built from, not what the editor process happens to hold");
+  } finally {
+    process.env = previous;
+  }
+});
+
+test("PYTHONPATH and PYTHONHOME do not reach a setup child, whatever spelling the host used (W12)", async () => {
+  const previous = process.env;
+  process.env = { PATH: process.env.PATH, HOME: process.env.HOME, PYTHONPATH: "/host/site-packages", pythonhome: "/host/python", UV_CACHE_DIR: "/cache" };
+  try {
+    assert.deepEqual(conflictingPythonVariables(process.env).map((name) => name.toLowerCase()).sort(), ["pythonhome", "pythonpath"]);
+    const env = setupEnvironment("/w/.research-toolkit/managed/worker-0.3.7", process.env);
+    assert.equal(env.PYTHONPATH, undefined, "a host PYTHONPATH must not reach uv or the python uv starts for a build");
+    assert.equal(env.PYTHONHOME, undefined);
+    assert.equal(env.UV_CACHE_DIR, "/cache", "a cache location is still left alone");
+    assert.match(scrubbedUvVariables(process.env), /python interpreter setting\(s\)/, scrubbedUvVariables(process.env));
+    assert.match(scrubbedUvVariables(process.env), /PYTHONPATH/, scrubbedUvVariables(process.env));
+    assert.match(scrubbedUvVariables(process.env), /pythonhome/, "the host's own spelling is named");
+
+    const seen = JSON.parse((await runProcess(node, ["-e", 'console.log(JSON.stringify({ pythonpath: process.env.PYTHONPATH, pythonhome: process.env.PYTHONHOME }))'], { kind: "setup", cwd: os.tmpdir(), timeout: 8000 })).stdout.trim());
+    assert.equal(seen.pythonpath, undefined, "the real setup child never sees it");
+    assert.equal(seen.pythonhome, undefined);
+
+    const plain = JSON.parse((await runProcess(node, ["-e", 'console.log(JSON.stringify({ pythonpath: process.env.PYTHONPATH }))'], { cwd: os.tmpdir(), timeout: 8000 })).stdout.trim());
+    assert.equal(plain.pythonpath, "/host/site-packages", "the scrub is scoped to the reviewed setup calls");
   } finally {
     process.env = previous;
   }

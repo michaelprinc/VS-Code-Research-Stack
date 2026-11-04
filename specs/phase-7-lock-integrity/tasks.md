@@ -24,7 +24,7 @@ Stages run in order; each stage ends with its own gate. Checklists: [checklists/
 - [x] C4 `extension/runtime.js`: one logged `--frozen` fallback after a recognised drift; never plain `uv sync`. (R7-09, R7-10)
 - [x] C5 `extension/runner.js`: scrub conflicting inherited `UV_*`, keep the five reviewed `UV_*` values plus the derived `UV_PROJECT_ENVIRONMENT`. (R7-11)
 - [x] C6 `extension/test/lockfile.test.js` plus runtime tests for the self-check, the tier, and the message. (R7-07…R7-10)
-- [x] C7 **Gate C:** `npm test` green with the new module in the reviewed boundary set. → 155/155, `lockfile.js` declared in `test/module-boundaries.test.js`
+- [x] C7 **Gate C:** `npm test` green with the new module in the reviewed boundary set. → green at freeze: 331/331 Node and 207 Python, `lockfile.js` declared in `test/module-boundaries.test.js`
 
 ## Stage D — release identity
 

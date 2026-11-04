@@ -101,28 +101,44 @@ now reports the bound per attempt, how many attempts ran, and the total time wai
 
 ## What was deliberately not changed
 
-No second process boundary and no `shell: true`; `extension/runner.js` remains the only `execFile` call
-site in packaged JavaScript. The reviewed 40-package locked set, its versions and its hashes are
-unchanged. No user project lockfile is touched — the toolkit reads and repairs only the pairs it ships.
-No `uv lock` is ever run inside a managed runtime.
+No second process boundary and no `shell: true`; `extension/runner.js` remains the only module that
+reaches a process, and after DD7-12 the only two call sites in packaged JavaScript — one bounded
+`childProcess.spawn(` for the tool run (own POSIX process group, so a stopped run is reaped with
+`kill(-pid)`) and one `childProcess.execFile(` for the Windows `taskkill /PID <pid> /T /F` tree reaper,
+both `shell: false` + `windowsHide: true`; `scripts/verify_vsix.py` and
+`extension/test/module-boundaries.test.js` enforce that shape and `tests/test_vsix.py` refuses a runner
+that reintroduces a second spawn or a shell. The reviewed 40-package locked set, its versions and its
+hashes are unchanged. No user project lockfile is touched — the toolkit reads and repairs only the pairs
+it ships. No `uv lock` is ever run inside a managed runtime, and since this change the boundary itself
+refuses one before a process exists.
 
 ## Verification
 
-`cd extension && npm test` → **250 passed, 0 failed** (16 files run; `host.test.js` and `browser.test.js`
+`cd extension && npm test` → **331 passed, 0 failed** (16 files run; `host.test.js` and `browser.test.js`
 are the commands that would produce the reference-host receipts — they are not part of `npm test` and
-were not run for 0.3.7, which is why G1–G4 remain open; `test/lockfile.test.js` (24 tests) and `test/lockfile-adversarial.test.js` (73 tests) are new). `.venv/bin/python -m pytest` → **185 passed** with `RESEARCH_STACK_UV` pointing at uv 0.13.6,
-**184 passed + 1 skipped** without one (`tests/test_lock_consistency.py`, 65 tests). `dist/research-stack-toolkit-0.3.7.vsix` — 86 files,
-312 471 bytes, sha256 `f4db025b12718b62336ebec091ba79523a059ffa9de3ba998f66549183666416` — passes
+were not run for 0.3.7, which is why G1–G4 remain open; `test/lockfile.test.js` (24 tests) and `test/lockfile-adversarial.test.js` (118 tests over 112 pairs) are new). `.venv/bin/python -m pytest` → **207 passed** with `RESEARCH_STACK_UV` pointing at uv 0.13.6,
+**206 passed + 1 skipped** without one (`tests/test_lock_consistency.py`, 79 tests with a real uv binary). `dist/research-stack-toolkit-0.3.7.vsix` — 86 files,
+332 448 bytes, sha256 `f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16` — passes
 `npm run verify-package` (including the packaged-pair check, `sourceFilesMatch: true`) and
 `npm run check:payload`. `uv lock --check` (uv 0.13.6) exits 0 on all three shipped pairs.
 
 **The artifact as first built was not reproducible from the tag.** 17 of its 86 packaged members — the
-16 guides under `extension/guides/` and `extension/media/toolkit.svg` — carried CRLF line endings while
+16 of the 32 guides under `extension/guides/` plus `extension/media/toolkit.svg` — carried CRLF line endings while
 the committed tree holds LF: `extension/guides/uv.md` was 2,372 bytes with 21 CRLF in that build, against
 2,351 bytes and no CRLF at `git show v0.3.7:extension/guides/uv.md`. A fresh clone of the tag therefore
 produced a different digest from the one recorded above. `extension/scripts/package.js` now rewrites the
 staged tree to LF, and `scripts/verify_vsix.py` refuses an artifact whose packaged text members contain
 CRLF; the rebuilt artifact carries CRLF in none of its 86 members.
+
+A second cause was found when the clean-clone comparison was actually run: two clone builds seconds apart
+produced three different digests with **byte-identical members**, because vsce stamps each ZIP entry with
+the time of the build and writes a `new Date()` into the three members it generates, and because 32 members
+carried mode 0664 in this working tree and 0644 in a fresh clone, which the ZIP records in
+`external_attr`. `extension/scripts/package.js` now sets `SOURCE_DATE_EPOCH=315532800` (which vsce honours
+by stamping every entry and sorting members by path) and gives every staged file mode 0644;
+`scripts/verify_vsix.py` refuses an artifact whose entries carry any other timestamp or any mode other than
+0644 outside the three members vsce generates. `tests/test_vsix.py` refuses both drifts. After this, the
+tree build and two clean-clone builds of the tag produced the same 332,448-byte artifact and the same digest.
 
 ## What remains open
 
@@ -131,4 +147,4 @@ Linux development host against seven real uv binaries; it does not reproduce tha
 receipts for the G1–G4 profile gates, and the actual re-run of the field workspace's setup with the
 0.3.7 VSIX, are still to be produced. Basic and Research remain prototypes; the toolkit still does not
 install uv itself, does not run setup in the background, does not execute notebook kernels and does not
-connect to external providers.
+build the extraction-to-index bridge. Setup reaches no service beyond PyPI through the host's uv; the Research overlay's citation presets call literature services only when a tool is invoked.

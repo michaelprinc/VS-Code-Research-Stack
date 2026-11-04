@@ -326,9 +326,15 @@ async function setupRuntime(vscode, context, folder, services = {}) {
     });
     services.progress?.("Installing locked worker dependencies with Python 3.12. This can download packages…");
     let lockFallback = null;
+    // How many uv processes this step actually started. The plan records this instead of the default
+    // 1, so a locked attempt plus a fallback is not reported as a single attempt (0.3.7 e2e D7).
+    let syncAttempts = 0;
     try {
-      await asRunProcess(services)(uv, syncArgs("--locked"), syncOptions("The first run can download a managed Python 3.12 and the locked packages."));
+      const locked = await asRunProcess(services)(uv, syncArgs("--locked"), syncOptions("The first run can download a managed Python 3.12 and the locked packages."));
+      syncAttempts = Number(locked && locked.attempts) || 1;
     } catch (error) {
+      const lockedAttempts = Number(error.attempts) || 1;
+      syncAttempts = lockedAttempts;
       // A lock this build shipped that this host's uv calls stale is not a network fault and is not
       // retried. One bounded fallback installs exactly what the shipped lock pins; the shipped lock is
       // never rewritten, because `bundle.json` hashes it and `validateWorker` verifies that hash.
@@ -351,7 +357,10 @@ async function setupRuntime(vscode, context, folder, services = {}) {
         refusal.exitCode = error.exitCode === undefined ? null : error.exitCode;
         refusal.command = error.command;
         refusal.args = error.args;
-        refusal.attempts = error.attempts || 1;
+        // The directory belongs to the command line: without it the operator-facing line loses its
+        // `(in "<cwd>")` suffix and the copy-paste no longer says where the command ran.
+        refusal.cwd = error.cwd;
+        refusal.attempts = lockedAttempts;
         refusal.hint = "Reinstall the VSIX from this release; the toolkit's own build gate should have refused to package this pair.";
         throw refusal;
       }
@@ -362,22 +371,29 @@ async function setupRuntime(vscode, context, folder, services = {}) {
         uvMessage: stderrTail(error.stderr || error.message),
       };
       try {
-        await asRunProcess(services)(uv, syncArgs("--frozen"), {
+        const frozen = await asRunProcess(services)(uv, syncArgs("--frozen"), {
           ...syncOptions("Installed exactly the packages the shipped lock pins; the shipped lock was not rewritten."),
           retry: false,
         });
+        syncAttempts = lockedAttempts + (Number(frozen && frozen.attempts) || 1);
       } catch (fallbackError) {
         // The locked attempt's refusal is the diagnosis; the fallback's failure is what stopped the
         // install. Losing the first sentence leaves the operator with a network-looking error for a
         // lockfile problem.
         const first = stderrTail(error.stderr || error.message);
         const second = stderrTail(fallbackError.stderr || fallbackError.message);
-        const combined = new Error(`The locked install was refused by this host's uv (${first}). The reviewed fallback that installs exactly what the shipped lock pins also failed (${second}). The shipped lockfile was not rewritten. ${fallbackError.hint || "Check the host tool version and network access, then retry setup."}`);
+        // This tier's `hint` option describes a completed install, so it can never be the closing
+        // sentence of a failure: the sentence for a failed fallback is written out here, and it is
+        // also what the status layer offers as the next action.
+        const nextAction = "Check the host tool version and network access, then retry setup.";
+        const combined = new Error(`The locked install was refused by this host's uv (${first}). The reviewed fallback that installs exactly what the shipped lock pins also failed (${second}). The shipped lockfile was not rewritten. ${nextAction}`);
         combined.kind = fallbackError.kind || "exit";
         combined.exitCode = fallbackError.exitCode === undefined ? null : fallbackError.exitCode;
         combined.command = fallbackError.command;
         combined.args = fallbackError.args;
-        combined.attempts = (fallbackError.attempts || 1) + 1;
+        combined.cwd = fallbackError.cwd;
+        combined.hint = nextAction;
+        combined.attempts = lockedAttempts + (Number(fallbackError.attempts) || 1);
         combined.lockFallback = { detectedAt: new Date().toISOString(), problems: [], uvMessage: first, fallbackFailure: second };
         throw combined;
       }
@@ -394,7 +410,9 @@ async function setupRuntime(vscode, context, folder, services = {}) {
       previousVersion: prior.active && prior.active.version !== manifest.workerVersion ? prior.active.version : null,
       reason: "verified-setup",
     });
-    return { ...runtime, check, pointer, lockFallback, priorRuntimes: prior.runtimes.filter((item) => item.version !== manifest.workerVersion) };
+    // `attempts` is the number of uv processes this step started (1 for a clean locked install, 2 or
+    // more when the gated fallback ran). The plan engine records it on the step row.
+    return { ...runtime, check, pointer, lockFallback, attempts: syncAttempts, priorRuntimes: prior.runtimes.filter((item) => item.version !== manifest.workerVersion) };
   } finally {
     if (lock) await lock.release();
   }

@@ -6,7 +6,8 @@ const path = require("node:path");
 const os = require("node:os");
 const { makeHarness } = require("./harness");
 const { setupRuntime, managedRuntime, functionalCheck, discoverRuntimes, activateRuntime, rollbackRuntime, WORKER_FOLDER, WORKER_VERSION, MANAGED_FOLDER } = require("../runtime");
-const { runPlan, writeReceipt, RECEIPT_NAME } = require("../installer");
+const { runPlan, writeReceipt, RECEIPT_NAME, commandLine, rerunInstruction } = require("../installer");
+const { runProcess } = require("../runner");
 const { checkInventory } = require("../diagnostics");
 
 async function fixture(t) {
@@ -350,6 +351,7 @@ test("a host that calls the shipped lock stale gets exactly one recorded --froze
   assert.match(result.lockFallback.uvMessage, /needs to be updated/, "uv's own sentence is kept");
   assert.deepEqual(result.lockFallback.problems, [], "the shipped pair itself is current, so this host caused the refusal");
   assert.ok(result.check.ok, "the fallback runtime is still verified by the real reading check");
+  assert.equal(result.attempts, 2, "two uv processes ran (locked, then frozen) and the step reports both (0.3.7 e2e D7)");
 });
 
 test("an ordinary sync failure gets no fallback, and plain `uv sync` is never issued (T7-13)", async (t) => {
@@ -424,10 +426,65 @@ test("when the reviewed fallback also fails, the operator sees both refusals, no
   assert.match(error.message, /The locked install was refused by this host's uv/, error.message);
   assert.match(error.message, /needs to be updated/, "the first refusal's sentence survives");
   assert.match(error.message, /The reviewed fallback that installs exactly what the shipped lock pins also failed/, error.message);
-  assert.match(error.message, /failed to fetch/, "and so does the second one");
+  assert.match(error.message, /failed to fetch/i, "and so does the second one");
   assert.match(error.message, /was not rewritten/, error.message);
   assert.equal(error.attempts, 2, "the record says two attempts ran");
   assert.equal(error.exitCode, 2, "the exit code of the attempt that stopped the install");
   assert.ok(error.lockFallback, "the status record can still show that a fallback was attempted");
   assert.match(error.lockFallback.fallbackFailure, /failed to fetch/);
+});
+
+/**
+ * A stand-in for uv that goes through the reviewed process boundary itself: it refuses `--locked`
+ * with uv 0.13.6's own sentence (receipts/12-genuine-uv-refusal-text.txt) and then fails the gated
+ * `--frozen` fallback the way a real network failure does (receipts/19). It writes nothing.
+ */
+const STUB_UV = [
+  "const a = process.argv.slice(1);",
+  "if (a[0] !== 'sync') { console.error('unexpected args: ' + a.join(' ')); process.exit(9); }",
+  "if (a[1] === '--locked') {",
+  "  console.error('Using CPython 3.12.16');",
+  "  console.error('Resolved 40 packages in 180ms');",
+  "  console.error('error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.');",
+  "  console.error('hint: To update the lockfile, run `uv lock`.');",
+  "  process.exit(1);",
+  "}",
+  "console.error('Request failed after 3 retries in 6.2s');",
+  "console.error('  Caused by: Failed to fetch: https://127.0.0.1:1/simple/hatchling/');",
+  "console.error('  Caused by: tcp connect error: Connection refused (os error 111)');",
+  "process.exit(2);",
+].join(" "); // one line, so the recorded command stays one line
+
+test("a failed lockfile fallback never repeats the success wording, and names the next action and the directory (0.3.7 e2e D1, D3, D4)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const harness = makeHarness({ folders: [folder] });
+  const calls = [];
+  const services = {
+    uv: process.execPath,
+    runProcess: (executable, args, options) => {
+      calls.push({ args });
+      return runProcess(process.execPath, ["-e", STUB_UV, ...args], options);
+    },
+  };
+  const error = await setupRuntime(harness.vscode, harness.context, folder, services).catch((item) => item);
+  const syncs = calls.filter((call) => call.args[0] === "sync");
+  assert.deepEqual(syncs.map((call) => call.args[1]), ["--locked", "--frozen"], "one locked attempt and one gated fallback, through the reviewed runner");
+  assert.match(error.message, /The locked install was refused by this host's uv/, error.message);
+  assert.match(error.message, /needs to be updated/, "the first refusal's sentence survives");
+  assert.match(error.message, /The reviewed fallback that installs exactly what the shipped lock pins also failed/, error.message);
+  assert.match(error.message, /Failed to fetch/, "and so does the second one");
+  assert.ok(!error.message.includes("Installed exactly the packages the shipped lock pins"), "a failed step never carries the tier's success wording (D1)");
+  assert.match(error.message, /Check the host tool version and network access, then retry setup\./, "the failure sentence the code intends to say (D1)");
+  assert.match(error.hint, /Check the host tool version and network access, then retry setup\./, "the status layer gets a next action, not the generic retry (D3)");
+  const managed = await fs.realpath(path.join(root, MANAGED_FOLDER));
+  assert.ok(String(error.cwd || "").endsWith(path.join(`worker-${WORKER_VERSION}`)), `the failure carries the directory the fallback ran in, got ${error.cwd} (D4)`);
+  assert.equal(path.dirname(error.cwd), managed, "and it is the managed worker directory inside this workspace");
+  const line = commandLine(error);
+  assert.ok(line.includes("(in ") && line.includes(error.cwd), `the recorded command line names the working directory, got ${line} (D4)`);
+  assert.ok(!line.includes("working directory not recorded"), line);
+  const rerun = rerunInstruction(error).split("\n");
+  assert.ok(rerun.some((entry) => entry.startsWith("cd ") && entry.includes(error.cwd)), `the pasteable instruction gets a real cd line: ${rerun.join(" | ")}`);
+  assert.equal(error.attempts, 2, "two uv processes ran and the record says two");
+  assert.equal(error.exitCode, 2, "the exit code of the attempt that stopped the install");
+  await assert.rejects(fs.stat(path.join(managed, `worker-${WORKER_VERSION}`, ".venv")), /ENOENT/, "the failed fallback created no environment");
 });

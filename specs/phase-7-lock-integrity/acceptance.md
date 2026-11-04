@@ -6,7 +6,7 @@ Each case names how it is proven on this host. "Verified" requires a test or a r
 |---|---|---|---|
 | T7-01 | The exact setup command against the **shipped 0.3.6** pair | exit 2 on uv 0.5.0 and exit 1 on uv 0.13.6, both with uv's "lockfile … needs to be updated" refusal | `evidence/quality-v0.3.7-2026-11-02/uv-matrix.json` (negative control) |
 | T7-02 | The same command against the corrected 0.3.7 pair | exit 0 on uv 0.5.0 → 0.13.6, 40 packages installed | `evidence/quality-v0.3.7-2026-11-02/uv-matrix.json` |
-| T7-03 | `uv lock` on the shipped manifest | two-line diff (`revision`, root `version`); the 40 package pins unchanged; output byte-identical to the shipped lock | `evidence/quality-v0.3.7-2026-11-02/lock-provenance.json` |
+| T7-03 | `uv lock` on the shipped manifest | two-line diff (`revision`, root `version`); the 39 third-party pins unchanged (the 40th entry is the root package, and it is the one that changed); output byte-identical to the shipped lock | `evidence/quality-v0.3.7-2026-11-02/lock-provenance.json` |
 | T7-04 | A pair whose lock records a different root version | `lockintegrity.check_pair` names it, and the message says `uv sync --locked` would refuse it | `tests/test_lock_consistency.py` |
 | T7-05 | A pair whose dependency specifier or group drifted | named in the problems list | `tests/test_lock_consistency.py` |
 | T7-06 | `extension/worker/pyproject.toml` vs `extension/worker/uv.lock` in the release tree | consistent, and byte-equal to the reviewed root pair | `tests/test_lock_consistency.py` |
@@ -28,13 +28,15 @@ Each case names how it is proven on this host. "Verified" requires a test or a r
 
 ## 3. Result — 2026-11-02
 
-Every case names its proof, and every proof but one is a receipt in the tree; T7-13's failed-fallback
-half has no test and is recorded as such above.
+Every case names its proof, and every proof is a receipt in the tree or a test in a suite this host ran.
+The failed-fallback half of T7-13, recorded as untested on 2 November, is now covered by
+`extension/test/runtime.test.js` (“when the reviewed fallback also fails, the operator sees both refusals,
+not just the last one”) and by the notebook equivalent in `extension/test/steps.test.js`.
 
 | Group | Receipt |
 | --- | --- |
 | T7-01 … T7-03 | `evidence/quality-v0.3.7-2026-11-02/uv-matrix.json`, `lock-provenance.json`, produced by the two scripts stored beside them |
-| T7-04 … T7-09 | `tests/test_lock_consistency.py` (65 tests) and `tests/test_vsix.py` (14 tests, the stale-pair fixture added for T7-07 and three CRLF reproducibility tests added after the tag) |
+| T7-04 … T7-09 | `tests/test_lock_consistency.py` (65 tests) and `tests/test_vsix.py` (22 tests, the stale-pair fixture added for T7-07 and three CRLF reproducibility tests added after the tag) |
 | T7-10 … T7-16, T7-19 … T7-21 | `extension/test/lockfile.test.js`, `runtime.test.js`, `runner.test.js`, `steps.test.js`, `module-boundaries.test.js` — 250/250 green |
 | T7-17, T7-18 | `tests/test_release_identity.py`, `extension/test/unit.test.js`, `extension/scripts/with-artifact.js`, `evidence/quality-v0.3.7-2026-11-02/vsix-audit.json` |
 

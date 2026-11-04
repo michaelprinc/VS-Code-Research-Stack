@@ -817,7 +817,9 @@ def test_a_hand_edited_package_version_is_detected(tmp_path: Path) -> None:
     )
     assert len(problems) == 1, problems
     assert "records version '6.4.0'" in problems[0], problems[0]
-    assert "pypdf-6.4.1.tar.gz" in problems[0] and "claims '6.4.1'" in problems[0], problems[0]
+    # uv's own refusal names the wheel, and so does the reader: `uv lock --check` on this pair says
+    # "has wheel `pypdf-6.4.1-py3-none-any.whl` with inconsistent version (6.4.1)".
+    assert "pypdf-6.4.1-py3-none-any.whl" in problems[0] and "claims '6.4.1'" in problems[0], problems[0]
 
     wheel_only = _probe_pair(
         tmp_path,
@@ -826,6 +828,20 @@ def test_a_hand_edited_package_version_is_detected(tmp_path: Path) -> None:
     )
     assert len(wheel_only) == 1, wheel_only
     assert "pypdf-6.4.1-py3-none-any.whl" in wheel_only[0], wheel_only[0]
+
+
+def test_a_sdist_filename_that_disagrees_while_the_wheel_agrees_is_not_reported(tmp_path: Path) -> None:
+    """Measured with uv 0.13.6: `uv lock --check` exits 0 on a lock whose sdist filename names another
+    version, because uv validates the wheel filenames it downloads and not the sdist name. A reader that
+    flagged this would refuse a lock real uv accepts and would block the toolkit's own build."""
+    drifted_sdist = PYPDF_SDIST.replace("pypdf-6.4.1.tar.gz", "pypdf-6.4.2.tar.gz")
+    assert drifted_sdist != PYPDF_SDIST
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(_package_block("pypdf", "6.4.1", PYPDF_ARTIFACTS), _package_block("pypdf", "6.4.1", drifted_sdist + PYPDF_WHEEL)),
+        PROBE_MANIFEST,
+    )
+    assert problems == [], problems
 
 
 def test_a_hand_edited_pin_on_a_transitive_package_is_detected(tmp_path: Path) -> None:
@@ -1022,6 +1038,235 @@ def test_revision_above_the_supported_maximum_is_a_support_limit_not_a_uv_verdic
         assert f"revision {revision}" in problems[0], problems[0]
         assert "support policy, not a uv verdict" in problems[0], problems[0]
         assert "needs to be updated" not in problems[0], problems[0]
+
+
+# --- the classes this measurement round put into BOTH readers in the same change -------------------
+#
+# Each pair below is one of the 69 adversarial pairs this round measured under `/tmp/adv-037/pairs`.
+# The exit codes quoted are those pairs' measured verdicts from uv 0.5.0 / 0.6.10 / 0.7.22 / 0.8.5 /
+# 0.9.30 / 0.10.7 / 0.13.6 — `lock --check`, or `sync --locked --python 3.12` for 0.5.0, which has no
+# `lock --check`. `python3 /tmp/fix-readers/crossread.py /tmp/adv-037/pairs` runs this reader and
+# `extension/lockfile.js` over all 69 and must report zero divergences; a fix that lands on one side
+# alone shows up there as a divergence, which is why these rows exist here as well as in
+# `extension/test/lockfile-adversarial.test.js`.
+
+def test_a_specifier_is_compared_as_a_set_of_bounds(tmp_path: Path) -> None:
+    """P63 (the shipped pair), P01, P64 and P51: uv accepts the same bounds written in a different
+    order — exit 0 on every uv in the matrix. P02 and P03, where a bound is added or dropped, are
+    refused by every uv (2/2/2/1/1/1/1). Comparing specifier strings instead of bound sets reports P63
+    as drift and blocks the toolkit's own build."""
+    reordered = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace('specifier = "==6.4.1"', 'specifier = ">=6.4, <7"'),
+        PROBE_MANIFEST.replace('"pypdf==6.4.1"', '"pypdf<7,>=6.4"'),
+    )
+    assert reordered == [], reordered
+
+    python_reordered = _probe_pair(
+        tmp_path, PROBE_LOCK,
+        PROBE_MANIFEST.replace('requires-python = ">=3.12,<3.15"', 'requires-python = "<3.15,>=3.12"'),
+    )
+    assert python_reordered == [], python_reordered
+
+    for manifest_specifier, lock_specifier in (('"pypdf>=6.4"', 'specifier = ">=6.4,<7"'),
+                                               ('"pypdf<7,>=6.4,!=6.5"', 'specifier = ">=6.4,<7"')):
+        problems = _probe_pair(
+            tmp_path,
+            PROBE_LOCK.replace('specifier = "==6.4.1"', lock_specifier),
+            PROBE_MANIFEST.replace('"pypdf==6.4.1"', manifest_specifier),
+        )
+        assert len(problems) == 1, problems
+        assert "declared dependencies differ" in problems[0], problems[0]
+
+
+def test_resolution_markers_that_partition_requires_python_are_accepted(tmp_path: Path) -> None:
+    """The shipped locks carry `requires-python = ">=3.12, <3.15"` beside
+
+        resolution-markers = ["python_full_version >= '3.14'", "python_full_version < '3.14'"]
+
+    which partitions the declared range. uv 0.13.6 wrote that pair itself and `lock --check` on it exits
+    0, so a coverage rule that flags it is a false alarm on the pair the toolkit ships.
+    """
+    def with_markers(markers: str) -> str:
+        replaced = PROBE_LOCK.replace(
+            'requires-python = ">=3.12, <3.15"\n',
+            'requires-python = ">=3.12, <3.15"\nresolution-markers = [\n' + markers + "]\n",
+        )
+        assert "resolution-markers" in replaced
+        return replaced
+
+    shipped = "    \"python_full_version >= '3.14'\",\n    \"python_full_version < '3.14'\",\n"
+    assert _probe_pair(tmp_path, with_markers(shipped), PROBE_MANIFEST) == []
+    three_way = ("    \"python_full_version < '3.13'\",\n"
+                 "    \"python_full_version >= '3.13' and python_full_version < '3.14'\",\n"
+                 "    \"python_full_version >= '3.14'\",\n")
+    assert _probe_pair(tmp_path, with_markers(three_way), PROBE_MANIFEST) == []
+    whole = "    \"python_full_version >= '3.12'\",\n"
+    assert _probe_pair(tmp_path, with_markers(whole), PROBE_MANIFEST) == []
+    # uv's own `python_version` spelling of the same partition (P37b, uv 0.5.0 exit 0).
+    spelled = "    \"python_version >= '3.14'\",\n    \"python_version < '3.14'\",\n"
+    assert _probe_pair(tmp_path, with_markers(spelled), PROBE_MANIFEST) == []
+    # A lock with no `resolution-markers` key at all is not a gap: uv 0.5.0 wrote none (P22, exit 0).
+    assert _probe_pair(tmp_path, PROBE_LOCK, PROBE_MANIFEST) == []
+
+
+def test_resolution_markers_that_leave_part_of_requires_python_uncovered_are_refused(tmp_path: Path) -> None:
+    """The other direction of the same rule. Dropping one marker leaves 3.12 and 3.13 with no fork:
+    uv 0.13.6 refuses that lock (`lock --check` exit 1). P37 — a marker outside the declared range — is
+    exit 2 on uv 0.6.10 and 0.7.22 and exit 1 on 0.8.5 through 0.13.6."""
+    def with_markers(markers: str) -> str:
+        replaced = PROBE_LOCK.replace(
+            'requires-python = ">=3.12, <3.15"\n',
+            'requires-python = ">=3.12, <3.15"\nresolution-markers = [\n' + markers + "]\n",
+        )
+        assert "resolution-markers" in replaced
+        return replaced
+
+    problems = _probe_pair(tmp_path, with_markers("    \"python_full_version >= '3.14'\",\n"), PROBE_MANIFEST)
+    assert len(problems) == 1, problems
+    assert "do not cover requires-python" in problems[0], problems[0]
+
+    assert len(_probe_pair(tmp_path, with_markers("    \"python_full_version < '3.13'\",\n"), PROBE_MANIFEST)) == 1
+
+    hole = ("    \"python_full_version >= '3.12' and python_full_version < '3.13'\",\n"
+            "    \"python_full_version >= '3.14'\",\n")
+    assert len(_probe_pair(tmp_path, with_markers(hole), PROBE_MANIFEST)) == 1
+
+    outside = "    \"python_full_version >= '3.20'\",\n    \"python_full_version < '3.14'\",\n"
+    problems = _probe_pair(tmp_path, with_markers(outside), PROBE_MANIFEST)
+    assert len(problems) == 1, problems
+    assert "cannot select any Python version" in problems[0], problems[0]
+
+
+def test_a_lock_declaring_schema_version_two_is_refused(tmp_path: Path) -> None:
+    """P34: `version = 2` in the lock header. uv 0.13.6 answers "unsupported schema version (v2, but
+    only v1 is supported)" and exits 2 on every uv in the matrix. A reader that never reads the header
+    certifies a lock no uv can open."""
+    problems = _probe_pair(tmp_path, PROBE_LOCK.replace("version = 1\nrevision = 5", "version = 2\nrevision = 5"),
+                           PROBE_MANIFEST)
+    assert len(problems) == 1, problems
+    assert "lockfile format version 2 is not 1" in problems[0], problems[0]
+    assert "unsupported schema version" in problems[0], problems[0]
+
+
+def test_an_sdist_written_as_a_list_is_refused(tmp_path: Path) -> None:
+    """P25 and P25d: an sdist recorded as a one-element list. uv writes `sdist` as a table, and the list
+    form is exit 2 on every uv in the matrix — uv cannot parse the field as it stands."""
+    as_list = PYPDF_SDIST.replace('sdist = { url = ', 'sdist = [\n    { url = ')
+    as_list = as_list[:-2] + " },\n]\n"
+    assert as_list.startswith("sdist = [\n    { url = ") and as_list.endswith(" },\n]\n"), as_list
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace(_package_block("pypdf", "6.4.1", PYPDF_ARTIFACTS),
+                           _package_block("pypdf", "6.4.1", as_list + PYPDF_WHEEL)),
+        PROBE_MANIFEST,
+    )
+    assert any("writes its sdist as a list" in problem for problem in problems), problems
+
+
+def test_root_version_spellings_uv_normalises_are_accepted(tmp_path: Path) -> None:
+    """P12 (`v1.0.0`), P11 (`1.0-1`) and P13 (`1.0.00`): uv canonicalises the root version it writes,
+    and `lock --check` on the pair it wrote exits 0 on every uv in the matrix. Real drift stays drift:
+    `1.0.1` beside `1.0.0` is refused by every uv."""
+    for declared, recorded in (("v1.0.0", "1.0.0"), ("1.0-1", "1.0.post1"), ("1.0.00", "1.0.0"),
+                               ("1.0.0", "1.0")):
+        lock = PROBE_LOCK.replace('name = "probe"\nversion = "1.0.0"', f'name = "probe"\nversion = "{recorded}"')
+        manifest = PROBE_MANIFEST.replace('version = "1.0.0"', f'version = "{declared}"', 1)
+        problems = _probe_pair(tmp_path, lock, manifest)
+        assert problems == [], f"{declared} beside {recorded}: {problems}"
+
+    problems = _probe_pair(tmp_path, PROBE_LOCK, PROBE_MANIFEST.replace('version = "1.0.0"', 'version = "1.0.1"', 1))
+    assert len(problems) == 1, problems
+    assert "does not match pyproject version" in problems[0], problems[0]
+
+
+def test_a_root_entry_source_of_editable_dot_slash_dot_is_accepted(tmp_path: Path) -> None:
+    """P31: uv writes the root entry's source path with a trailing slash. `lock --check` on the pair it
+    wrote exits 0 (every uv in the matrix). A reader that compares the path string against `"."` reports
+    the shipped project as drifted."""
+    problems = _probe_pair(tmp_path, PROBE_LOCK.replace('source = { editable = "." }', 'source = { editable = "./" }'),
+                           PROBE_MANIFEST)
+    assert problems == [], problems
+
+
+def test_a_byte_order_mark_on_the_manifest_is_not_drift(tmp_path: Path) -> None:
+    """P21a and P21d: a UTF-8 BOM in front of `pyproject.toml`. uv 0.6.10 through 0.13.6 read it
+    (exit 0); uv 0.5.0 — the toolkit's declared floor — fails on it with exit 2, "Failed to prepare
+    distributions". Both readers strip it: the divergence is uv's own version difference, not a
+    hand-edited dependency pair, and the floor is stated in
+    `test_lockfile_revision_stays_readable_by_the_declared_uv_floor`."""
+    problems = _probe_pair(tmp_path, PROBE_LOCK, "\ufeff" + PROBE_MANIFEST)
+    assert problems == [], problems
+
+
+def test_an_identical_requirement_written_twice_is_not_drift(tmp_path: Path) -> None:
+    """P04: the same requirement spelled twice in `dependencies`. uv de-duplicates it and writes one
+    `requires-dist` entry — exit 0 on every uv in the matrix. Counting entries compares the manifest
+    against uv's de-duplication and reports a clean pair as drift."""
+    problems = _probe_pair(
+        tmp_path, PROBE_LOCK,
+        PROBE_MANIFEST.replace('dependencies = ["pypdf==6.4.1"]', 'dependencies = ["pypdf==6.4.1", "pypdf==6.4.1"]'),
+    )
+    assert problems == [], problems
+    # The same requirement under a different marker is still two requirements (uv refuses that pair).
+    problems = _probe_pair(
+        tmp_path, PROBE_LOCK,
+        PROBE_MANIFEST.replace('dependencies = ["pypdf==6.4.1"]',
+                               'dependencies = ["pypdf==6.4.1", "pypdf==6.4.1; sys_platform == \'win32\'"]'),
+    )
+    assert len(problems) == 1, problems
+    assert "declared dependencies differ" in problems[0], problems[0]
+
+
+def test_a_quoted_group_key_and_a_triple_quoted_version_are_read(tmp_path: Path) -> None:
+    """P05 (a quoted key in `[dependency-groups]`) and P18 (the version as a triple-quoted scalar):
+    TOML spellings uv reads, exit 0 on every uv in the matrix. A reader that keys the group section on a
+    bare word, or that reads a triple-quoted scalar as its own quotes, reports the pair as drifted."""
+    problems = _probe_pair(tmp_path, PROBE_LOCK,
+                           PROBE_MANIFEST.replace('dev = ["pytest==8.4.2"]', '"dev" = ["pytest==8.4.2"]'))
+    assert problems == [], problems
+    problems = _probe_pair(tmp_path, PROBE_LOCK,
+                           PROBE_MANIFEST.replace('version = "1.0.0"', 'version = """1.0.0"""', 1))
+    assert problems == [], problems
+
+
+def test_marker_atom_order_is_not_drift(tmp_path: Path) -> None:
+    """P41: uv compares a PEP 508 conjunction as a set of atoms and writes them in its own order.
+    `sys_platform == 'win32' and python_version >= '3.13'` beside uv's
+    `python_full_version >= '3.13' and sys_platform == 'win32'` is exit 0 on every uv in the matrix."""
+    problems = _probe_pair(
+        tmp_path,
+        PROBE_LOCK.replace('requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]',
+                           'requires-dist = [{ name = "pypdf", marker = "python_full_version >= \'3.13\' '
+                           'and sys_platform == \'win32\'", specifier = "==6.4.1" }]'),
+        PROBE_MANIFEST.replace('"pypdf==6.4.1"',
+                               '"pypdf==6.4.1; sys_platform == \'win32\' and python_version >= \'3.13\'"'),
+    )
+    assert problems == [], problems
+
+
+def test_dynamic_optional_dependencies_accepts_what_uv_records_and_flags_its_removal(tmp_path: Path) -> None:
+    """P48: with `dynamic = ["optional-dependencies"]` the manifest declares no extras and uv writes the
+    ones the build backend produced into `provides-extras` — exit 0 on every uv in the matrix. P49:
+    deleting `provides-extras` from that lock is refused — exit 0 on uv 0.5.0, then 2/2/1/1/1/1."""
+    manifest = PROBE_MANIFEST.replace('dependencies = ["pypdf==6.4.1"]',
+                                      'dependencies = ["pypdf==6.4.1"]\ndynamic = ["optional-dependencies"]')
+    with_extras = PROBE_LOCK.replace('requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]',
+                                     'requires-dist = [{ name = "pypdf", specifier = "==6.4.1" }]\nprovides-extras = ["pdf"]')
+    assert _probe_pair(tmp_path, with_extras, manifest) == []
+
+    problems = _probe_pair(tmp_path, PROBE_LOCK, manifest)
+    assert len(problems) == 1, problems
+    assert "provides-extras" in problems[0], problems[0]
+
+
+def test_the_cli_refuses_a_second_argument(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """`python scripts/lockintegrity.py [root]` audits the tree named by `root`. A second argument is
+    refused with usage on stderr rather than silently ignored — silently ignoring it is how an audit of
+    the wrong tree reads as an audit of the right one."""
+    assert lockintegrity.main(["lockintegrity.py", str(ROOT)]) == 0
+    assert lockintegrity.main(["lockintegrity.py", str(tmp_path), str(ROOT)]) == 2
+    assert "usage: lockintegrity.py [root]" in capsys.readouterr().err
 
 
 # --- uv's own verdict, when this host has a uv ---------------------------------------------------

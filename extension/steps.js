@@ -128,6 +128,9 @@ async function runWorkerStep({ vscode, context, folder, services, settings }) {
     worker: result.worker,
     python: result.python,
     check: result.check,
+    // The uv processes the worker step ran (1 locked, or 2 when the gated fallback ran). The plan
+    // engine records it on the step row instead of the default 1.
+    attempts: Number(result.attempts) || 1,
     lockFallback: result.lockFallback || null,
     hostTool: { name: "uv", path: uv.path, version: uv.version, source: uv.source },
   };
@@ -164,8 +167,23 @@ async function runNotebookStep({ root, context, services, settings, step, vscode
   // in `setupRuntime`; this project is written straight into the workspace, so it is checked here.
   const drift = await notebookPairProblems(project);
   if (drift.length) {
-    const error = new Error(`The notebook analysis project this toolkit wrote has a locked dependency file that does not match its own project file: ${drift.join("; ")}. uv was not run. This is a defect in the toolkit build, not in this workspace.`);
-    error.lockDrift = { source: "notebook", problems: drift };
+    // `writeOverlayFiles` says which files it wrote and which existing files it left alone. A pair the
+    // toolkit just wrote that disagrees is a packaging defect; a pair that sits on files the operator
+    // owns is their own project, and the answer is to restore or remove it, not to reinstall the VSIX.
+    const preserved = overlay.modifiedPreserved;
+    const theirs = preserved.filter((relative) => relative === "notebooks/analysis/pyproject.toml" || relative === "notebooks/analysis/uv.lock");
+    const error = theirs.length
+      ? new Error(`notebooks/analysis already holds your own project files that this toolkit preserved rather than wrote (${preserved.join(", ")}). Its locked dependency file does not match its own project file: ${drift.join("; ")}. uv was not run, and none of those files were changed.`)
+      : new Error(`The notebook analysis project this toolkit wrote has a locked dependency file that does not match its own project file: ${drift.join("; ")}. uv was not run. This is a defect in the toolkit build, not in this workspace.`);
+    error.lockDrift = { source: "notebook", problems: drift, preservedFiles: preserved };
+    // The same classification the worker build defect carries (runtime.js): without a kind and a hint
+    // the next-action table answers "Retry this step" to a refusal a retry cannot fix.
+    error.kind = "lock-drift";
+    error.exitCode = null;
+    error.attempts = 0;
+    error.hint = theirs.length
+      ? "If notebooks/analysis was edited by hand, restore it from this toolkit's overlay files or remove the folder and re-run the step."
+      : "Reinstall the VSIX from this release; the toolkit's own build gate should have refused to package this pair.";
     throw error;
   }
   services.progress?.("Creating the locked notebook analysis environment. This can download packages…");
@@ -179,9 +197,15 @@ async function runNotebookStep({ root, context, services, settings, step, vscode
   });
   let run;
   let lockFallback = null;
+  // How many uv processes this step started: 1 for a clean locked install, 2 or more when the gated
+  // fallback ran. The plan engine records this on the step row instead of the default 1 (e2e D7).
+  let syncAttempts = 0;
   try {
     run = await asRunProcess(services)(uv.path, syncArgs("--locked"), syncOptions("The notebook environment is separate from the MCP worker."));
+    syncAttempts = Number(run && run.attempts) || 1;
   } catch (error) {
+    const lockedAttempts = Number(error.attempts) || 1;
+    syncAttempts = lockedAttempts;
     if (!isLockDrift(error)) throw error;
     const uvMessage = stderrTail(error.stderr || error.message);
     const problems = await notebookPairProblems(project);
@@ -192,7 +216,8 @@ async function runNotebookStep({ root, context, services, settings, step, vscode
       refusal.exitCode = error.exitCode === undefined ? null : error.exitCode;
       refusal.command = error.command;
       refusal.args = error.args;
-      refusal.attempts = 1;
+      refusal.cwd = error.cwd;
+      refusal.attempts = lockedAttempts;
       refusal.hint = "If notebooks/analysis was edited by hand, restore it from this toolkit's overlay files or remove the folder and re-run the step.";
       throw refusal;
     }
@@ -202,13 +227,19 @@ async function runNotebookStep({ root, context, services, settings, step, vscode
       run = await asRunProcess(services)(uv.path, syncArgs("--frozen"), {
         ...syncOptions("Installed exactly the packages the notebook lock pins; the notebook lock was not rewritten."), retry: false,
       });
+      syncAttempts = lockedAttempts + (Number(run && run.attempts) || 1);
     } catch (fallbackError) {
-      const combined = new Error(`The locked notebook install was refused by this host's uv (${uvMessage}). The reviewed fallback that installs exactly what the notebook lock pins also failed (${stderrTail(fallbackError.stderr || fallbackError.message)}). The notebook lock was not rewritten. ${fallbackError.hint || "Check the host tool version and network access, then retry the notebook step."}`);
+      // This tier's `hint` option describes a completed install, so it can never close a failure
+      // sentence. The wording for a failed fallback is written out here, and is also the next action.
+      const nextAction = "Check the host tool version and network access, then retry the notebook step.";
+      const combined = new Error(`The locked notebook install was refused by this host's uv (${uvMessage}). The reviewed fallback that installs exactly what the notebook lock pins also failed (${stderrTail(fallbackError.stderr || fallbackError.message)}). The notebook lock was not rewritten. ${nextAction}`);
       combined.kind = fallbackError.kind || "exit";
       combined.exitCode = fallbackError.exitCode === undefined ? null : fallbackError.exitCode;
       combined.command = fallbackError.command;
       combined.args = fallbackError.args;
-      combined.attempts = (fallbackError.attempts || 1) + 1;
+      combined.cwd = fallbackError.cwd;
+      combined.hint = nextAction;
+      combined.attempts = lockedAttempts + (Number(fallbackError.attempts) || 1);
       combined.lockFallback = { detectedAt: new Date().toISOString(), problems: [], uvMessage, fallbackFailure: stderrTail(fallbackError.stderr || fallbackError.message) };
       throw combined;
     }
@@ -231,6 +262,8 @@ async function runNotebookStep({ root, context, services, settings, step, vscode
     evidence: `${ownershipNote}Locked notebooks/analysis environment created (${overlayEvidence(overlay)} Interpreter verified: ${pythonVersion || "version not reported"}; ipykernel and matplotlib import. Kernel not started by this step.${lockFallbackNote(lockFallback)}`,
     overlay, python: executable, importsVerified: true, pythonVersion,
     syncDurationMs: run.durationMs,
+    // The uv processes this step ran (1 locked, or 2 when the gated fallback ran).
+    attempts: syncAttempts,
     lockFallback,
     existingProject: ownership.existingProject || false,
     reviewedProject: ownership.reviewedProject !== false,

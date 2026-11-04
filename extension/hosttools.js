@@ -23,18 +23,28 @@ const VERSION_TIMEOUT_MS = 8000;
  */
 const WINDOWS_WRAPPER_EXTENSIONS = [".cmd", ".bat"];
 
+/**
+ * Separator discipline follows the `platform` argument, not the machine running the code.
+ * Building the win32 list with `path.join` on a POSIX host produced mixed separators
+ * (`C:\Users\u/AppData/Local/Programs/uv`), which `path.isAbsolute` then rejected, so the win32
+ * documented-location branch could not be exercised at all on a Linux host (Windows review W18).
+ */
+function joinPath(platform, ...parts) {
+  return platform === "win32" ? path.win32.join(...parts) : path.posix.join(...parts);
+}
+
 /** Bounded and documented: no recursive search, no home-directory walk. */
 function knownLocations(platform, env) {
   if (platform === "win32") {
     // Every entry is conditional on its environment variable. Without the filter an unset
     // %APPDATA% reached path.join(undefined, …) and aborted the whole plan with no verdict.
     return [
-      env.USERPROFILE && path.join(env.USERPROFILE, ".local", "bin"),
-      env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, "Programs", "uv"),
-      env.APPDATA && path.join(env.APPDATA, "Python", "Python312", "Scripts"),
-      env.APPDATA && path.join(env.APPDATA, "Python", "Scripts"),
-      env.USERPROFILE && path.join(env.USERPROFILE, "scoop", "shims"),
-      env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, "Microsoft", "WinGet", "Links"),
+      env.USERPROFILE && joinPath(platform, env.USERPROFILE, ".local", "bin"),
+      env.LOCALAPPDATA && joinPath(platform, env.LOCALAPPDATA, "Programs", "uv"),
+      env.APPDATA && joinPath(platform, env.APPDATA, "Python", "Python312", "Scripts"),
+      env.APPDATA && joinPath(platform, env.APPDATA, "Python", "Scripts"),
+      env.USERPROFILE && joinPath(platform, env.USERPROFILE, "scoop", "shims"),
+      env.LOCALAPPDATA && joinPath(platform, env.LOCALAPPDATA, "Microsoft", "WinGet", "Links"),
       "C:\\Program Files\\uv",
     ].filter(Boolean);
   }
@@ -43,33 +53,50 @@ function knownLocations(platform, env) {
     "/usr/local/bin",
     "/opt/homebrew/bin",
     "/usr/bin",
-    home && path.join(home, ".local", "bin"),
-    home && path.join(home, ".cargo", "bin"),
+    home && joinPath(platform, home, ".local", "bin"),
+    home && joinPath(platform, home, ".cargo", "bin"),
     env.XDG_BIN_HOME || "",
   ].filter(Boolean);
 }
 
 /**
- * One pass over PATH: absolute entries only, each entry probed once, and the entries that were
- * skipped counted so the "searched" summary is not misleading.
+ * Some Windows installers write a PATH entry with surrounding quotes
+ * (`"C:\Program Files\x"`). Left quoted, the entry was joined into a candidate path that
+ * `fs.realpath` could not resolve, so the folder was skipped without being counted or reported
+ * (Windows review W13).
  */
-function pathScan(env) {
+function unquotePathEntry(entry) {
+  const raw = String(entry);
+  const quote = raw.charAt(0);
+  if ((quote === `"` || quote === "'") && raw.length > 1 && raw.endsWith(quote)) return raw.slice(1, -1).trim();
+  return raw;
+}
+
+/**
+ * One pass over PATH: absolute entries only, each entry probed once, and the entries that were
+ * skipped counted so the "searched" summary is not misleading. On Windows the same folder can be
+ * spelled two ways (`C:\Windows` and `c:\windows`), so the dedupe key is case-folded there; the
+ * entry that is probed keeps the first spelling.
+ */
+function pathScan(env, platform = process.platform) {
   const raw = String(env.PATH || "").split(path.delimiter).filter(Boolean);
   const entries = [];
   const seen = new Set();
   let skippedRelative = 0;
   let duplicates = 0;
-  for (const entry of raw) {
+  for (const rawEntry of raw) {
+    const entry = unquotePathEntry(rawEntry);
     if (!path.isAbsolute(entry)) { skippedRelative += 1; continue; }
-    if (seen.has(entry)) { duplicates += 1; continue; }
-    seen.add(entry);
+    const key = platform === "win32" ? entry.toLowerCase() : entry;
+    if (seen.has(key)) { duplicates += 1; continue; }
+    seen.add(key);
     entries.push(entry);
   }
   return { entries, skippedRelative, duplicates };
 }
 
-function pathEntries(env) {
-  return pathScan(env).entries;
+function pathEntries(env, platform = process.platform) {
+  return pathScan(env, platform).entries;
 }
 
 function binaryName(name, platform) {
@@ -123,10 +150,16 @@ async function probeCandidate(candidate, platform = process.platform) {
     return { resolved, problem: "a Windows batch wrapper", wrapper: true };
   }
   if (platform !== "win32" && !(info.mode & 0o111)) return { resolved, problem: "not executable", notExecutable: true };
-  // Windows has no executable bit, so an empty file is the unusable case there. A 0-byte `uv.exe`
-  // left behind by an interrupted installer would otherwise be reported as a usable tool and fail
-  // later as a confusing spawn error.
-  if (platform === "win32" && info.size === 0) return { resolved, problem: "an empty file", notExecutable: true };
+  // A 0-byte file is not a tool on any platform. On Windows there is no executable bit, so an
+  // empty `uv.exe` left behind by an interrupted installer was already refused. On POSIX the
+  // executable bit can be set on an empty file: it spawns, exits 0 and prints nothing, and 0.3.7
+  // reported it as a usable tool whose version was missing ("did not report a version" /
+  // "Update uv and retry") — the wrong diagnosis for a file that contains nothing (e2e D10).
+  if (info.size === 0) {
+    return platform === "win32"
+      ? { resolved, problem: "an empty file", notExecutable: true }
+      : { resolved, problem: "an empty file (0 bytes), which cannot be a tool", notExecutable: true };
+  }
   return { resolved, usable: true, problem: null };
 }
 
@@ -167,15 +200,30 @@ function cacheKey(name, options) {
  * A resolved tool is verified by its version command (stdout **and** stderr, bounded by
  * `versionTimeoutMs`, 8 s by default). A tool that does not answer is reported as `unverified`
  * rather than as installed. A candidate that is present but cannot be launched — a misconfigured
- * setting, a directory, a file without the executable bit, a Windows batch wrapper — is reported
- * with `usable: false` and a reason that names it, never as "not found".
+ * setting, a directory, a file without the executable bit, a 0-byte file on any platform, a
+ * Windows batch wrapper — is reported with `usable: false` and a reason that names it, never as
+ * "not found". A workspace bound is resolved the same way the candidate is, so a workspace
+ * reached through a link cannot hide a workspace-local tool.
  */
 async function resolveHostTool(name, options = {}) {
   const platform = options.platform || process.platform;
   const env = options.env || process.env;
-  const roots = options.roots || [];
+  const roots = (options.roots || []).filter(Boolean).map(String);
   const key = cacheKey(name, { ...options, env });
   if (!options.refresh && cache.has(key)) return cache.get(key);
+
+  /**
+   * The workspace bounds the candidate is compared against. `probeCandidate` answers with the
+   * `fs.realpath` of the candidate, so the roots have to be resolved the same way: a workspace
+   * handed over through a link — a symlink here, a junction or a mapped drive on Windows —
+   * otherwise hid a workspace-local tool from the refusal and it was spawned (Windows review W1).
+   * The spelling the caller gave is kept as well, so a root that cannot be resolved still bounds
+   * the search.
+   */
+  const resolvedRoots = await Promise.all(roots.map(async (root) => {
+    try { return await fs.realpath(root); } catch { return root; }
+  }));
+  const rootBounds = Array.from(new Set([...roots, ...resolvedRoots]));
 
   const searched = { setting: 0, pathEntries: 0, pathEntriesSkippedRelative: 0, pathEntriesDuplicate: 0, knownLocations: 0, managed: 0 };
   const binaryShapes = binaryCandidates(name, platform);
@@ -186,7 +234,7 @@ async function resolveHostTool(name, options = {}) {
     searched.setting = 1;
     attempts.push({ source: "setting", candidate: String(options.configuredPath), settingIssue });
   }
-  const scan = pathScan(env);
+  const scan = pathScan(env, platform);
   searched.pathEntries = scan.entries.length;
   searched.pathEntriesSkippedRelative = scan.skippedRelative;
   searched.pathEntriesDuplicate = scan.duplicates;
@@ -211,7 +259,7 @@ async function resolveHostTool(name, options = {}) {
     }
     const probe = await probeCandidate(attempt.candidate, platform);
     if (!probe.resolved) continue;
-    if (underAnyRoot(roots, probe.resolved)) {
+    if (underAnyRoot(rootBounds, probe.resolved)) {
       base.workspaceRefusals.push(probe.resolved);
       continue;
     }
@@ -313,7 +361,7 @@ function resolverFrom(services = {}) {
 }
 
 module.exports = {
-  VERSION_TIMEOUT_MS, WINDOWS_WRAPPER_EXTENSIONS, resolverFrom, knownLocations, pathEntries, pathScan,
+  VERSION_TIMEOUT_MS, WINDOWS_WRAPPER_EXTENSIONS, resolverFrom, knownLocations, joinPath, pathEntries, pathScan, unquotePathEntry,
   binaryName, binaryCandidates, compareVersions, versionOf, settingProblem, probeCandidate,
   resolveHostTool, clearHostToolCache, executableFile,
 };

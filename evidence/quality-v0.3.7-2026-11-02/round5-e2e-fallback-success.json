@@ -1,0 +1,116 @@
+{
+  "workspace": "/tmp/round5/work-fallback/Bankovní účet SVJ ČSA368",
+  "uvPath": "/tmp/e2e-037/fakeuv/uv",
+  "package": "recommended",
+  "outcome": "success",
+  "ran": [
+    "worker",
+    "research-overlay",
+    "notebook-env"
+  ],
+  "skipped": [],
+  "failed": [],
+  "blocked": [],
+  "hostTool": [
+    {
+      "name": "uv",
+      "path": "/tmp/e2e-037/fakeuv/uv",
+      "version": "0.13.6",
+      "source": "setting",
+      "verified": true
+    }
+  ],
+  "preflightChecks": [
+    "trust: ok — This workspace folder is trusted.",
+    "local: ok — Setup will run in /tmp/round5/work-fallback/Bankovní účet SVJ ČSA368.",
+    "host-tool-uv: ok — uv 0.13.6 resolved from setting: /tmp/e2e-037/fakeuv/uv",
+    "managed-path: ok — .research-toolkit/managed does not exist yet and will be created inside the workspace.",
+    "managed-writable: ok — /tmp/round5/work-fallback/Bankovní účet SVJ ČSA368 accepts writes.",
+    "setup-lock: ok — No setup is running."
+  ],
+  "steps": [
+    {
+      "id": "worker",
+      "status": "installed",
+      "durationMs": 8833,
+      "attempts": 2,
+      "exitCode": null,
+      "command": "",
+      "evidence": "Locked worker synced with /tmp/e2e-037/fakeuv/uv (0.13.6) and verified through real local MCP reading, reports, search and RIS preparation. Warning: this host's uv refused the shipped lockfile (Using CPython 3.12.16 | Resolved 40 packages in 180ms | error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. | hint: To update the lockfile, run `uv lock`.); the toolkit installed exactly the packages that lock pins, without rewriting the lockfile. Report this if it repeats.",
+      "error": "",
+      "hint": "",
+      "lockFallback": {
+        "detectedAt": "2026-11-04T00:16:30.596Z",
+        "problems": [],
+        "uvMessage": "Using CPython 3.12.16 | Resolved 40 packages in 180ms | error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. | hint: To update the lockfile, run `uv lock`."
+      },
+      "artifacts": {
+        "stepId": "worker",
+        "verified": true,
+        "missing": [],
+        "observedCount": 2
+      }
+    },
+    {
+      "id": "research-overlay",
+      "status": "installed",
+      "durationMs": 61,
+      "attempts": 1,
+      "exitCode": null,
+      "command": "",
+      "evidence": "8 overlay file(s) created, 0 unchanged file(s) preserved.",
+      "error": "",
+      "hint": "",
+      "lockFallback": null,
+      "artifacts": {
+        "stepId": "research-overlay",
+        "verified": true,
+        "missing": [],
+        "observedCount": 9
+      }
+    },
+    {
+      "id": "notebook-env",
+      "status": "installed",
+      "durationMs": 3201,
+      "attempts": 2,
+      "exitCode": null,
+      "command": "",
+      "evidence": "Locked notebooks/analysis environment created (3 overlay file(s) created, 0 unchanged file(s) preserved. Interpreter verified: 3.12.16 (main, Oct 26 2026, 14:08:45) [Clang 23.1.3 ]; ipykernel and matplotlib import. Kernel not started by this step. Warning: this host's uv refused the shipped lockfile (Using CPython 3.12.16 | Resolved 40 packages in 180ms | error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. | hint: To update the lockfile, run `uv lock`.); the toolkit installed exactly the packages that lock pins, without rewriting the lockfile. Report this if it repeats.",
+      "error": "",
+      "hint": "",
+      "lockFallback": {
+        "detectedAt": "2026-11-04T00:16:39.446Z",
+        "problems": [],
+        "uvMessage": "Using CPython 3.12.16 | Resolved 40 packages in 180ms | error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. | hint: To update the lockfile, run `uv lock`."
+      },
+      "artifacts": {
+        "stepId": "notebook-env",
+        "verified": true,
+        "missing": [],
+        "observedCount": 2
+      }
+    }
+  ],
+  "installationLine": "Installation complete — 3 component step(s) verified. 2 step(s) installed through a lockfile fallback (Isolated locked worker (Python 3.12), Notebook analysis environment) — this host's uv refused the shipped lockfile; see that step's evidence.",
+  "statusOutcome": "success",
+  "statusFile": "/tmp/round5/work-fallback/Bankovní účet SVJ ČSA368/.research-toolkit/logs/last-setup.json",
+  "diagnostics": "Research Stack component setup — Installation complete — 3 component step(s) verified. 2 step(s) installed through a lockfile fallback (Isolated locked worker (Python 3.12), Notebook analysis environment) — this host's uv refused the shipped lockfile; see that step's evidence.\nPackage: recommended · Toolkit: 0.3.7 · Workspace: Bankovní účet SVJ ČSA368\nStarted: 11/4/2026, 12:16:30 AM · Finished: 11/4/2026, 12:16:42 AM · Duration: 12 s\nHost tools:\n  uv: 0.13.6 at /tmp/e2e-037/fakeuv/uv (resolved from setting)\nPreflight:\n  Workspace trust: ok — This workspace folder is trusted.\n  Local desktop workspace: ok — Setup will run in /tmp/round5/work-fallback/Bankovní účet SVJ ČSA368.\n  uv on this machine: ok — uv 0.13.6 resolved from setting: /tmp/e2e-037/fakeuv/uv\n  Managed toolkit paths: ok — .research-toolkit/managed does not exist yet and will be created inside the workspace.\n  Workspace is writable: ok — /tmp/round5/work-fallback/Bankovní účet SVJ ČSA368 accepts writes.\n  Setup lock: ok — No setup is running. → Wait for the running setup to finish.\nSteps:\n  Isolated locked worker (Python 3.12) (worker): installed · 2 attempts · lockfile fallback used · 9 s · last attempt 11/4/2026, 12:16:39 AM\n    note: installed through a lockfile fallback: this host's uv refused the shipped lockfile and the toolkit's own check of the same pair agreed\n  Research overlay files (research-overlay): installed · 0 s · last attempt 11/4/2026, 12:16:39 AM\n  Notebook analysis environment (notebook-env): installed · 2 attempts · lockfile fallback used · 3 s · last attempt 11/4/2026, 12:16:42 AM\n    note: installed through a lockfile fallback: this host's uv refused the shipped lockfile and the toolkit's own check of the same pair agreed\nSetup log (2 file(s)): step worker installed; step research-overlay installed; step notebook-env installed; plan  success\nSetup log file: /tmp/round5/work-fallback/Bankovní účet SVJ ČSA368/.research-toolkit/logs/last-setup.json",
+  "refreshed": "Component status refresh · toolkit 0.3.7 · 2026-11-04T00:16:44.409Z\nPackage setup for Recommended Research: 3 of 3 component steps installed · optional: Notebook analysis environment · G2 not passed.\nSteps: worker=installed, research-overlay=installed, notebook-env=installed\nNo recorded step is missing its produced files.\nNo optional steps were skipped.\nManaged runtimes in this workspace: 0.3.7 (active)\nThe functional MCP reading check was not run by this refresh; it stays a separate action.",
+  "progress": [
+    "Step 1 of 3: Isolated locked worker (Python 3.12)",
+    "Preparing the reviewed worker source and dependency lock…",
+    "Installing locked worker dependencies with Python 3.12. This can download packages…",
+    "This host's uv did not accept the shipped lock as written. Installing exactly what the lock pins, without rewriting it…",
+    "Verifying MCP discovery, PDF/DOCX reading, reports, local search and RIS preparation…",
+    "Step 2 of 3: Research overlay files",
+    "Prepared the reviewed research overlay files.",
+    "Step 3 of 3: Notebook analysis environment",
+    "Prepared the reviewed notebook project files.",
+    "Creating the locked notebook analysis environment. This can download packages…",
+    "This host's uv did not accept the notebook lock as written. Installing exactly what the lock pins, without rewriting it…",
+    "[output] Component setup completed in /tmp/round5/work-fallback/Bankovní účet SVJ ČSA368/.research-toolkit/managed/worker-0.3.7: ran worker, research-overlay, notebook-env.",
+    "[output] Research Stack component setup — Installation complete — 3 component step(s) verified. 2 step(s) installed through a lockfile fallback (Isolated locked worker (Python 3.12), Notebook analysis environment) — this host's uv refused the shipped lockfile; see that step's evidence.\nPackage: recommended · Toolkit: 0.3.7 · Workspace: Bankovní účet SVJ ČSA368\nStarted: 11/4/2026, 12:16:30 AM · Finished: 11/4/2026, 12:16:42 AM · Duration: 12 s\nHost tools:\n  uv: 0.13.6 at /tmp/e2e-037/fakeuv/uv (resolved from setting)\nPreflight:\n  Workspace trust: ok — This workspace folder is trusted.\n  Local desktop workspace: ok — Setup will run in /tmp/round5/work-fallback/Bankovní účet SVJ ČSA368.\n  uv on this machine: ok — uv 0.13.6 resolved from setting: /tmp/e2e-037/fakeuv/uv\n  Managed toolkit paths: ok — .research-toolkit/managed does not exist yet and will be created inside the workspace.\n  Workspace is writable: ok — /tmp/round5/work-fallback/Bankovní účet SVJ ČSA368 accepts writes.\n  Setup lock: ok — No setup is running. → Wait for the running setup to finish.\nSteps:\n  Isolated locked worker (Python 3.12) (worker): installed · 2 attempts · lockfile fallback used · 9 s · last attempt 11/4/2026, 12:16:39 AM\n    note: installed through a lockfile fallback: this host's uv refused the shipped lockfile and the toolkit's own check of the same pair agreed\n  Research overlay files (research-overlay): installed · 0 s · last attempt 11/4/2026, 12:16:39 AM\n  Notebook analysis environment (notebook-env): installed · 2 attempts · lockfile fallback used · 3 s · last attempt 11/4/2026, 12:16:42 AM\n    note: installed through a lockfile fallback: this host's uv refused the shipped lockfile and the toolkit's own check of the same pair agreed\nSetup log (2 file(s)): step worker installed; step research-overlay installed; step notebook-env installed; plan  success\nSetup log file: /tmp/round5/work-fallback/Bankovní účet SVJ ČSA368/.research-toolkit/logs/last-setup.json",
+    "[output] Component status refresh · toolkit 0.3.7 · 2026-11-04T00:16:44.409Z\nPackage setup for Recommended Research: 3 of 3 component steps installed · optional: Notebook analysis environment · G2 not passed.\nSteps: worker=installed, research-overlay=installed, notebook-env=installed\nNo recorded step is missing its produced files.\nNo optional steps were skipped.\nManaged runtimes in this workspace: 0.3.7 (active)\nThe functional MCP reading check was not run by this refresh; it stays a separate action."
+  ]
+}

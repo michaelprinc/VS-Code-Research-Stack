@@ -37,6 +37,8 @@ def _write_vsix(
     source_crlf: bool = False,
     build_clock: bool = False,
     loose_modes: tuple[str, ...] = (),
+    runner_source: bytes | None = None,
+    member_overrides: dict[str, bytes] | None = None,
 ) -> Path:
     manifest = {
         "name": "research-stack-toolkit",
@@ -69,6 +71,16 @@ def _write_vsix(
         bundle = json.loads(members["extension/worker/bundle.json"])
         bundle["files"]["uv.lock"] = hashlib.sha256(drifted).hexdigest()
         members["extension/worker/bundle.json"] = json.dumps(bundle, indent=2).encode("utf-8")
+    if runner_source is not None:
+        # The boundary audit is only worth having if a drifted boundary can be shown to fail it.
+        members["extension/runner.js"] = runner_source
+    if member_overrides:
+        # The capability audit reads member text, so a member has to be showable in both shapes:
+        # packaged and mirrored in the source tree it is compared against.
+        for name, content in member_overrides.items():
+            if name not in EXPECTED:
+                raise AssertionError(f"not a packaged member: {name}")
+            members[name] = content
     if include_extra:
         members["extension/.env"] = b"secret"
     # `git checkout` can leave CRLF in the working tree while the committed blobs are LF, so the
@@ -226,4 +238,98 @@ def test_vsix_verifier_refuses_members_whose_permission_bits_come_from_the_build
     source_root = _write_vsix(package, loose_modes=("extension/guides/pypdf.md", "extension/worker/uv.lock"))
 
     with pytest.raises(ValueError, match="permission bits other than 0644"):
+        verify(package, source_root)
+
+
+def _reviewed_runner() -> bytes:
+    return (Path(__file__).resolve().parents[1] / "extension" / "runner.js").read_bytes()
+
+
+def test_vsix_verifier_refuses_a_runner_that_adds_a_second_unbounded_spawn(tmp_path: Path) -> None:
+    """DD7-12: the boundary is one bounded `spawn` plus one `taskkill` reaper. A second spawn — the
+    shape a future release reintroduces whenever it wants a quick extra process — must not package."""
+    drifted = _reviewed_runner().replace(
+        b"const child = childProcess.spawn(executable, args, {",
+        b"const spare = childProcess.spawn(executable, args, {\n"
+        b"      shell: false,\n"
+        b"      windowsHide: true,\n"
+        b"    });\n"
+        b"    const child = childProcess.spawn(executable, args, {",
+        1,
+    )
+    assert drifted != _reviewed_runner(), "the injected drift no longer matches the shipped runner shape"
+    package = tmp_path / "second-spawn.vsix"
+    source_root = _write_vsix(package, runner_source=drifted)
+
+    with pytest.raises(ValueError, match=r"runner process boundary differs from reviewed pattern: childProcess\.spawn\("):
+        verify(package, source_root)
+
+
+def test_vsix_verifier_refuses_a_runner_that_runs_a_tool_through_a_shell(tmp_path: Path) -> None:
+    """`shell: false` guards both call sites; a shell would re-open the injection surface the single
+    boundary exists to close."""
+    drifted = _reviewed_runner().replace(
+        b"      shell: false,\n      windowsHide: true,\n",
+        b"      shell: true,\n      windowsHide: true,\n",
+        1,
+    )
+    assert drifted != _reviewed_runner(), "the injected drift no longer matches the shipped runner shape"
+    package = tmp_path / "shell-run.vsix"
+    source_root = _write_vsix(package, runner_source=drifted)
+
+    with pytest.raises(ValueError, match="shell: true"):
+        verify(package, source_root)
+
+
+def test_vsix_verifier_refuses_a_runner_that_dropped_the_process_group_reap(tmp_path: Path) -> None:
+    """The reap is part of the reviewed shape (W2): without `kill(-pid)` a stopped uv leaves its
+    managed-python and build children writing into the step directory after the step failed."""
+    drifted = _reviewed_runner().replace(b'process.kill(-pid, "SIGKILL")', b'child.kill("SIGKILL")', 1)
+    assert drifted != _reviewed_runner(), "the injected drift no longer matches the shipped runner shape"
+    package = tmp_path / "no-reap.vsix"
+    source_root = _write_vsix(package, runner_source=drifted)
+
+    with pytest.raises(ValueError, match="runner process bounds missing"):
+        verify(package, source_root)
+
+
+def test_vsix_verifier_accepts_a_regular_expression_method_call(tmp_path: Path) -> None:
+    """The capability audit is about starting a process or opening a socket. `MINOR_POINT.exec(text)`
+    in `extension/lockfile.js` is a RegExp read, and reading a version out of a lockfile is not a
+    capability — the audit must not read a method call as a process call."""
+    package = tmp_path / "regexp-exec.vsix"
+    source_root = _write_vsix(
+        package,
+        member_overrides={"extension/media/controls.js": b"const hit = /x+/.exec('xx'); module.exports = { hit };"},
+    )
+
+    verify(package, source_root)
+
+
+def test_vsix_verifier_refuses_a_module_that_calls_exec_directly(tmp_path: Path) -> None:
+    """The same audit still refuses an unqualified `exec(`, which is the child_process call shape."""
+    package = tmp_path / "bare-exec.vsix"
+    source_root = _write_vsix(
+        package,
+        member_overrides={"extension/media/controls.js": b"const out = exec('uv lock'); module.exports = { out };"},
+    )
+
+    with pytest.raises(ValueError, match="unreviewed network/process capabilities"):
+        verify(package, source_root)
+
+
+def test_vsix_verifier_refuses_a_runner_that_adds_a_synchronous_process_call(tmp_path: Path) -> None:
+    """The reviewed boundary is one bounded spawn and one bounded taskkill. A synchronous run keeps the
+    call-site counts intact and would pass a count-only audit, so the primitive itself is refused."""
+    drifted = _reviewed_runner().replace(
+        b"function reapTree(child) {",
+        b"function reapTree(child) {\n"
+        b"  childProcess.spawnSync(TASKKILL, taskkillArguments(child.pid));",
+        1,
+    )
+    assert drifted != _reviewed_runner(), "the injected drift no longer matches the shipped runner shape"
+    package = tmp_path / "sync-call.vsix"
+    source_root = _write_vsix(package, runner_source=drifted)
+
+    with pytest.raises(ValueError, match=r"is not part of the reviewed boundary"):
         verify(package, source_root)

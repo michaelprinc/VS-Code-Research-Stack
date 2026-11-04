@@ -3,8 +3,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { stepTimeout, resolveUv, lockFallbackNote, notebookPairProblems } = require("../steps");
-const { STEPS_BY_ID } = require("../installer");
+const { stepTimeout, resolveUv, lockFallbackNote, notebookPairProblems, runNotebookStep, digestOf } = require("../steps");
+const { STEPS_BY_ID, commandLine, rerunInstruction } = require("../installer");
+const { runProcess } = require("../runner");
+const fs = require("node:fs/promises");
+const { createHash } = require("node:crypto");
 
 test("each step's timeout comes from the component registry, not from a global guess (R6-12)", () => {
   assert.equal(stepTimeout(STEPS_BY_ID.get("worker")), 900_000, "the worker sync may download a 3.12 interpreter on first run");
@@ -127,6 +130,7 @@ test("the notebook step gets the same one bounded lockfile fallback as the worke
   assert.ok(result.lockFallback, "the fallback is recorded on the step result");
   assert.match(result.evidence, /Warning: this host's uv refused the shipped lockfile/, "the component evidence names the fallback");
   assert.match(result.evidence, /without rewriting the lockfile/, result.evidence);
+  assert.equal(result.attempts, 2, "two uv processes ran (locked, then frozen) and the step reports both (0.3.7 e2e D7)");
 
   // An ordinary notebook failure (a download problem) must not be softened into a frozen install.
   const plain = { ...services, runProcess: async (executable, args) => {
@@ -139,4 +143,125 @@ test("the notebook step gets the same one bounded lockfile fallback as the worke
   assert.match(failure.stderr, /failed to fetch/, "uv's own sentence is kept, not replaced by a lockfile story");
   assert.equal(failure.lockDrift, undefined, "a network failure is not reported as a lockfile problem");
   assert.deepEqual(calls.filter((call) => call.args[0] === "sync" && call.args[1] === "--frozen").length, 1, "no second fallback for an unrelated failure");
+});
+
+/** A bundle whose notebook overlay pair does not agree with itself, with the manifest re-hashed. */
+async function patchedNotebookBundle(t, version) {
+  const os = require("node:os");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "research-notebook-bundle-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  await fs.cp(path.join(__dirname, "..", "worker"), path.join(dir, "worker"), { recursive: true });
+  const pyproject = path.join(dir, "worker", "overlay", "notebooks", "analysis", "pyproject.toml");
+  const text = await fs.readFile(pyproject, "utf8");
+  await fs.writeFile(pyproject, text.replace(/version = "0\.1\.0"/, `version = "${version}"`), "utf8");
+  const manifest = JSON.parse(await fs.readFile(path.join(dir, "worker", "bundle.json"), "utf8"));
+  for (const group of ["files", "overlayFiles"]) {
+    for (const relative of Object.keys(manifest[group] || {})) {
+      const target = group === "overlayFiles" ? path.join(dir, "worker", "overlay", relative) : path.join(dir, "worker", relative);
+      manifest[group][relative] = createHash("sha256").update(await fs.readFile(target)).digest("hex");
+    }
+  }
+  await fs.writeFile(path.join(dir, "worker", "bundle.json"), JSON.stringify(manifest, null, 2) + "\n");
+  return { extensionUri: { fsPath: dir } };
+}
+
+async function notebookWorkspace(t, prefix) {
+  const os = require("node:os");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const { makeHarness } = require("./harness");
+  const harness = makeHarness({ folders: [{ name: "research", uri: { scheme: "file", fsPath: dir } }] });
+  const services = { async resolveHostTool(name) { return { name, path: "/trusted/uv", source: "path", version: "0.13.6", verified: true, searched: {}, hint: "" }; }, async runProcess() { throw new Error("no process may run in this test"); } };
+  return { dir, harness, services };
+}
+
+test("a notebook pair this toolkit wrote is refused as a build defect, the way the worker pair is (0.3.7 e2e D5)", async (t) => {
+  const { dir, harness, services } = await notebookWorkspace(t, "research-notebook-builddefect-");
+  const context = await patchedNotebookBundle(t, "0.2.0");
+  const error = await runNotebookStep({ root: dir, context, services, settings: {}, step: STEPS_BY_ID.get("notebook-env"), vscode: harness.vscode }).catch((item) => item);
+  assert.match(error.message, /does not match its own project file/, error.message);
+  assert.match(error.message, /This is a defect in the toolkit build, not in this workspace\./, "the build-defect wording the worker refusal uses");
+  assert.equal(error.kind, "lock-drift", "the same kind the worker refusal sets, so the next-action table does not fall through to a retry");
+  assert.equal(error.exitCode, null, "no process ran, so there is no exit code to report");
+  assert.equal(error.attempts, 0, "no process ran, and the record says so");
+  assert.match(error.hint, /Reinstall the VSIX from this release/, "the same next action the worker refusal gives");
+  assert.equal(commandLine(error), "", "no command is invented for a refusal that ran nothing");
+  await assert.rejects(fs.stat(path.join(dir, "notebooks", "analysis", ".venv")), /ENOENT/, "uv was not run inside the project");
+});
+
+test("a notebook project the operator already owns is named and answered, not blamed on the build (0.3.7 e2e D6)", async (t) => {
+  const { dir, harness, services } = await notebookWorkspace(t, "research-notebook-owned-");
+  const project = path.join(dir, "notebooks", "analysis");
+  // The workspace already holds the operator's own project: the shipped files, with their own manifest.
+  await fs.cp(path.join(__dirname, "..", "worker", "overlay", "notebooks", "analysis"), project, { recursive: true });
+  const pyproject = path.join(project, "pyproject.toml");
+  const text = await fs.readFile(pyproject, "utf8");
+  await fs.writeFile(pyproject, text.replace(/version = "0\.1\.0"/, 'version = "0.9.9"'), "utf8");
+  const before = { pyproject: digestOf(await fs.readFile(pyproject)), lock: digestOf(await fs.readFile(path.join(project, "uv.lock"))) };
+
+  const error = await runNotebookStep({ root: dir, context: harness.context, services, settings: {}, step: STEPS_BY_ID.get("notebook-env"), vscode: harness.vscode }).catch((item) => item);
+  assert.match(error.message, /notebooks\/analysis\/pyproject\.toml/, `the file the toolkit preserved is named, got: ${error.message}`);
+  assert.match(error.message, /preserved/, "the operator reads that their files were left alone");
+  assert.ok(!/This is a defect in the toolkit build/.test(error.message), `the operator's own project is not blamed on the build: ${error.message}`);
+  assert.ok(!/this toolkit wrote/.test(error.message), error.message);
+  assert.match(error.hint, /restore it from this toolkit's overlay files or remove the folder/i, `the next action is the one the uv-refusal branch already gives: ${error.hint}`);
+  assert.equal(error.kind, "lock-drift");
+  assert.equal(error.attempts, 0, "no process ran");
+  assert.deepEqual(error.lockDrift.preservedFiles, ["notebooks/analysis/pyproject.toml"], "the preserved files are recorded for the setup log");
+  assert.equal(digestOf(await fs.readFile(pyproject)), before.pyproject, "the operator's project file was not rewritten");
+  assert.equal(digestOf(await fs.readFile(path.join(project, "uv.lock"))), before.lock, "the operator's lockfile was not rewritten");
+  await assert.rejects(fs.stat(path.join(project, ".venv")), /ENOENT/, "uv was not run inside the operator's project");
+});
+
+/** The same stand-in uv as in runtime.test.js, so the notebook tier is tested through the reviewed runner. */
+const STUB_UV = [
+  "const a = process.argv.slice(1);",
+  "if (a[0] !== 'sync') { console.error('unexpected args: ' + a.join(' ')); process.exit(9); }",
+  "if (a[1] === '--locked') {",
+  "  console.error('Using CPython 3.12.16');",
+  "  console.error('Resolved 40 packages in 180ms');",
+  "  console.error('error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.');",
+  "  console.error('hint: To update the lockfile, run `uv lock`.');",
+  "  process.exit(1);",
+  "}",
+  "console.error('Request failed after 3 retries in 6.2s');",
+  "console.error('  Caused by: Failed to fetch: https://127.0.0.1:1/simple/matplotlib/');",
+  "console.error('  Caused by: tcp connect error: Connection refused (os error 111)');",
+  "process.exit(2);",
+].join(" "); // one line, so the recorded command stays one line
+
+test("a failed notebook fallback never repeats the success wording, and names the next action and the directory (0.3.7 e2e D1, D3, D4)", async (t) => {
+  const os = require("node:os");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "research-notebook-fallback-fail-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const { makeHarness } = require("./harness");
+  const harness = makeHarness({ folders: [{ name: "research", uri: { scheme: "file", fsPath: dir } }] });
+  const project = path.join(dir, "notebooks", "analysis");
+  const calls = [];
+  const services = {
+    uv: process.execPath,
+    runProcess: (executable, args, options) => {
+      calls.push({ args });
+      return runProcess(process.execPath, ["-e", STUB_UV, ...args], options);
+    },
+  };
+  const error = await runNotebookStep({ root: dir, context: harness.context, services, settings: {}, step: STEPS_BY_ID.get("notebook-env"), vscode: harness.vscode }).catch((item) => item);
+  const syncs = calls.filter((call) => call.args[0] === "sync");
+  assert.deepEqual(syncs.map((call) => call.args[1]), ["--locked", "--frozen"], "one locked attempt and one gated fallback, through the reviewed runner");
+  assert.match(error.message, /The locked notebook install was refused by this host's uv/, error.message);
+  assert.match(error.message, /needs to be updated/, "the first refusal's sentence survives");
+  assert.match(error.message, /The reviewed fallback that installs exactly what the notebook lock pins also failed/, error.message);
+  assert.match(error.message, /Failed to fetch/, "and so does the second one");
+  assert.ok(!error.message.includes("Installed exactly the packages the notebook lock pins"), "a failed step never carries the tier's success wording (D1)");
+  assert.match(error.message, /Check the host tool version and network access, then retry the notebook step\./, "the failure sentence the code intends to say (D1)");
+  assert.match(error.hint, /Check the host tool version and network access, then retry the notebook step\./, "the status layer gets a next action, not the generic retry (D3)");
+  assert.equal(error.cwd, project, "the failure carries the directory the fallback ran in (D4)");
+  const line = commandLine(error);
+  assert.ok(line.includes("(in ") && line.includes(project), `the recorded command line names the working directory, got ${line} (D4)`);
+  assert.ok(!line.includes("working directory not recorded"), line);
+  const rerun = rerunInstruction(error).split("\n");
+  assert.ok(rerun.some((entry) => entry.startsWith("cd ") && entry.includes(project)), `the pasteable instruction gets a real cd line: ${rerun.join(" | ")}`);
+  assert.equal(error.attempts, 2, "two uv processes ran and the record says two");
+  assert.equal(error.exitCode, 2);
+  await assert.rejects(fs.stat(path.join(project, ".venv")), /ENOENT/, "the failed fallback created no environment");
 });

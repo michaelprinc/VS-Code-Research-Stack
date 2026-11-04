@@ -23,6 +23,12 @@ This release answers the report filed against 0.3.6: the VSIX installed and comp
 - `extension/runner.js` describes a lock refusal as a lockfile and a project file that do not match, explicitly *not* a network, proxy or interpreter problem, and keeps uv's own lines and the cwd. A timeout now reports the bound per attempt, how many attempts ran, and the total time waited across them.
 - `runner.setupEnvironment` strips the 15 `UV_*` names that change what the reviewed command means (`UV_INDEX`, `UV_INDEX_URL`, `UV_DEFAULT_INDEX`, `UV_EXTRA_INDEX_URL`, `UV_FIND_LINKS`, `UV_NO_INDEX`, `UV_LOCKED`, `UV_FROZEN`, `UV_UPGRADE`, `UV_NO_SYNC`, `UV_OFFLINE`, `UV_NO_DEV`, `UV_SYSTEM_PYTHON`, `UV_EXCLUDE_NEWER`, `UV_PYTHON_PREFERENCE`) before applying the reviewed environment, so a host mirror or a stray `UV_LOCKED` can no longer make a correct lock look stale.
 
+**A stopped setup run no longer leaves its children running (Windows portability review W2, W11, W12)**
+
+- `extension/runner.js` is now one bounded `childProcess.spawn(` — the tool run, started in its own POSIX process group — plus one `childProcess.execFile(` that runs `taskkill.exe /PID <pid> /T /F` on Windows. A step that times out or is cancelled now reaps uv's managed-python and build children instead of killing only `uv.exe` and leaving its grandchildren writing into the step's own directory after setup has already reported the step failed and released `.setup.lock`. `execFile` cannot carry the bounded run: Node builds `execFile`'s spawn options internally and drops `detached`, so `kill(-pid)` would aim at the editor's own process group (DD7-12), and the 8 MiB capture limit is now enforced by the boundary itself. Measured with the reviewer's own probe on this host: the grandchild wrote its file 1.6 s after the `RunError` before this change, and nothing after it.
+- A setup call also scrubs `PYTHONPATH` and `PYTHONHOME`. Measured with a real uv 0.13.6 build whose build-time python is not isolated (`isolated 0`, `no_site 0`, `safe_path false`): the host `PYTHONPATH` reached that python in both its environment and its `sys.path` before, and reaches neither after. The scrub sentence now names the environment the command was actually built from, including a caller-supplied one, instead of whatever the editor process happens to hold.
+- The gates.md claim that no path issues `uv lock` in a managed runtime or a plain `uv sync` is now enforced at the boundary: `uv lock …`, and `uv sync` carrying neither `--locked` nor `--frozen`, are refused with a `RunError` of kind `policy` and `attempts: 0` before any process exists. `scripts/verify_vsix.py` and `extension/test/module-boundaries.test.js` enforce the new boundary shape; `tests/test_vsix.py` refuses a runner that reintroduces a second spawn or a shell.
+
 **Build gates**
 
 - `scripts/lockintegrity.py` is the uv-free pair reader, and a CLI (`python3 scripts/lockintegrity.py`, exit 1 on drift). `scripts/build_worker_bundle.py` refuses a stale source pair before anything is staged, and re-checks the built worker pair before `bundle.json` is written; `scripts/verify_vsix.py` refuses a packaged worker or packaged notebook overlay whose pair is stale; `tests/test_lock_consistency.py` gates the repository pairs, the bundled bytes against the repository bytes, the unchanged pins, the lock revision the declared uv floor can read, 37 synthetic pair fixtures, the bundle builder's refusal and acceptance, the CLI's exit codes, and uv's own `uv lock --check` when `RESEARCH_STACK_UV` names a real uv.
@@ -35,9 +41,9 @@ This release answers the report filed against 0.3.6: the VSIX installed and comp
 **Release identity and verification**
 
 - Version 0.3.7 in `pyproject.toml`, `src/research_stack/__init__.py`, `extension/package.json`, `extension/vsix-manifest.json` and `extension/runtime.js` `WORKER_VERSION`; the managed worker folder is `.research-toolkit/managed/worker-0.3.7`. A four-part version such as `0.3.6.1` cannot be packaged at all: `@vscode/vsce` validates the extension manifest with `semver.valid`, which accepts at most three numbers ([microsoft/vscode-vsce #415](https://github.com/microsoft/vscode-vsce/issues/415), closed as designed), so the release is 0.3.7 and `tests/test_release_identity.py` now rejects any identity the packager would refuse.
-- `cd extension && npm test` → **250 passed, 0 failed** across the sixteen test files the script runs, new `test/lockfile.test.js` (24 tests over the pyproject/uv.lock reader, uv's refusal signature, the shipped worker pair and the shapes real uv writes for extras, markers, dependency groups, optional dependencies and TOML literal strings) and `test/lockfile-adversarial.test.js` (73 tests over 69 synthetic pairs, each with its uv verdict measured) among them. `.venv/bin/python -m pytest` → **185 passed** with `RESEARCH_STACK_UV` naming a real uv, **184 passed + 1 skipped** without one; the skip is `tests/test_lock_consistency.py`'s `uv lock --check` gate, and that file holds 65 tests. `dist/research-stack-toolkit-0.3.7.vsix` (86 files, 312 471 bytes) passes `npm run verify-package`, including the packaged-pair check, and `npm run check:payload`. Receipts: `evidence/quality-v0.3.7-2026-11-02/`.
+- `cd extension && npm test` → **331 passed, 0 failed** across the sixteen test files the script runs, new `test/lockfile.test.js` (24 tests over the pyproject/uv.lock reader, uv's refusal signature, the shipped worker pair and the shapes real uv writes for extras, markers, dependency groups, optional dependencies and TOML literal strings) and `test/lockfile-adversarial.test.js` (118 tests over 112 synthetic pairs, each with its uv verdict measured) among them. `.venv/bin/python -m pytest` → **207 passed** with `RESEARCH_STACK_UV` naming a real uv, **206 passed + 1 skipped** without one; the skip is `tests/test_lock_consistency.py`'s `uv lock --check` gate, and that file holds 79 tests with a real uv binary. `dist/research-stack-toolkit-0.3.7.vsix` (86 files, 332 448 bytes) passes `npm run verify-package`, including the packaged-pair check, and `npm run check:payload`. Receipts: `evidence/quality-v0.3.7-2026-11-02/`.
 - Detection is signature-based because uv's refusal exit code is not stable: on a drifted pair uv 0.8.5, 0.9.30, 0.10.7 and 0.13.6 exit 1 while uv 0.5.0, 0.6.10 and 0.7.22 exit 2, all seven printing the same sentence (`evidence/quality-v0.3.7-2026-11-02/uv-matrix.json`).
-- Out of scope for this release, unchanged from 0.3.6: the real reference-host receipts for the G1–G4 profile gates on Windows 11 x64 / VS Code Desktop 1.141.0, including the Extension Host and browser renderer receipts, are **still outstanding**, and the reported field workspace has not yet been re-run with this VSIX. Basic and Research remain prototypes; the toolkit still does not install uv itself, does not run setup silently or in the background, does not execute notebook kernels, does not connect to external providers, and does not build the extraction-to-index bridge. This version does not complete G4.
+- Out of scope for this release, unchanged from 0.3.6: the real reference-host receipts for the G1–G4 profile gates on Windows 11 x64 / VS Code Desktop 1.141.0, including the Extension Host and browser renderer receipts, are **still outstanding**, and the reported field workspace has not yet been re-run with this VSIX. Basic and Research remain prototypes; the toolkit still does not install uv itself, does not run setup silently or in the background, does not execute notebook kernels, and does not build the extraction-to-index bridge. Setup itself reaches no service other than PyPI through the host's uv; the Research overlay's citation-verification presets do call external literature services, but only when you invoke a tool, and no capability downloads full text on its own. This version does not complete G4.
 
 ### Repaired after the release was reviewed (same 0.3.7 artifact)
 
@@ -47,6 +53,7 @@ and a claims audit of the release documentation. Each finding below was confirme
 before it was fixed; the full record is [review-findings.md](../specs/phase-7-lock-integrity/review-findings.md).
 
 - **The artifact was not reproducible from the tag.** 17 of its 86 members (16 guides and `extension/media/toolkit.svg`) carried CRLF in the VSIX while the committed tree holds LF, so a fresh clone built a different digest. `extension/scripts/package.js` now normalises the staged tree to LF and `scripts/verify_vsix.py` refuses CRLF in any packaged text member; the payload comparison is line-ending-normalised so a member that only matches after rewriting is caught by the reproducibility invariant, not silently accepted.
+- **Two more reasons the same artifact was not reproducible.** After the CRLF fix, two clean-clone builds seconds apart still produced three different digests with byte-identical members: vsce stamps every ZIP entry with the time of the build and writes a `new Date()` into the three members it generates, and 32 members carried mode 0664 in this working tree against 0644 in a fresh clone, which the ZIP records in `external_attr`. `extension/scripts/package.js` now sets `SOURCE_DATE_EPOCH=315532800` — which vsce honours by stamping every entry and sorting members by path — and gives every staged file mode 0644; `scripts/verify_vsix.py` refuses packaged members carrying any other ZIP timestamp or any mode other than 0644 outside the three members vsce writes, and `tests/test_vsix.py` refuses both drifts. The tree build and clean-clone builds of the tag now produce the same 332,448-byte artifact and the same digest.
 - **A host `UV_*` setting survived the scrub if Windows spelled it differently** (`Uv_Index_Url`, `uv_locked`). The deny-list is now matched case-insensitively and also drops the five reviewed names and the derived `UV_PROJECT_ENVIRONMENT`, so no spelling of a meaning-changing name reaches uv and no name appears twice in the child environment.
 - **A fallback install was reported as a clean install.** The panel headline, the step row and **Copy Installation Diagnostics** now name a lockfile fallback, and the marker survives into the status record.
 - **When the reviewed fallback itself failed, the first refusal disappeared** and the operator was left with a network-looking error for a lockfile problem. Both sentences are now reported, with the attempt count and the fallback marker on the record.
@@ -55,7 +62,7 @@ before it was fixed; the full record is [review-findings.md](../specs/phase-7-lo
 - **A lock-drift refusal carried no kind, exit code or hint**, so the next-action table answered "Retry this step" to a build defect. Both refusal sites keep the runner's metadata and carry the reinstall hint.
 - **The command an operator is told to re-run was not pasteable** when a path contains spaces — the reported field workspace is such a path. Arguments containing whitespace are now quoted.
 - **A 0-byte `uv.exe` in a documented Windows location was offered as a usable tool.** It is now refused as unusable.
-- **Both dependency readers were hardened against 22 measured divergences from uv** (markers, extras, `requires-python`, hand-edited transitive pins against their artifact filenames, deleted and duplicated `[[package]]` blocks, `[tool.uv]` source mode and resolution inputs, `dynamic`, PEP 440 normalisation, PEP 735 `include`, BOMs, single-quoted and triple-quoted scalars, indented keys, stray local entries). `extension/test/lockfile-adversarial.test.js` keeps 69 synthetic pairs with the uv verdict measured for each: 67 agree, 1 is a deliberate divergence recorded with both verdicts (a lockfile revision above the toolkit's support ceiling, which uv itself reads), 1 is a named gap. That suite is now part of `npm test`.
+- **Both dependency readers were hardened against 22 measured divergences from uv** (markers, extras, `requires-python`, hand-edited transitive pins against their artifact filenames, deleted and duplicated `[[package]]` blocks, `[tool.uv]` source mode and resolution inputs, `dynamic`, PEP 440 normalisation, PEP 735 `include`, BOMs, single-quoted and triple-quoted scalars, indented keys, stray local entries). `extension/test/lockfile-adversarial.test.js` keeps 112 synthetic pairs with the uv verdict measured for each: 110 agree, 2 are deliberate divergences recorded with both verdicts (a lockfile revision above the toolkit's support ceiling, which uv itself reads). No pair is left uncaught. That suite is part of `npm test`.
 - **The two readers disagreed with each other** on the PEP 735 `{ include = "dev" }` group reference and on `dynamic = ["dependencies"]`: the JS reader reported drift where the Python reader was silent, so `npm run package` and `python3 scripts/lockintegrity.py` could answer the same pair differently. Measured with uv 0.13.6 and uv 0.5.0: `{ include-group = … }` is what uv 0.13.6 accepts and flattens, `{ include = … }` is refused by 0.13.6 whatever the lock says and was locked as an empty group by 0.5.0. Both readers now flatten only the first, name the second as a construct neither can certify, skip the manifest-half comparison for a dynamic dependency list and check the root entry's resolved dependencies instead — the comparison uv's own `lock --check` actually makes. Run over the same 69 pairs: 0 verdict divergences.
 
 What this host cannot prove: the Windows-specific repairs (the case-insensitive `UV_*` scrub, the
@@ -64,6 +71,61 @@ paths and a Windows-shaped environment, not on a Windows host. The MAX_PATH head
 plus the managed worker path leaves, and what happens to a grandchild process when a step times out on
 Windows, are recorded as open risks in [review-findings.md](../specs/phase-7-lock-integrity/review-findings.md)
 and are not claimed as fixed.
+
+### Tested again as a release, and repaired a second time (same 0.3.7 artifact)
+
+The re-cut artifact was then tested the way a release is tested: an operator-style end-to-end install of
+the unpacked VSIX, a Windows-portability pass over every path and environment behaviour the extension
+touches, an adversarial campaign of 69 further synthetic pairs against both dependency readers, and a
+claims audit of the release documentation. 29 findings are recorded in
+[review-findings.md](../specs/phase-7-lock-integrity/review-findings.md) (rows 45–73); the ones an
+operator would notice:
+
+- **A failed lockfile fallback told the operator the packages had been installed.** The failure sentence
+  reused the success hint, so the advice to check the host tool version and network access was
+  unreachable. A failed fallback now reads `1 step(s) attempted the reviewed lockfile fallback and did
+  not install (Isolated locked worker (Python 3.12))`, the step row reads
+  `lockfile fallback attempted, step not installed`, and the combined error carries both uv sentences,
+  the working directory and the real next action. A fallback that succeeded keeps its wording.
+- **Attempt counts were wrong at both ends.** A refusal that started no process recorded `1 attempt`; a
+  step that ran two uv processes recorded `1`. The step now reports how many processes it started, and a
+  step that started none reads `no process ran`.
+- **A notebook project you already owned was blamed on the toolkit build.** When the overlay step
+  preserves your own `notebooks/analysis/pyproject.toml` or `uv.lock` and that pair disagrees, the refusal
+  now names the preserved files and tells you to restore them from the overlay or remove the folder — not
+  "reinstall the VSIX".
+- **The re-run instruction is now pasteable.** The recorded command line stays one line of evidence; the
+  instruction in **Copy Installation Diagnostics** is a `cd "<directory>"` line followed by the command
+  with every argument quoted the way `cmd.exe` and PowerShell parse them, preceded by a note to use a
+  UTF-8 terminal (`chcp 65001` in cmd.exe) when the workspace path carries diacritics.
+- **A stopped run no longer leaves its children writing.** A timeout, a cancel, or a run that exits badly
+  reaps the whole process tree — `taskkill.exe /PID <pid> /T /F` on Windows while the root is still alive,
+  the process group on Linux and macOS. Measured with the reviewer's own probe: the grandchild wrote its
+  file 1.6 s after the step was reported failed before, and nothing after.
+- **`uv lock` is now refused by the boundary, not just by policy.** `uv lock …`, and `uv sync` carrying
+  neither `--locked` nor `--frozen`, are refused before any process exists, with a next action that names
+  it as a defect in this build.
+- **A 0-byte `uv` was refused only on Windows.** On Linux a 0-byte executable was reported usable with the
+  wrong diagnosis. It is refused on every platform, without being started, and a 0-byte file earlier in
+  `PATH` no longer hides a working uv later in `PATH`.
+- **`npm run verify-package` without uv on `PATH` printed a Node stack trace.** It now says which command
+  it tried to run, what the gate needs, why a working `researchStack.uvPath` does not help this shell, and
+  how to put uv on the `PATH`.
+- **Both dependency readers refused locks uv accepts, including the toolkit's own.** A requirement written
+  `pypdf<7,>=6.4` beside the `>=6.4,<7` uv writes, the same for `requires-python`, `override-dependencies`
+  and `constraint-dependencies` beside a lock uv wrote for them, `dynamic = ["optional-dependencies"]` with
+  `provides-extras`, `source = { editable = "./" }`, a leading `v` in a version, and a sdist filename that
+  disagrees while the wheel agrees — all accepted now, because uv accepts them. Bounds are compared as sets
+  of parsed bounds. In the other direction, both readers now refuse a deleted or duplicated transitive
+  `[[package]]` block, a lock header uv cannot read, an `sdist` written as a list, a registry entry
+  rewritten to an editable path, override entries left in a lock whose manifest dropped them, and
+  resolution markers that cannot intersect the declared Python range.
+- **The release gates themselves were fixed.** The VSIX audit no longer reads a regular-expression
+  `.exec(` call as a process capability (that false alarm silenced 11 of its own tests), and it now refuses
+  a synchronous `execSync`/`spawnSync`/`forkSync` in the reviewed boundary, which a call-count audit would
+  have passed. `scripts/lockintegrity.py` honours the root argument its own documentation describes. The
+  two evidence reproduction scripts take `--out`, so following the README's reproduce line no longer
+  overwrites the recorded receipts.
 
 ## 0.3.6 — 1 November 2026 · Component installation that works, and a status that says what happened
 

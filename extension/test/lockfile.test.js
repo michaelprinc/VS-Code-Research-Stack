@@ -125,14 +125,26 @@ const registryPackages = [
   'source = { registry = "https://pypi.org/simple" }',
   '',
 ];
-const lockOf = (rootBlock) => [
+const lockOf = (rootBlock, extraPackages = []) => [
   "version = 1",
   "revision = 5",
   'requires-python = ">=3.12, <3.15"',
   "",
   ...registryPackages,
+  // A `[[package]]` entry for every dependency the lock's metadata names: uv refuses a lock whose
+  // resolved edge has no entry to resolve to (measured: exit 2, "Dependency `pypdf` has missing `source`
+  // field but has more than one matching package"), so a fixture that names a requirement has to carry
+  // the entry uv would have written for it.
+  ...extraPackages,
   rootBlock,
 ].join("\n");
+const registryPackage = (name, version) => [
+  "[[package]]",
+  `name = ${JSON.stringify(name)}`,
+  `version = ${JSON.stringify(version)}`,
+  'source = { registry = "https://pypi.org/simple" }',
+  "",
+];
 const manifestOf = (lines) => [
   "[project]",
   'name = "demo"',
@@ -215,7 +227,7 @@ test("a sub-table after requires-dev is not read as a dependency group", () => {
     "[package.metadata.requires-dev]",
     'dev = [{ name = "pytest", specifier = "==8.4.2" }]',
   ];
-  const lockWith = (tail) => lockOf(rootOf([...requiresDev, "", ...tail]));
+  const lockWith = (tail) => lockOf(rootOf([...requiresDev, "", ...tail]), registryPackage("pytest", "8.4.2"));
   const entry = rootEntry(parseLock(lockWith(["[package.metadata.conditions]", 'env-markers = ["sys_platform == \'win32\'"]'])));
   assert.deepEqual(lockMetadataRequiresDev(lockWith(["[package.metadata.conditions]", 'env-markers = ["sys_platform == \'win32\'"]']), entry), { dev: ["pytest ==8.4.2"] }, "the keys of the following sub-table are not groups");
   const shapes = [
@@ -248,6 +260,7 @@ test("a dependency group that includes another group is compared the way uv expa
     'dev = [{ include-group = "test" }]',
   ];
   const pyproject = manifestOf(groups);
+  const pytestEntry = registryPackage("pytest", "8.4.2");
   const lock = lockOf(rootOf([
     "[package.metadata]",
     "requires-dist = []",
@@ -255,7 +268,7 @@ test("a dependency group that includes another group is compared the way uv expa
     "[package.metadata.requires-dev]",
     'test = [{ name = "pytest", specifier = "==8.4.2" }]',
     'dev = [{ name = "pytest", specifier = "==8.4.2" }]',
-  ]));
+  ]), pytestEntry);
   const problems = pairProblems(pyproject, lock);
   assert.deepEqual(problems, [], problems.join("; "));
   const drifted = pairProblems(pyproject.replace("pytest==8.4.2", "pytest==9.9.9"), lock);
@@ -271,7 +284,7 @@ test("a dependency group that includes another group is compared the way uv expa
     'test = [{ name = "pytest", specifier = "==8.4.2" }]',
     'dev = [{ name = "pytest", specifier = "==8.4.2" }]',
     'legacy = [{ name = "pytest", specifier = "==8.4.2" }]',
-  ]));
+  ]), pytestEntry);
   const legacy = pairProblems(manifestOf([...groups, 'legacy = [{ include = "test" }]']), legacyLock);
   assert.equal(legacy.length, 1, legacy.join("; "));
   assert.match(legacy[0], /dependency group legacy declares \{ include = "test" \}/, legacy[0]);
@@ -284,7 +297,7 @@ test("a dependency group that includes another group is compared the way uv expa
     "",
     "[package.metadata.requires-dev]",
     'lab = [{ name = "pytest", specifier = "==8.4.2" }]',
-  ]));
+  ]), registryPackage("pytest", "8.4.2"));
   const unmodellable = pairProblems(manifestOf(["dependencies = []", "", "[dependency-groups]", 'lab = [{ set = "virtual-group" }]']), unmodellableLock);
   assert.deepEqual(unmodellable, [], "a group object this reader does not model is skipped, not reported as a missing group");
   const missingGroup = pairProblems(manifestOf(["dependencies = []"]), unmodellableLock);
@@ -382,13 +395,17 @@ test("a lock whose own entries contradict the project or themselves is named, no
   assert.deepEqual(pairProblems(pyproject, lock), [], "the well-formed pair is current");
 
   const dropped = lock.replace(registry("pypdf", "6.4.1", "6.4.1"), "");
-  assert.match(pairProblems(pyproject, dropped).join("; "), /resolves pypdf for the project but records no \[\[package\]\] entry for it/, "a dependency uv resolved has no entry to resolve to");
+  assert.match(pairProblems(pyproject, dropped).join("; "), /requirement pypdf has no \[\[package\]\] entry in the lock/, "a dependency uv resolved has no entry to resolve to");
 
   const duplicated = lock.replace(registry("pypdf", "6.4.1", "6.4.1"), registry("pypdf", "6.4.1", "6.4.1") + registry("pypdf", "6.4.1", "6.4.1"));
-  assert.match(pairProblems(pyproject, duplicated).join("; "), /2 \[\[package\]\] entries for pypdf/, "uv cannot pick one of two entries for the same dependency");
+  assert.match(pairProblems(pyproject, duplicated).join("; "), /requirement pypdf resolves to 2 \[\[package\]\] entries in the lock/, "uv cannot pick one of two entries for the same dependency");
 
   const handEdited = lock.replace(registry("pypdf", "6.4.1", "6.4.1"), registry("pypdf", "6.4.2", "6.4.1"));
-  assert.match(pairProblems(pyproject, handEdited).join("; "), /records version 6\.4\.2 but carries pypdf-6\.4\.1\.(tar\.gz|py3-none-any\.whl) with version 6\.4\.1/, "a pin edited without its filenames is a malformed entry");
+  const handEditedProblems = pairProblems(pyproject, handEdited);
+  assert.equal(handEditedProblems.length, 1, handEditedProblems.join("; "));
+  assert.match(handEditedProblems[0], /pypdf records version "6\.4\.2" but its artifact "pypdf-6\.4\.1-py3-none-any\.whl" claims "6\.4\.1"/,
+    "a pin edited without its filenames is a malformed entry — and it is the WHEEL uv checks");
+  assert.ok(!/tar\.gz/.test(handEditedProblems[0]), handEditedProblems[0]);
 
   const noPython = lock.replace('requires-python = ">=3.12, <3.15"\n', "");
   assert.match(pairProblems(pyproject, noPython).join("; "), /the lockfile records none/, "uv refuses to parse a lock with no requires-python");

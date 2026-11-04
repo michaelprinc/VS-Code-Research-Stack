@@ -325,6 +325,25 @@ function planView(packageId, receipt, workerVersion, artifacts) {
   };
 }
 
+/**
+ * The attempt count as the layer below reported it.
+ *
+ * `values.attempts || 1` turned the runner's `attempts = 0` — a refusal where no process started
+ * (runner.js sets it, runtime.js carries it) — into "1 attempt", which told the operator a uv
+ * process had run when none had (receipts/11a, receipts/11b). A real count published by the run
+ * record is consumed whatever key it is published under, so a step that ran `--locked` and then the
+ * `--frozen` fallback records 2 attempts instead of 1 (receipts/13).
+ */
+function runAttempts(values, fallback = 1) {
+  for (const key of ["attempts", "processAttempts", "attemptsRun", "attemptCount"]) {
+    const value = values && values[key];
+    if (value === undefined || value === null) continue;
+    const count = Number(value);
+    if (Number.isFinite(count) && count >= 0) return Math.floor(count);
+  }
+  return fallback;
+}
+
 function attemptRecord(step, values) {
   return {
     id: step.id,
@@ -333,10 +352,11 @@ function attemptRecord(step, values) {
     startedAt: values.startedAt || null,
     finishedAt: values.finishedAt || new Date().toISOString(),
     durationMs: values.durationMs || null,
-    attempts: values.attempts || 1,
+    attempts: runAttempts(values, 1),
     exitCode: values.exitCode === undefined ? null : values.exitCode,
     error: values.error || "",
     command: values.command || "",
+    rerun: values.rerun || "",
     hint: values.hint || "",
     blockedBy: values.blockedBy || null,
     artifacts: values.artifacts || null,
@@ -355,17 +375,81 @@ function nextActionFor(error, step) {
   if (error.kind === "buffer") return "Retry the step; the tool produced more output than the toolkit captures.";
   if (error.kind === "cwd") return "Restore the workspace folder this step works in, then retry.";
   if (error.kind === "cancelled") return "Run Set up package components again to resume where this run stopped.";
+  // The reviewed boundary refused to start the tool at all (the DD7-12 uv policy gate). Nothing in
+  // this workspace caused that: this build asked uv for something its reviewed policy never allows.
+  if (error.kind === "policy") return "Report this sentence with the setup log — this toolkit build asked uv to do something its reviewed policy refuses. Reinstall the VSIX from this release.";
   return error.hint || "Retry this step, then open the setup log for the full output.";
 }
 
-/** The command line a failing step actually ran, for the copied diagnostics. */
+/**
+ * The command line a failing step actually ran, for the copied diagnostics.
+ *
+ * This is the **data** form: one line, kept as recorded evidence and read back by the status record.
+ * The pasteable instruction an operator is told to run is `rerunInstruction()` below.
+ */
 function commandLine(error) {
   if (!error || !error.command) return "";
   // The hint beside this text tells the operator to run the command themselves, and a workspace path
   // such as `K:\Soukromé aktivity\Bankovní účet SVJ ČSA368` breaks a copy-paste unless it is quoted.
   const quote = (value) => (/\s/.test(value) ? `"${value}"` : value);
   const args = Array.isArray(error.args) && error.args.length ? ` ${error.args.map(quote).join(" ")}` : "";
-  return `${quote(error.command)}${args}${error.cwd ? ` (in ${quote(error.cwd)})` : ""}`;
+  // The combined lock-fallback error carries the command and its arguments but no working directory
+  // (receipts/19c). Dropping the suffix silently produced a line that looked complete but would run
+  // in whatever directory the operator happened to be in; the gap is named instead.
+  const where = error.cwd ? ` (in ${quote(error.cwd)})` : " (working directory not recorded)";
+  return `${quote(error.command)}${args}${where}`;
+}
+
+/**
+ * Quote one argument the way cmd.exe and PowerShell un-quote it (the CommandLineToArgvW rules):
+ * a run of backslashes before a quote is doubled, an embedded quote is escaped, and a trailing run
+ * is doubled so it cannot swallow the closing quote. `&`, `|`, `<`, `>` and `^` are inert inside
+ * double quotes, so every argument is quoted here even when it contains no whitespace — a path like
+ * `K:\A&B` would otherwise be split by cmd.exe into three commands.
+ */
+function windowsQuote(value) {
+  const text = String(value === undefined || value === null ? "" : value);
+  let out = "";
+  let backslashes = 0;
+  for (const character of text) {
+    if (character === "\\") { backslashes += 1; continue; }
+    if (backslashes) {
+      out += "\\".repeat(character === '"' ? backslashes * 2 : backslashes);
+      backslashes = 0;
+    }
+    out += character === '"' ? '\\"' : character;
+  }
+  return `"${out}${"\\".repeat(backslashes * 2)}"`;
+}
+
+/** POSIX shell quoting for the same instruction on a non-Windows host. */
+function posixQuote(value) {
+  return `'${String(value === undefined || value === null ? "" : value).replace(/'/g, "'\\''")}'`;
+}
+
+/**
+ * The re-run instruction for an operator: `cd` to the directory the step ran in, then the command.
+ *
+ * The single-line form with a trailing `(in "<cwd>")` is not pasteable — cmd.exe and PowerShell read
+ * that suffix as a command block — so the directory becomes its own `cd` line (0.3.7 Windows review
+ * W7). The paths are written as UTF-8, which a cmd.exe session on an OEM code page can mangle, so
+ * the instruction names the code page fix instead of leaving the operator with broken characters (W8).
+ */
+function rerunInstruction(error, { platform = process.platform } = {}) {
+  if (!error || !error.command) return "";
+  const quote = platform === "win32" ? windowsQuote : posixQuote;
+  const argv = [error.command, ...(Array.isArray(error.args) ? error.args : [])];
+  const lines = [platform === "win32"
+    ? "To re-run this step yourself, use a UTF-8 terminal — in cmd.exe run `chcp 65001` first, then:"
+    : "To re-run this step yourself, use a UTF-8 terminal:"];
+  if (error.cwd) lines.push(`cd ${quote(error.cwd)}`);
+  else lines.push("The working directory was not recorded for this attempt; run the command from the directory this step works in.");
+  if (argv.some((value) => /[\r\n]/.test(String(value)))) {
+    lines.push("The recorded command contains a line break and cannot be pasted as one line; copy it from the setup log record.");
+  } else {
+    lines.push(argv.map(quote).join(" "));
+  }
+  return lines.join("\n");
 }
 
 /**
@@ -475,7 +559,7 @@ async function runPlan({ vscode, context, folder, packageId, stepIds, services =
         ran.push(step.id);
         const attempt = attemptRecord(step, {
           status: "installed", startedAt: stepStartedAt, durationMs: Date.now() - stepStarted,
-          attempts: recorded.attempts || 1, artifacts: verified, evidence: recorded.evidence,
+          attempts: runAttempts(recorded, 1), artifacts: verified, evidence: recorded.evidence,
           lockFallback: recorded.lockFallback || null,
         });
         attempts.push(attempt);
@@ -485,8 +569,9 @@ async function runPlan({ vscode, context, folder, packageId, stepIds, services =
         const attempt = attemptRecord(step, {
           status: error.kind === "cancelled" ? "cancelled" : "failed",
           startedAt: stepStartedAt, durationMs: Date.now() - stepStarted,
-          attempts: error.attempts || 1, exitCode: error.exitCode,
+          attempts: runAttempts(error, 1), exitCode: error.exitCode,
           error: error.message, hint: nextActionFor(error, step), command: commandLine(error),
+          rerun: rerunInstruction(error),
           lockFallback: error.lockFallback || null,
           artifacts: await verifyStepArtifacts(step, root, manifest).catch(() => null),
         });
@@ -514,6 +599,9 @@ async function runPlan({ vscode, context, folder, packageId, stepIds, services =
         id: step.id, label: step.label, status: "installed", carried: true, durationMs: 0,
         startedAt: status.at || startedAt, finishedAt: status.at || finishedAt,
         evidence: status.evidence, artifacts,
+        // A retry record covers steps it did not re-run. Their fallback marker has to travel with
+        // them, or a package installed through `--frozen` reads as a clean install after any retry.
+        lockFallback: (receipt.steps[step.id] || {}).lockFallback || null,
       });
     }
     const rowsById = new Map([...carried, ...attempts].map((row) => [row.id, row]));
@@ -601,6 +689,6 @@ module.exports = {
   STEPS_BY_ID, COMPONENTS_BY_ID, RECEIPT_NAME, NOTEBOOK_PROJECT_NAME, NOTEBOOK_DEPENDENCIES,
   stepsForPackage, packageDeclaration, stepsForComponents, resolveStepSelection, explainStepSelection,
   readReceipt, writeReceipt, verifyStepArtifacts, stepStatus, componentStatus, planArtifacts, planView,
-  overlayStepFor, inspectNotebookProject, writeOverlayFiles, overlayEvidence, commandLine, attemptRecord,
+  overlayStepFor, inspectNotebookProject, writeOverlayFiles, overlayEvidence, commandLine, rerunInstruction, runAttempts, attemptRecord, nextActionFor,
   runPlan, refreshPlanStatus, outdatedSteps, failedSteps,
 };
