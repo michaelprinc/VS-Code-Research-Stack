@@ -1,16 +1,52 @@
-# Clean-clone rebuild of tag v0.3.7, run twice on 2026-11-04
-# Command: bash /tmp/repro_check.sh v0.3.7  (git clone --branch v0.3.7 into a mktemp dir, PATH=/tmp/uvs:$PATH npm run package)
-# Tag v0.3.7 -> commit e0192ad2709d4679d5d7621cb8640e4650964eaf
+# Clean-clone rebuild of tag v0.3.7, run four times on 2026-11-04
 
-run 1  built   332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
-run 1  shipped 332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
-run 1  REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte (exit 0)
+Command, each time:
 
-run 2  built   332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
-run 2  shipped 332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
-run 2  REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte (exit 0)
+    bash /tmp/repro_check.sh v0.3.7
 
-The clone has no node_modules (gitignored); the script symlinks the reviewed extension/node_modules so
-both builds use the same pinned @vscode/vsce 4.0.0 as the shipped build. The clone carries no CRLF
-(.gitattributes: * text=auto eol=lf), and package.js sets SOURCE_DATE_EPOCH=315532800 and staged mode 0644,
-so the ZIP member timestamps and permission bits match too.
+which does `git clone --branch v0.3.7` into a fresh `mktemp -d`, symlinks the reviewed
+`extension/node_modules` (gitignored, so the clone has none) so the build uses the same pinned
+`@vscode/vsce` 4.0.0 as the shipped build, runs `PATH=/tmp/uvs:$PATH npm run package` in the clone,
+and compares the clone's `dist/research-stack-toolkit-0.3.7.vsix` with the shipped one.
+
+## Runs 1 and 2 — tag v0.3.7 at commit e0192ad (the release commit)
+
+    run 1  built   332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+    run 1  shipped 332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+    run 1  REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte (exit 0)
+
+    run 2  built   332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+    run 2  shipped 332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+    run 2  REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte (exit 0)
+
+## Runs 3 and 4 — tag v0.3.7 at commit eeb2f08 (the commit that added this receipt)
+
+    run 3  built   332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+    run 3  shipped 332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+    run 3  REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte (exit 0)
+
+    run 4  built   332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+    run 4  shipped 332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+    run 4  REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte (exit 0)
+
+## Why the tag moved between the runs, and why that is not a gap
+
+`e0192ad` carried the release; `eeb2f08` adds only this receipt and two records about it —
+`git show --stat --name-only eeb2f08` lists `.agent/QUALITY_STATE.md`,
+`evidence/quality-v0.3.7-2026-11-02/README.md` and this file, and no packaged path. Runs 3 and 4
+rebuild from the later tag instead of relying on that argument. The same holds for any later commit
+that touches no packaged path; re-run the command above to confirm it for a given tag.
+
+## What makes two trees build the same bytes
+
+- `.gitattributes` (`* text=auto eol=lf`) keeps the committed blobs LF, so the clone's text is the
+  tree's text; `extension/scripts/package.js` normalises the staged tree to LF anyway and
+  `scripts/verify_vsix.py` refuses CRLF in any packaged text member.
+- `package.js` sets `SOURCE_DATE_EPOCH=315532800`, which vsce honours by stamping every ZIP entry with
+  that date and sorting members by path; the verifier refuses any other timestamp.
+- `package.js` gives every staged file mode 0644, which the ZIP records in `external_attr`; the
+  verifier refuses any other mode outside the three members vsce writes itself
+  (`[Content_Types].xml`, `extension.vsixmanifest`, `extension/readme.md`).
+
+Before those three fixes existed, two clone builds seconds apart produced three different digests with
+byte-identical members.

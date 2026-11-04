@@ -37,7 +37,7 @@ Receipt: [uv-matrix.json](../evidence/quality-v0.3.7-2026-11-02/uv-matrix.json).
 | Packaged VSIX | `dist/research-stack-toolkit-0.3.7.vsix`, 332,448 bytes, 86 members, 0 carrying CRLF, every ZIP entry stamped at the fixed build epoch, every member 0644 except the 3 vsce writes, sha256 `f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16` (+ `.sha256` sidecar, verified with `sha256sum -c`) |
 | VSIX audit `npm run verify-package` | `"result": "passed"`, 86 members, `sourceFilesMatch: true`, packaged worker + overlay pair checked (`vsix-audit.json`) |
 | Installed-payload check `npm run check:payload` | passed on the packaged artifact; managed path resolves to `.research-toolkit/managed/worker-0.3.7` (`payload-check.json`) |
-| Clean-clone rebuild | `bash /tmp/repro_check.sh v0.3.7` twice after the re-tag (tag → commit `e0192ad`): both clones built 332,448 bytes with sha256 `f221a9a8…`, identical to the shipped artifact (`clean-clone-rebuild.txt`) |
+| Clean-clone rebuild | `bash /tmp/repro_check.sh v0.3.7` four times — twice against the release commit `e0192ad`, twice against the tag after the receipts commit: every clone built 332,448 bytes with sha256 `f221a9a8…`, identical to the shipped artifact (`clean-clone-rebuild.txt`) |
 
 One defect the audit proved about the artifact itself: the 0.3.7 VSIX as first built was **not
 reproducible from the tag**. 17 of its 86 members — 16 of the 32 `extension/guides/*.md` files and
@@ -207,8 +207,8 @@ Still open after all rounds (recorded, not hidden):
    sha256 `f221a9a8…`), `npm run verify-package` and `npm run check:payload` re-run, the `.sha256`
    sidecar refreshed in the documented `sha256sum` format and verified with `sha256sum -c`, and every
    size, digest and test count re-recorded in this file, the CHANGELOG, the gates and the evidence folder.
-2. **Done after the re-tag:** two clean-clone builds of `v0.3.7` (commit `e0192ad`) each produced the
-   shipped artifact byte-for-byte — 332,448 bytes, sha256 `f221a9a8…` — recorded in
+2. **Done after the re-tag:** four clean-clone builds of `v0.3.7` each produced the shipped artifact
+   byte-for-byte — 332,448 bytes, sha256 `f221a9a8…` — recorded in
    [clean-clone-rebuild.txt](../evidence/quality-v0.3.7-2026-11-02/clean-clone-rebuild.txt).
 3. Install the re-cut VSIX in the reported field workspace, run setup, and attach the new
    `.research-toolkit/logs/` attempt log to the evidence folder.
