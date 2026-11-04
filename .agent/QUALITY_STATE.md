@@ -44,6 +44,7 @@ field retry reuses the store the failed run already created.
 | Packaged VSIX | `dist/research-stack-toolkit-0.3.8.vsix`, **336 634 bytes, 87 members**, 0 carrying CRLF, every ZIP entry stamped 1980-01-01, 84 members `0644` + 3 vsce writes `0664`, sha256 `fd42c2aab0977219fae44a24c2a697e0a4fb762aedad3baf1340e1d43967bdd2` (+ `.sha256` sidecar, verified with `sha256sum -c`) |
 | VSIX audit `npm run verify-package` | `"result": "passed"`, `sourceFilesMatch: true`, `stdio.py` among the packaged worker members (`vsix-audit.json`) |
 | Installed-payload check `npm run check:payload` | passed; managed path resolves to `.research-toolkit/managed/worker-0.3.8` (`payload-check.json`) |
+| Clean-clone rebuild | `bash /tmp/repro_check.sh v0.3.8` twice — each clone of tag `v0.3.8` (commit `7638898`) built 336 634 bytes with sha256 `fd42c2aa…`, identical to the shipped artifact (`clean-clone-rebuild.txt`) |
 
 ## What changed in this release (finding → implementation)
 

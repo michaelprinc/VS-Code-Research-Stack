@@ -169,7 +169,7 @@ Receipts: [evidence/quality-v0.3.8-2026-11-04/](../../evidence/quality-v0.3.8-20
 | E | `npm run verify-package` | `"result": "passed"`, `sourceFilesMatch: true`, `stdio.py` packaged |
 | E | `npm run check:payload` | `"result": "passed"`, `managedPath` `.research-toolkit/managed/worker-0.3.8` |
 | E | `sha256sum … > ….sha256` then `sha256sum -c` | OK |
-| F | clean-clone rebuild of `v0.3.8` | recorded in `clean-clone-rebuild.txt` after the tag |
+| F | `bash /tmp/repro_check.sh v0.3.8`, twice | each clean clone built 336 634 bytes with sha256 `fd42c2aa…`, identical to the shipped artifact (`clean-clone-rebuild.txt`) |
 
 Test counts moved from 331 → 336 (Node) and 218 → 219 (Python) against the 0.3.7 baseline: 11 new cases in
 `tests/test_stdio.py`, 1 new VSIX gate, 5 new Node assertions across `steps.test.js` (13) and

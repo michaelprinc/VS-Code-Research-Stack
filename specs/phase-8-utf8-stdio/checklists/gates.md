@@ -68,5 +68,8 @@ Each gate is a command that was run, not an intention. Run them from the reposit
 
 ## Gate F — reproducibility from the tag
 
-- [ ] `git archive v0.3.8` into a clean directory, `npm run package` there, compare the artifact bytes with
-  the tagged build — recorded in `clean-clone-rebuild.txt`
+- [x] `bash /tmp/repro_check.sh v0.3.8`, twice — each run clones `v0.3.8` (commit `7638898`) into a fresh
+  `mktemp -d`, builds there, and compares: **336 634 bytes, sha256
+  `fd42c2aab0977219fae44a24c2a697e0a4fb762aedad3baf1340e1d43967bdd2`, identical to the shipped artifact
+  both times** (`clean-clone-rebuild.txt`). The script now derives the artifact name from the clone's own
+  `extension/vsix-manifest.json` instead of a hard-coded release string.

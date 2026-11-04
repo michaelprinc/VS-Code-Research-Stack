@@ -1,0 +1,38 @@
+# Clean-clone rebuild of tag v0.3.8, run twice on 2026-11-04
+
+Command, each time:
+
+    bash /tmp/repro_check.sh v0.3.8
+
+which does `git clone --branch v0.3.8` into a fresh `mktemp -d`, symlinks the reviewed
+`extension/node_modules` (gitignored, so the clone has none) so the build uses the same pinned
+`@vscode/vsce` 4.0.0 as the shipped build, derives the artifact name from the **clone's own**
+`extension/vsix-manifest.json` rather than from a hard-coded release string, runs
+`PATH=/tmp/uvs:$PATH npm run package` in the clone, and compares the clone's
+`dist/research-stack-toolkit-0.3.8.vsix` with the shipped one.
+
+Tag `v0.3.8` → commit `76388982104d8a2cd896daf0563a5f8f0293b615`.
+
+## Run 1
+
+    tag v0.3.8 -> packaged version 0.3.8
+    built   336634 bytes  fd42c2aab0977219fae44a24c2a697e0a4fb762aedad3baf1340e1d43967bdd2
+    shipped 336634 bytes  fd42c2aab0977219fae44a24c2a697e0a4fb762aedad3baf1340e1d43967bdd2
+    REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte   (exit 0)
+
+## Run 2
+
+    tag v0.3.8 -> packaged version 0.3.8
+    built   336634 bytes  fd42c2aab0977219fae44a24c2a697e0a4fb762aedad3baf1340e1d43967bdd2
+    shipped 336634 bytes  fd42c2aab0977219fae44a24c2a697e0a4fb762aedad3baf1340e1d43967bdd2
+    REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte   (exit 0)
+
+`git clone` prints `warning: --depth is ignored in local clones` because the source is a local path;
+the clone is still a fresh working tree with no `node_modules`, no `dist/` and no untracked files.
+
+## Note on the harness itself
+
+The script previously hard-coded `research-stack-toolkit-0.3.7.vsix` in the two paths it compares, so
+run against a newer tag it would have compared the wrong files. It now reads the packaged version out
+of the clone's `extension/vsix-manifest.json` — the same lesson as `.agent/LESSONS.md` item 6 (0.3.7)
+and item 35 (0.3.8): derive the artifact name, do not write it down.

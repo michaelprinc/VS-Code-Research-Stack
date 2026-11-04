@@ -65,6 +65,7 @@ Every tick names the command or test that produced it; the receipts are in
 - [x] E4 Evidence folder `evidence/quality-v0.3.8-2026-11-04/` with the reproduction, the encoding matrix
   and the audit results.
 - [x] E5 CHANGELOG, release report, `.agent/QUALITY_STATE.md`, `.agent/LESSONS.md`, gate report.
-- [ ] E6 **Gate E:** full suites green; artifact hash recorded; commit + tag `v0.3.8`; clean-clone rebuild
-  byte-identical. → suites and hash done (`node-suite.txt`, `pytest-with-uv.txt`, `pytest-no-uv.txt`,
-  `dist/research-stack-toolkit-0.3.8.vsix.sha256`); the tag and the rebuild are the last two steps.
+- [x] E6 **Gate E:** full suites green; artifact hash recorded; commit + tag `v0.3.8`; clean-clone rebuild
+  byte-identical. → 336 Node / 219 Python, `dist/research-stack-toolkit-0.3.8.vsix.sha256` verified with
+  `sha256sum -c`, tag `v0.3.8` at `7638898`, and two clean-clone builds producing the shipped artifact
+  byte-for-byte (`clean-clone-rebuild.txt`).
