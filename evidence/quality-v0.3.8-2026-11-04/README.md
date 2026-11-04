@@ -16,6 +16,7 @@ console codec on this host rather than claiming a Windows run.
 | [pytest-no-uv.txt](pytest-no-uv.txt) | Same suite with no uv on `PATH` → 218 passed, 1 skipped |
 | [lockintegrity-cli.json](lockintegrity-cli.json) | `scripts/lockintegrity.py` → `"ok": true`, three pairs, worker root `0.3.8` at `revision = 5` |
 | [uv-lock-check.txt](uv-lock-check.txt) | `uv-0.13.6 lock --check` in the three pair directories → exit 0 |
+| [uv-lock-check-across-versions.txt](uv-lock-check-across-versions.txt) | `uv lock --check` on `extension/worker` with uv 0.5.0 … 0.13.6: exit 0 on 0.6.10 and above; uv 0.5.0 predates the subcommand (exit 2, usage error) |
 | [vsix-audit.json](vsix-audit.json) | `npm run verify-package` → `"result": "passed"`, `sourceFilesMatch: true`, `stdio.py` among the packaged worker members |
 | [payload-check.json](payload-check.json) | `npm run check:payload` → `"result": "passed"`, `managedPath` `.research-toolkit/managed/worker-0.3.8` |
 | [docs-version-scan.txt](docs-version-scan.txt) | Every `worker-*` / `research-stack-toolkit-*` reference in the shipped documentation: 18 references, all 0.3.8 |

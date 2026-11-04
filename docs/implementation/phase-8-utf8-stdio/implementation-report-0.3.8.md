@@ -32,6 +32,13 @@ The step is *Corpus index and record store*. Its command is
 in a codec: `'charmap' codec can't encode character '\u010d'`. The character is the `č` in the user's own
 workspace name. Nothing in the message mentions a network, a proxy, uv, or the store.
 
+The panel also listed **uv 0.11.23** as the host tool setup used. That is not implicated here: the store
+step starts no uv process at all — it is a plain `python -m research_stack.cli` call — and the step that
+does use uv, the isolated locked worker, is one of the three that verified. For completeness, uv 0.6.10,
+0.7.22, 0.8.5, 0.9.30, 0.10.7 and 0.13.6 each accept this release's worker pair with
+`uv lock --check` exit 0 (`uv-lock-check-across-versions.txt`); uv 0.5.0 predates that subcommand and was
+covered in 0.3.7 by `uv sync --locked`.
+
 ## The root cause, in the order it was established
 
 **1. The operation succeeded; the report of it failed.** `init_lab_workspace()` had already returned a
