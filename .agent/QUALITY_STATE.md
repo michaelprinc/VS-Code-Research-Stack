@@ -116,3 +116,41 @@ dependency readers aligned with measured uv verdicts.
    fails.
 4. Close P32 in both readers, if it is worth another reader round.
 5. Remove or archive `extension/dist/acceptance-0.3.2/`.
+
+## Research input: testing Windows-targeted software from Linux (2026-11-04)
+
+Deliverable: [docs/research/windows-testing-on-linux-2026-11/](../docs/research/windows-testing-on-linux-2026-11/README.md)
+— 8 documents plus two runnable probes and their captured output. It changes no code and closes no gate; it
+changes what the next release can be asked to prove.
+
+What it established about **this** host, measured rather than assumed:
+
+- The development host is **WSL2** (`6.18.33.1-microsoft-standard-WSL2`) and the repository is on `K:\`
+  through a 9p drvfs mount (`stat -f` → `v9fs`). NTFS case-insensitivity is real here — `RESEARCH.SQLITE3`
+  and `research.Sqlite3` resolve to the same 77,824-byte file — and the reported field workspace is readable
+  at `/mnt/k/Soukromé_aktivity/Bankovní účet SVJ ČSA368/.research-toolkit/`, including the attempt log that
+  records the 0.3.7 failure and a `research.sqlite3` created in the same minute.
+- Windows **processes** are unreachable: no `cmd.exe`, `powershell.exe`, `taskkill.exe`, `chcp`,
+  `python.exe` on PATH; no `/mnt/c`, no `/etc/wsl.conf`; no wine, qemu, docker or `/dev/kvm`. So risk 3
+  above ("Windows behaviour is simulated, not observed") is confirmed as a hard limit of this host, not a
+  lack of effort.
+- The mechanism of the 0.3.7 defect is documented behaviour: CPython uses the ANSI code page for **pipes**
+  on Windows (PEP 540), and `execFile` gives the child a pipe. `-I` implies `-E`, so `PYTHONUTF8` could not
+  have carried the fix — `-X utf8` was the right choice.
+
+New actions it adds to the list above, cheapest first (full ranking in
+[methodology.md](../docs/research/windows-testing-on-linux-2026-11/methodology.md) §8):
+
+1. A `test-inventory` guard — every `test/*.test.js` must appear in `extension/package.json`'s `scripts.test`.
+2. Record `process.platform`, `process.arch` and `os.release()` in the setup log, so a field report is
+   classifiable without asking the user.
+3. `uv pip compile pyproject.toml --python-platform windows --python-version 3.12` as a CI step: proves the
+   universal `uv.lock` resolves for Windows from this Linux box.
+4. Windows-shaped env fixtures in `hosttools` tests (mixed-case `Path`/`Temp`/`ComSpec`/`PATHEXT`, and a
+   stripped env matching the two open VS Code spawn-env defects).
+5. Static guards over generated names: reserved device names, illegal characters, trailing dot/space, and
+   case collisions via `ntpath.normcase`.
+6. A `windows-latest` CI job running the existing 336 Node and 219 Python suites — free on a public
+   repository, and the only step that turns most SHAPE claims into WINDOWS-BACKED claims.
+7. Publishing must move to `vsce publish --oidc` / `ovsx publish --trusted-publishing`: **global Azure
+   DevOps PATs are retired on 1 December 2026.**

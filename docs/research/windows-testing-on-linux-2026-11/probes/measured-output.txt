@@ -1,0 +1,133 @@
+# Measured on 2026-11-04, Debian GNU/Linux 13 (trixie) x86_64, Python 3.12.16, Node v24.22.0
+
+## probes/codepage_probe.py
+interpreter: /data/dsh/home/Aplikovaná umělá inteligence pro sestry karmelitky/Research-Stack/toolkit/.venv/bin/python
+Python 3.12.16 on linux
+installed locales (locale -a): ['C', 'C.utf8', 'POSIX']
+
+== default (host locale)
+  preferred='utf-8' stdout='utf-8'/'surrogateescape' stderr='utf-8'/'backslashreplace'
+  č
+
+  exit=0
+== LC_ALL=C
+  preferred='utf-8' stdout='utf-8'/'surrogateescape' stderr='utf-8'/'backslashreplace'
+  č
+
+  exit=0
+== LC_ALL=C.utf8
+  preferred='UTF-8' stdout='utf-8'/'surrogateescape' stderr='utf-8'/'backslashreplace'
+  č
+
+  exit=0
+== PYTHONIOENCODING=cp1252
+  preferred='utf-8' stdout='cp1252'/'strict' stderr='cp1252'/'backslashreplace'
+  encode of U+010D failed: 'charmap' codec can't encode character '\u010d' in position 0: character maps to <undefined>
+
+  exit=0
+== PYTHONIOENCODING=cp1252 with -I (isolated)
+  preferred='utf-8' stdout='utf-8'/'surrogateescape' stderr='utf-8'/'backslashreplace'
+  č
+
+  exit=0
+== -X utf8 with PYTHONIOENCODING=cp1252
+  preferred='utf-8' stdout='cp1252'/'strict' stderr='cp1252'/'backslashreplace'
+  encode of U+010D failed: 'charmap' codec can't encode character '\u010d' in position 0: character maps to <undefined>
+
+  exit=0
+== -I -B -X utf8 (the 0.3.8 argv)
+  preferred='utf-8' stdout='utf-8'/'surrogateescape' stderr='utf-8'/'backslashreplace'
+  č
+
+  exit=0
+== child reconfigures to cp1252, errors=strict (the faithful fixture)
+  preferred='utf-8' stdout='cp1252'/'strict' stderr='utf-8'/'backslashreplace'
+  encode of U+010D failed: 'charmap' codec can't encode character '\u010d' in position 0: character maps to <undefined>
+
+  exit=0
+
+## probes/path_budget.py
+ chars  verdict       path
+    97  fits          C:\Users\user\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__init__.py
+   122  fits          C:\Users\user\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__pycache__\__init__.cpython-312.pyc
+    83  fits          C:\Users\user\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\mcp\types.py
+    67  fits          C:\Users\user\.research-toolkit\managed\worker-0.3.8\Scripts\uv.exe
+    77  fits          C:\Users\user\.research-toolkit\managed\worker-0.3.8\.venv\Scripts\python.exe
+    54  fits          C:\Users\user\.research-toolkit\store\research.sqlite3
+    57  fits          C:\Users\user\.research-toolkit\logs\setup-attempt-01.log
+   110  fits          C:\Users\user\.research-toolkit\notebooks\.venv\Lib\site-packages\matplotlib\mpl-data\fonts\ttf\DejaVuSans.ttf
+   101  fits          C:\Users\uživatel\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__init__.py
+   126  fits          C:\Users\uživatel\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__pycache__\__init__.cpython-312.pyc
+    87  fits          C:\Users\uživatel\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\mcp\types.py
+    71  fits          C:\Users\uživatel\.research-toolkit\managed\worker-0.3.8\Scripts\uv.exe
+    81  fits          C:\Users\uživatel\.research-toolkit\managed\worker-0.3.8\.venv\Scripts\python.exe
+    58  fits          C:\Users\uživatel\.research-toolkit\store\research.sqlite3
+    61  fits          C:\Users\uživatel\.research-toolkit\logs\setup-attempt-01.log
+   114  fits          C:\Users\uživatel\.research-toolkit\notebooks\.venv\Lib\site-packages\matplotlib\mpl-data\fonts\ttf\DejaVuSans.ttf
+   117  fits          C:\Users\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__init__.py
+   142  fits          C:\Users\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__pycache__\__init__.cpython-312.pyc
+   103  fits          C:\Users\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\mcp\types.py
+    87  fits          C:\Users\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Scripts\uv.exe
+    97  fits          C:\Users\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\.venv\Scripts\python.exe
+    74  fits          C:\Users\Bankovní účet SVJ ČSA368\.research-toolkit\store\research.sqlite3
+    77  fits          C:\Users\Bankovní účet SVJ ČSA368\.research-toolkit\logs\setup-attempt-01.log
+   130  fits          C:\Users\Bankovní účet SVJ ČSA368\.research-toolkit\notebooks\.venv\Lib\site-packages\matplotlib\mpl-data\fonts\ttf\DejaVuSans.ttf
+   129  fits          C:\Users\Very Long Department Name 0123456789\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__init__.py
+   154  fits          C:\Users\Very Long Department Name 0123456789\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__pycache__\__init__.cpython-312.pyc
+   115  fits          C:\Users\Very Long Department Name 0123456789\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\mcp\types.py
+    99  fits          C:\Users\Very Long Department Name 0123456789\.research-toolkit\managed\worker-0.3.8\Scripts\uv.exe
+   109  fits          C:\Users\Very Long Department Name 0123456789\.research-toolkit\managed\worker-0.3.8\.venv\Scripts\python.exe
+    86  fits          C:\Users\Very Long Department Name 0123456789\.research-toolkit\store\research.sqlite3
+    89  fits          C:\Users\Very Long Department Name 0123456789\.research-toolkit\logs\setup-attempt-01.log
+   142  fits          C:\Users\Very Long Department Name 0123456789\.research-toolkit\notebooks\.venv\Lib\site-packages\matplotlib\mpl-data\fonts\ttf\DejaVuSans.ttf
+   152  fits          C:\Users\student\AppData\Roaming\Code\User\workspaceStorage\a1b2c3d4\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__init__.py
+   177  fits          C:\Users\student\AppData\Roaming\Code\User\workspaceStorage\a1b2c3d4\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__pycache__\__init__.cpython-312.pyc
+   138  fits          C:\Users\student\AppData\Roaming\Code\User\workspaceStorage\a1b2c3d4\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\mcp\types.py
+   122  fits          C:\Users\student\AppData\Roaming\Code\User\workspaceStorage\a1b2c3d4\.research-toolkit\managed\worker-0.3.8\Scripts\uv.exe
+   132  fits          C:\Users\student\AppData\Roaming\Code\User\workspaceStorage\a1b2c3d4\.research-toolkit\managed\worker-0.3.8\.venv\Scripts\python.exe
+   109  fits          C:\Users\student\AppData\Roaming\Code\User\workspaceStorage\a1b2c3d4\.research-toolkit\store\research.sqlite3
+   112  fits          C:\Users\student\AppData\Roaming\Code\User\workspaceStorage\a1b2c3d4\.research-toolkit\logs\setup-attempt-01.log
+   165  fits          C:\Users\student\AppData\Roaming\Code\User\workspaceStorage\a1b2c3d4\.research-toolkit\notebooks\.venv\Lib\site-packages\matplotlib\mpl-data\fonts\ttf\DejaVuSans.ttf
+   121  fits          D:\data\2026\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__init__.py
+   146  fits          D:\data\2026\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__pycache__\__init__.cpython-312.pyc
+   107  fits          D:\data\2026\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\mcp\types.py
+    91  fits          D:\data\2026\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Scripts\uv.exe
+   101  fits          D:\data\2026\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\.venv\Scripts\python.exe
+    78  fits          D:\data\2026\Bankovní účet SVJ ČSA368\.research-toolkit\store\research.sqlite3
+    81  fits          D:\data\2026\Bankovní účet SVJ ČSA368\.research-toolkit\logs\setup-attempt-01.log
+   134  fits          D:\data\2026\Bankovní účet SVJ ČSA368\.research-toolkit\notebooks\.venv\Lib\site-packages\matplotlib\mpl-data\fonts\ttf\DejaVuSans.ttf
+   128  fits          \\fileserver\sdilej\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__init__.py
+   153  fits          \\fileserver\sdilej\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__pycache__\__init__.cpython-312.pyc
+   114  fits          \\fileserver\sdilej\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\mcp\types.py
+    98  fits          \\fileserver\sdilej\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\Scripts\uv.exe
+   108  fits          \\fileserver\sdilej\Bankovní účet SVJ ČSA368\.research-toolkit\managed\worker-0.3.8\.venv\Scripts\python.exe
+    85  fits          \\fileserver\sdilej\Bankovní účet SVJ ČSA368\.research-toolkit\store\research.sqlite3
+    88  fits          \\fileserver\sdilej\Bankovní účet SVJ ČSA368\.research-toolkit\logs\setup-attempt-01.log
+   141  fits          \\fileserver\sdilej\Bankovní účet SVJ ČSA368\.research-toolkit\notebooks\.venv\Lib\site-packages\matplotlib\mpl-data\fonts\ttf\DejaVuSans.ttf
+
+worst case: 177 chars — C:\Users\student\AppData\Roaming\Code\User\workspaceStorage\a1b2c3d4\.research-toolkit\managed\worker-0.3.8\Lib\site-packages\research_stack\__pycache__\__init__.cpython-312.pyc
+headroom against MAX_PATH: 83 chars
+Note: the modern long-path behaviour needs the LongPathsEnabled registry value AND a
+long-path-aware application manifest; the `\\?\` prefix is the per-call escape hatch.
+
+== case collisions between toolkit-owned paths (NTFS compares case-insensitively) ==
+none — every owned path is distinct under ntpath.normcase
+
+== what Linux cannot show ==
+mkdir store/ and mkdir STORE/ both succeed here; on NTFS they are one directory.
+ntpath.normcase() reports the collision; the filesystem here will not.
+
+## node -e (path.win32 on Linux)
+C:\Users\uživatel\.research-toolkit\store\research.sqlite3
+win32.isAbsolute(/data/x): true | posix.isAbsolute(C:\\x): false
+win32.parse root: k:\
+win32.relative: c.sqlite3
+win32.delimiter: ; | posix.delimiter: :
+case-fold equal: false | normcase: false
+
+## mkdir store/ and mkdir STORE/ on this filesystem
+STORE
+store
+(both exist here; on NTFS they are the same directory)
+
+## node -e (path.win32.normcase — the correct case-fold helper)

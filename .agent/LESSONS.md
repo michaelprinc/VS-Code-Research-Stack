@@ -135,3 +135,28 @@ Durable process lessons. Release-specific decisions live in `specs/phase-N/desig
     `lockintegrity.py --json` was read as a root directory and printed `"ok": false` with three
     `missing pair:` lines — a false failure that looked like a real one. Run a verifier through its real
     interface and check the receipt, not just the exit code.
+
+## Research 2026-11-04 — testing Windows-targeted software from Linux
+
+Report: [docs/research/windows-testing-on-linux-2026-11/](../docs/research/windows-testing-on-linux-2026-11/README.md).
+
+38. **Check what the development host actually is before planning emulation.** This host is WSL2 and the
+    repository is on `K:\` through a 9p drvfs mount (`stat -f` → `v9fs`): real NTFS case-insensitivity, the
+    field workspace itself, and the field attempt log are reachable — while `cmd.exe`, `taskkill.exe`,
+    `chcp` and `python.exe` are absent from PATH. Windows *names* are available here; Windows *processes*
+    are not.
+39. **A platform defect usually has a documented mechanism.** CPython uses UTF-8 for the Windows console
+    device but the ANSI code page for **pipes and redirected files** (PEP 540), and `execFile` gives the
+    child a pipe — that one rule predicts the field failure. `-I` implies `-E`, so the fix had to be the
+    `-X utf8` flag rather than `PYTHONUTF8`.
+40. **An emulator's defaults are not the target's defaults.** Wine derives its code page from the Unix
+    locale (`WINEUNIXCP`, UTF-8 by default), so a default Wine prefix tests UTF-8 behaviour while claiming
+    to test cp1252. Same class as forcing a non-UTF-8 Linux locale, which mangles argv through
+    `surrogateescape` first.
+41. **Name the layer a test lives at.** SHAPE (the call form) / EMULATED (mechanism reproduced on Linux) /
+    FIXTURE (bytes recorded on real Windows) / WINDOWS-BACKED (hosted CI or a VM) / FIELD (the user's
+    machine). The label decides what a release note may claim, and it is what stops a local pass from being
+    read as Windows verification.
+42. **A test file that is not enumerated never runs.** `extension/package.json` lists 16 test files
+    explicitly; a 17th passes when run by hand and is invisible to CI. `module-boundaries.test.js` already
+    refuses an unreviewed shipped module — the same guard is missing for test files.
