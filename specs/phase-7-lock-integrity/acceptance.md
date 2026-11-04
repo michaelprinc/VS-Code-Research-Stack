@@ -36,8 +36,8 @@ not just the last one”) and by the notebook equivalent in `extension/test/step
 | Group | Receipt |
 | --- | --- |
 | T7-01 … T7-03 | `evidence/quality-v0.3.7-2026-11-02/uv-matrix.json`, `lock-provenance.json`, produced by the two scripts stored beside them |
-| T7-04 … T7-09 | `tests/test_lock_consistency.py` (65 tests) and `tests/test_vsix.py` (22 tests, the stale-pair fixture added for T7-07 and three CRLF reproducibility tests added after the tag) |
-| T7-10 … T7-16, T7-19 … T7-21 | `extension/test/lockfile.test.js`, `runtime.test.js`, `runner.test.js`, `steps.test.js`, `module-boundaries.test.js` — 250/250 green |
+| T7-04 … T7-09 | `tests/test_lock_consistency.py` (79 tests with a real uv binary named by `RESEARCH_STACK_UV`; 78 pass and 1 skips without one) and `tests/test_vsix.py` (22 tests: the stale-pair fixture added for T7-07, three CRLF reproducibility tests, the ZIP build-epoch and permission-bit invariants, three runner-boundary refusals, a synchronous-primitive refusal and two capability-audit cases, all added after the tag) |
+| T7-10 … T7-16, T7-19 … T7-21 | `extension/test/lockfile.test.js`, `runtime.test.js`, `runner.test.js`, `steps.test.js`, `module-boundaries.test.js`, `installer.test.js`, `status.test.js`, `hosttools.test.js`, `lockfile-adversarial.test.js` — 331/331 green across the sixteen files `npm test` runs |
 | T7-17, T7-18 | `tests/test_release_identity.py`, `extension/test/unit.test.js`, `extension/scripts/with-artifact.js`, `evidence/quality-v0.3.7-2026-11-02/vsix-audit.json` |
 
 Two findings changed the plan while it was executed, and both are recorded rather than smoothed over:
