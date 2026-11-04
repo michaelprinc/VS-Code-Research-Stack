@@ -6,6 +6,8 @@ const os = require("node:os");
 const path = require("node:path");
 const { baseInventory, checkInventory } = require("../diagnostics");
 const { makeHarness } = require("./harness");
+// The Python argv shape comes from the shipped runner, not from a fixture's memory of it (0.3.8).
+const { PYTHON_FLAGS, runsPythonFile } = require("./python-argv");
 
 const find = (snapshot, id) => snapshot.components.find((item) => item.id === id);
 function fixture(t) {
@@ -42,8 +44,8 @@ test("observed versions and smoke results stay separate from worker/MCP/service 
     async runFile(executable, args) {
       calls.push({ executable, args });
       if (args[0] === "--version") return `${path.basename(executable)} 9.8.7-observed`;
-      assert.deepEqual(args.slice(0, 2), ["-I", "-B"]);
-      assert.ok(args[2].endsWith("probe.py"));
+      assert.deepEqual(args.slice(0, PYTHON_FLAGS.length), PYTHON_FLAGS, `the probe child carries the reviewed flags ${PYTHON_FLAGS.join(" ")}`);
+      assert.ok(runsPythonFile(args, "probe.py"), `and the probe script is the argument after them, got ${args.join(" ")}`);
       return JSON.stringify({ python: "3.12.99", packages: {
         "mcp-python-sdk": { version: "2.2.0", ok: true, detail: "Import passed" },
         pypdf: { version: "6.4.1", ok: true, detail: "Memory test passed" },

@@ -3,10 +3,10 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
-const { runProcess, asRunProcess, stderrTail } = require("./runner");
+const { runProcess, asRunProcess, stderrTail, PYTHON_FLAGS } = require("./runner");
 const { resolverFrom } = require("./hosttools");
 const { pairProblems, isLockDrift } = require("./lockfile");
-const WORKER_VERSION = "0.3.7";
+const WORKER_VERSION = "0.3.8";
 // The managed worker folder name is derived from the version so a release cannot leave one stale.
 const WORKER_FOLDER = `.research-toolkit/managed/worker-${WORKER_VERSION}`;
 const componentCatalog = require("./components.json");
@@ -218,7 +218,7 @@ async function rollbackRuntime(vscode, context, folder, version, services = {}) 
 }
 
 async function functionalCheck(context, runtime, folder, document, services = {}) {
-  const args = ["-I", "-B", path.join(context.extensionUri.fsPath, "functional_check.py")];
+  const args = [...PYTHON_FLAGS, path.join(context.extensionUri.fsPath, "functional_check.py")];
   if (document) {
     const root = await fs.realpath(folder.uri.fsPath);
     const resolved = await fs.realpath(document);

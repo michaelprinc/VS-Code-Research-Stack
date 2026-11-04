@@ -379,6 +379,22 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
             ))
         if packaged_problems:
             raise ValueError("packaged lockfile is stale: " + "; ".join(packaged_problems))
+        # Documentation that ships inside the payload must name the release it ships in. 0.3.7 shipped
+        # guides and a worker README that still told the operator to install
+        # `research-stack-toolkit-0.3.6.vsix` and look in `worker-0.3.6/` — the text the operator follows
+        # was two releases behind the code, and nothing tested it.
+        versioned_reference = re.compile(r"(?:worker-|research-stack-toolkit-)(\d+\.\d+\.\d+)(?![\d.])")
+        stale_docs: list[str] = []
+        for member in names:
+            if not (member.startswith("extension/guides/") or member in {"extension/readme.md", "extension/worker/README.md"}):
+                continue
+            for found in versioned_reference.findall(archive.read(member).decode("utf-8", errors="replace")):
+                if found != reviewed_version:
+                    stale_docs.append(f"{member}: {found}")
+        if stale_docs:
+            raise ValueError(
+                f"packaged documentation names a release other than {reviewed_version}: {sorted(set(stale_docs))}"
+            )
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
     reviewed_dynamic_code_boundary = (
         f"{len(python_members)} packaged Python members scanned for eval(, exec(, __import__(, "

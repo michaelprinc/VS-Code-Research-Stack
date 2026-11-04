@@ -1,0 +1,22 @@
+MEASURED ON 3.12.16 | host default locale encoding: utf-8 UTF-8
+
+1. Why the parent cannot fix this from the environment
+   PYTHONIOENCODING=cp1252 python -I -B -> sys.stdout.encoding = utf-8
+   PYTHONIOENCODING=cp1252 python -B -> sys.stdout.encoding = cp1252
+   PYTHONIOENCODING=cp1252 python -X utf8 -> sys.stdout.encoding = cp1252
+   PYTHONIOENCODING=cp1252 python -I -B -X utf8 -> sys.stdout.encoding = utf-8
+
+2. The 0.3.7 shape (print(json.dumps(result, ensure_ascii=False))) on a cp1252 stream
+   exit 2; stderr: {"error": "'charmap' codec can't encode character '\\u010d' in position 59: character maps to <undefined>"}
+   The field record reported the same sentence at position 67; the number counts the
+   characters before the first unencodable one in that workspace's own report, so it is
+   a property of the path, not of the defect.
+
+3. The 0.3.8 command the extension issues, same polluted environment
+   exit 0; stdout pure ASCII: True; U+FFFD present: False
+   store named by the report exists: True; tableCount: 7
+   re-run (the field retry): exit 0, preexisting=True, same store: True
+
+4. What the Node boundary does with a child that writes another encoding (why the step refuses)
+   exit 0; runner sees: 'workspace: Bankovn� ��et SVJ �SA368'
+   contains U+FFFD: True; runner can find the path the child named: False

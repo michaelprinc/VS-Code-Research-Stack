@@ -1,0 +1,3 @@
+.                                                    Resolved 40 packages in 2ms
+extension/worker                                     Resolved 40 packages in 2ms
+templates/recommended-overlay/notebooks/analysis     Resolved 42 packages in 2ms

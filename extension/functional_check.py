@@ -38,7 +38,9 @@ EXPECTED_TOOLS = {
 
 def parameters(root, module, preset='all'):
     # The check always discovers the complete surface, whatever preset the operator selected.
-    return StdioServerParameters(command=sys.executable, args=['-I', '-B', '-m', module],
+    # The same interpreter flags the extension itself uses: `-I` isolation, and `-X utf8` because a
+    # Windows console code page is not UTF-8 and the protocol carries document text (0.3.8).
+    return StdioServerParameters(command=sys.executable, args=['-I', '-B', '-X', 'utf8', '-m', module],
         env={**os.environ, 'RESEARCH_STACK_WORKSPACE': str(root), 'RESEARCH_STACK_TOOL_PRESET': preset}, cwd=str(root))
 
 

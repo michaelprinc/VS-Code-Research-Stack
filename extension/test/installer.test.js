@@ -16,6 +16,8 @@ const {
   commandLine, rerunInstruction, runAttempts, attemptRecord, nextActionFor,
 } = require("../installer");
 const { diagnosticsText, outcomeLine, stepRow } = require("../status");
+// The Python argv shape comes from the shipped runner, not from a fixture's memory of it (0.3.8).
+const { PYTHON_FLAGS, hasPythonFlags, afterPythonFlags, isPythonCall, runsPythonFile } = require("./python-argv");
 
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-install-test-"));
@@ -46,18 +48,19 @@ function services(root, { fail = false, failProject = null } = {}) {
         return "";
       }
       if (args[0] === "--version") return "uv 9.9-observed";
-      if (args[2].endsWith("probe.py")) return JSON.stringify({ python: "3.12.99", packages: {}, recommended: true, full: true, lab: true });
-      if (args.slice(0, 3).join(" ") === "-I -B -c") {
-        assert.match(args[3], /import ipykernel, matplotlib/, "the notebook step verifies the imports its notebooks use");
+      assert.ok(hasPythonFlags(args), `every Python child carries the reviewed flags, got ${args.join(" ")}`);
+      if (runsPythonFile(args, "probe.py")) return JSON.stringify({ python: "3.12.99", packages: {}, recommended: true, full: true, lab: true });
+      if (isPythonCall(args, "-c")) {
+        assert.match(afterPythonFlags(args)[1], /import ipykernel, matplotlib/, "the notebook step verifies the imports its notebooks use");
         return "3.12.99 (fixture, main)";
       }
-      if (args.slice(0, 3).join(" ") === "-I -B -m" && args[3] === "research_stack.cli") {
-        assert.deepEqual(args.slice(0, 5), ["-I", "-B", "-m", "research_stack.cli", "init-lab"]);
+      if (isPythonCall(args, "-m") && afterPythonFlags(args)[1] === "research_stack.cli") {
+        assert.deepEqual(afterPythonFlags(args), ["-m", "research_stack.cli", "init-lab", "--workspace", root], `the store step runs the reviewed module command behind ${PYTHON_FLAGS.join(" ")}`);
         const store = path.join(root, ".research-toolkit", "store", "research.sqlite3");
         await fs.mkdir(path.dirname(store), { recursive: true }); await fs.writeFile(store, "fixture store");
         return JSON.stringify({ ok: true, store, schemaVersion: 2, tableCount: 7, profile: "full" });
       }
-      assert.ok(args[2].endsWith("functional_check.py"));
+      assert.ok(runsPythonFile(args, "functional_check.py"));
       const surface = (module, names) => ({ module, toolCount: names.length, characters: 400 * names.length, tokensEstimate: 140 * names.length, tools: names.map((name) => ({ name, title: name, characters: 400, tokensEstimate: 140 })) });
       return JSON.stringify({
         ok: true, pdfRead: true, docxRead: true, lexicalSearch: true, researchAdapter: true, corpusIndex: true, recordStore: true, externalProvidersChecked: false,
@@ -172,7 +175,7 @@ test("runPlan runs missing steps in order, records each one, and resumes without
   assert.equal(receipt.steps["notebook-env"].importsVerified, true);
   assert.match(receipt.steps["lab-store"].evidence, /schema 2; 7 tables/);
   assert.ok(receipt.checks.ok, "the worker reading check is recorded with the plan");
-  assert.ok(backend.calls.some(({ args }) => args[3] === "research_stack.cli"), "the store step ran through the worker module path");
+  assert.ok(backend.calls.some(({ args }) => afterPythonFlags(args)[1] === "research_stack.cli"), "the store step ran through the worker module path");
   const resume = await runPlan({ vscode: harness.vscode, context: harness.context, folder, packageId: "full", services: backend });
   assert.deepEqual(resume.ran, [], "a resumed plan repeats nothing");
   assert.deepEqual(resume.skipped, ["worker", "research-overlay", "notebook-env", "lab-store"], "skipping needs observed artifacts, not only a receipt");

@@ -10,6 +10,8 @@ const TOOLKIT_VERSION = require("../package.json").version;
 const { chromium } = require("playwright");
 const { makeHarness } = require("./harness");
 const { controlPanelHtml } = require("../ui");
+// The Python argv shape comes from the shipped runner, not from a fixture's memory of it (0.3.8).
+const { hasPythonFlags, runsPythonFile } = require("./python-argv");
 
 async function main() {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined });
@@ -27,7 +29,9 @@ async function main() {
           fs.mkdirSync(path.dirname(python), { recursive: true }); fs.writeFileSync(python, "fixture python"); return "";
         }
         if (args[0] === "--version") return `${executable} 9.8.7-browser-fixture`;
-        if (args[2].endsWith("probe.py")) return JSON.stringify({ python: "3.12.99-browser-fixture", packages: Object.fromEntries(["mcp-python-sdk", "mcp-types", "pypdf", "python-docx", "document-worker"].map((id) => [id, { version: id === "document-worker" ? TOOLKIT_VERSION : "9.8.7-browser-fixture", ok: true, detail: "Browser fixture check" }])), recommended: true, full: true, lab: true });
+        assert.ok(hasPythonFlags(args), `every Python child carries the reviewed flags, got ${args.join(" ")}`);
+        if (runsPythonFile(args, "probe.py")) return JSON.stringify({ python: "3.12.99-browser-fixture", packages: Object.fromEntries(["mcp-python-sdk", "mcp-types", "pypdf", "python-docx", "document-worker"].map((id) => [id, { version: id === "document-worker" ? TOOLKIT_VERSION : "9.8.7-browser-fixture", ok: true, detail: "Browser fixture check" }])), recommended: true, full: true, lab: true });
+        assert.ok(runsPythonFile(args, "functional_check.py"), `the only other reviewed Python child is the reading check, got ${args.join(" ")}`);
         return JSON.stringify({ ok: true, pdfRead: true, docxRead: true, ...(args.includes("--document") ? { document: "Selected fixture.docx", preview: "Safe selected document preview <not markup>", detail: "Source unchanged." } : {}) });
       } } });
     const panel = harness.api.openControlPanel();

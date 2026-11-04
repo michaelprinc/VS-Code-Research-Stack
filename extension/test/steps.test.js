@@ -3,9 +3,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { stepTimeout, resolveUv, lockFallbackNote, notebookPairProblems, runNotebookStep, digestOf } = require("../steps");
+const { stepTimeout, resolveUv, lockFallbackNote, notebookPairProblems, runNotebookStep, runLabStoreStep, digestOf } = require("../steps");
 const { STEPS_BY_ID, commandLine, rerunInstruction } = require("../installer");
 const { runProcess } = require("../runner");
+// The Python argv shape comes from the shipped runner, not from a fixture's memory of it (0.3.8).
+const { PYTHON_FLAGS, pythonArgv } = require("./python-argv");
 const fs = require("node:fs/promises");
 const { createHash } = require("node:crypto");
 
@@ -264,4 +266,107 @@ test("a failed notebook fallback never repeats the success wording, and names th
   assert.equal(error.attempts, 2, "two uv processes ran and the record says two");
   assert.equal(error.exitCode, 2);
   await assert.rejects(fs.stat(path.join(project, ".venv")), /ENOENT/, "the failed fallback created no environment");
+});
+
+/**
+ * A workspace with this release's managed worker already installed, so the lab-store step has a
+ * runtime to run. The worker folder is the shipped one, so `managedRuntime` re-verifies it the way
+ * a real workspace would.
+ */
+async function managedWorkerWorkspace(t, prefix) {
+  const os = require("node:os");
+  const { WORKER_FOLDER, bundle } = require("../runtime");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const context = { extensionUri: { fsPath: path.resolve(__dirname, "..") } };
+  const worker = path.join(dir, WORKER_FOLDER);
+  await fs.mkdir(path.dirname(worker), { recursive: true });
+  await fs.cp(path.join(__dirname, "..", "worker"), worker, { recursive: true });
+  const { manifest } = await bundle(context);
+  await fs.writeFile(path.join(worker, "installation.json"), JSON.stringify({ workerVersion: manifest.workerVersion, updatedAt: "2026-11-04T00:00:00.000Z", checks: { ok: true } }), "utf8");
+  const python = path.join(worker, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+  await fs.mkdir(path.dirname(python), { recursive: true });
+  await fs.writeFile(python, "fixture interpreter");
+  return { dir, context, folder: { name: "research", uri: { scheme: "file", fsPath: dir } }, worker, python };
+}
+
+test("the lab-store step runs the worker module behind the reviewed Python flags, and nothing else (0.3.8)", async (t) => {
+  const { dir, context, folder, python } = await managedWorkerWorkspace(t, "research-labstore-argv-");
+  const calls = [];
+  const store = path.join(dir, ".research-toolkit", "store", "research.sqlite3");
+  const services = { async runProcess(executable, args, options) {
+    calls.push({ executable, args, options });
+    return { ok: true, stdout: JSON.stringify({ ok: true, store, schemaVersion: 2, tableCount: 7, profile: "full" }), stderr: "", exitCode: 0, durationMs: 5, attempts: 1 };
+  } };
+  const step = STEPS_BY_ID.get("lab-store");
+  const result = await runLabStoreStep({ root: dir, context, folder, services, settings: {}, step });
+  assert.equal(calls.length, 1, "the step runs exactly one process");
+  assert.equal(calls[0].executable, python, "with the managed interpreter, not a host python");
+  assert.deepEqual(calls[0].args, pythonArgv("-m", "research_stack.cli", "init-lab", "--workspace", dir),
+    `the store command is the reviewed module call behind ${PYTHON_FLAGS.join(" ")} — -X utf8 is what keeps the report readable on a cp1252 host`);
+  assert.equal(calls[0].options.cwd, dir, "the worker runs in the workspace root");
+  assert.equal(calls[0].options.timeout, stepTimeout(step, {}), "under the step's own bound");
+  assert.equal(result.store, store, "a valid UTF-8 report is recorded");
+  assert.match(result.evidence, /SQLite record store initialised at .*schema 2; 7 tables/, result.evidence);
+});
+
+test("the notebook step verifies its imports through a reviewed Python child (0.3.8)", async (t) => {
+  const os = require("node:os");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "research-notebook-argv-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const { makeHarness } = require("./harness");
+  const harness = makeHarness({ folders: [{ name: "research", uri: { scheme: "file", fsPath: dir } }] });
+  const project = path.join(dir, "notebooks", "analysis");
+  const interpreter = path.join(project, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+  const calls = [];
+  const services = {
+    async resolveHostTool(name) { return { name, path: "/trusted/uv", source: "path", version: "0.13.6", verified: true, searched: {}, hint: "" }; },
+    async runProcess(executable, args) {
+      calls.push({ executable, args });
+      if (args[0] === "sync") {
+        await fs.mkdir(path.dirname(interpreter), { recursive: true });
+        await fs.writeFile(interpreter, "fixture interpreter");
+        return { ok: true, stdout: "", stderr: "Resolved 40 packages in 63ms", exitCode: 0, durationMs: 12, attempts: 1 };
+      }
+      return { ok: true, stdout: "3.12.16 (main)\n", stderr: "", exitCode: 0, durationMs: 5, attempts: 1 };
+    },
+  };
+  const result = await runNotebookStep({ root: dir, context: harness.context, services, settings: {}, step: STEPS_BY_ID.get("notebook-env"), vscode: harness.vscode });
+  const imports = calls.filter((call) => call.args[0] !== "sync");
+  assert.equal(imports.length, 1, "one interpreter check after the locked sync");
+  assert.deepEqual(imports[0].args, pythonArgv("-c", "import ipykernel, matplotlib, sys; print(sys.version)"),
+    `the import check is the reviewed -c call behind ${PYTHON_FLAGS.join(" ")}`);
+  assert.equal(imports[0].executable, interpreter, "the check runs with the notebook environment's own interpreter");
+  assert.equal(result.importsVerified, true);
+  assert.match(result.pythonVersion, /^3\.12\.16/, "the version the child reported reaches the evidence");
+});
+
+test("a store report that is not valid UTF-8 text is refused, and no store path is recorded (0.3.8 field failure)", async (t) => {
+  const { dir, context, folder } = await managedWorkerWorkspace(t, "research-labstore-codec-");
+  const calls = [];
+  const store = path.join(dir, ".research-toolkit", "store", "research.sqlite3");
+  // The 0.3.7 shape: the store was created, and the report that proves it came back through the
+  // host's console encoding, so the runner's UTF-8 decode produced U+FFFD. A path containing U+FFFD
+  // is a path the panel would record and later fail to find.
+  const damaged = JSON.stringify({ ok: true, store: `k:\\Soukrom\u00e9_aktivity\\Bankovn\u00ed \uFFFDcet SVJ \\store\\research.sqlite3`, schemaVersion: 2, tableCount: 7, profile: "full" });
+  const services = { async runProcess(executable, args, options) {
+    calls.push({ executable, args, options });
+    return { ok: true, stdout: damaged, stderr: "", exitCode: 0, durationMs: 5, attempts: 1 };
+  } };
+  const step = STEPS_BY_ID.get("lab-store");
+  const failure = await runLabStoreStep({ root: dir, context, folder, services, settings: {}, step }).catch((error) => error);
+  assert.ok(failure instanceof Error, "the step rejects instead of returning a result");
+  assert.match(failure.message, /report was not valid UTF-8 text/, failure.message);
+  assert.match(failure.message, /its store path cannot be trusted and this step is not recorded/, failure.message);
+  assert.match(failure.message, /The store itself may already exist; re-running this step is safe\./, failure.message);
+  assert.equal(failure.store, undefined, "no store path reaches the receipt");
+  assert.equal(failure.evidence, undefined, "and no evidence line either");
+  assert.equal(calls.length, 1, "the worker did run; the refusal is about its report");
+  await assert.rejects(fs.stat(store), /ENOENT/, "the step records a store it cannot name");
+
+  // The check is about the replacement character, not about non-ASCII text: the Czech workspace
+  // path is exactly what a correct UTF-8 report carries.
+  const good = JSON.stringify({ ok: true, store: `k:\\Soukrom\u00e9_aktivity\\Bankovn\u00ed \u00fa\u010det SVJ \u010CSA368\\.research-toolkit\\store\\research.sqlite3`, schemaVersion: 2, tableCount: 7, profile: "full" });
+  const result = await runLabStoreStep({ root: dir, context, folder, settings: {}, step, services: { async runProcess() { return { ok: true, stdout: good, stderr: "", exitCode: 0, durationMs: 5, attempts: 1 }; } } });
+  assert.match(result.store, /Bankovn\u00ed \u00fa\u010det SVJ \u010CSA368/, "a UTF-8 report with the workspace's own characters is accepted");
 });

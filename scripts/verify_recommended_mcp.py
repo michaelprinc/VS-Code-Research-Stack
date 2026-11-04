@@ -83,7 +83,9 @@ async def main() -> None:
             add_recommended_workspace(root)
             result = await verify(root, project)
             result["workspaceSetup"] = "basic-to-recommended-additive-upgrade"
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    # ASCII-safe like every other machine-consumed receipt this toolkit prints: the report carries
+    # workspace paths, and a Windows console code page cannot encode them (0.3.8).
+    print(json.dumps(result, indent=2, ensure_ascii=True))
 
 
 if __name__ == "__main__":

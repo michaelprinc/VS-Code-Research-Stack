@@ -17,6 +17,7 @@ const setuplog = require("./setuplog");
 const statusModel = require("./status");
 const { clearStaleLock, inspectLock, setupWindowMs } = require("./preflight");
 const { clearHostToolCache } = require("./hosttools");
+const { PYTHON_FLAGS } = require("./runner");
 const componentCatalog = require("./components.json");
 const presetCatalog = require("./presets.json");
 const COMPONENTS_BY_ID = new Map(componentCatalog.components.map((item) => [item.id, item]));
@@ -566,8 +567,11 @@ function activateWith(vscode, context, diagnosticServices) {
       return presetCatalog.servers
         .filter((server) => server.tools.some((tool) => preset.tools.includes(tool)))
         .map((server) => {
+          // VS Code starts these servers, not runner.js, so the reviewed interpreter flags have to be
+          // stated here too: the protocol carries Czech document text, and a Windows console code page
+          // is not UTF-8. The MCP SDK already writes UTF-8 bytes; this is the toolkit's own guarantee.
           const definition = new vscode.McpStdioServerDefinition(`Research Toolkit ${folder.name}: ${server.label}`, runtime.python,
-            ["-I", "-B", "-m", server.module], { RESEARCH_STACK_WORKSPACE: folder.uri.fsPath, RESEARCH_STACK_TOOL_PRESET: preset.id }, signature);
+            [...PYTHON_FLAGS, "-m", server.module], { RESEARCH_STACK_WORKSPACE: folder.uri.fsPath, RESEARCH_STACK_TOOL_PRESET: preset.id }, signature);
           definition.cwd = folder.uri;
           return definition;
         });

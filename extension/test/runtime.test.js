@@ -8,6 +8,8 @@ const { makeHarness } = require("./harness");
 const { setupRuntime, managedRuntime, functionalCheck, discoverRuntimes, activateRuntime, rollbackRuntime, WORKER_FOLDER, WORKER_VERSION, MANAGED_FOLDER } = require("../runtime");
 const { runPlan, writeReceipt, RECEIPT_NAME, commandLine, rerunInstruction } = require("../installer");
 const { runProcess } = require("../runner");
+// The Python argv shape comes from the shipped runner, not from a fixture's memory of it (0.3.8).
+const { pythonArgv, hasPythonFlags, afterPythonFlags, isPythonCall, runsPythonFile } = require("./python-argv");
 const { checkInventory } = require("../diagnostics");
 
 async function fixture(t) {
@@ -39,12 +41,13 @@ function services(root, { fail = false, failCheck = false, block } = {}) {
         return "";
       }
       if (args[0] === "--version") return "uv 9.9-observed";
-      if (args.slice(0, 3).join(" ") === "-I -B -c") {
-        assert.match(args[3], /import ipykernel, matplotlib/, "the notebook step verifies the imports its notebooks use");
+      assert.ok(hasPythonFlags(args), `every Python child carries the reviewed flags, got ${args.join(" ")}`);
+      if (isPythonCall(args, "-c")) {
+        assert.match(afterPythonFlags(args)[1], /import ipykernel, matplotlib/, "the notebook step verifies the imports its notebooks use");
         return "3.12.99 (fixture, main)";
       }
-      if (args[2].endsWith("probe.py")) return JSON.stringify({ python: "3.12.99", packages: Object.fromEntries(["mcp-python-sdk", "mcp-types", "pypdf", "python-docx", "document-worker"].map((id) => [id, { version: id === "document-worker" ? require("../runtime").WORKER_VERSION : "9.9-observed", ok: true, detail: "Fixture check passed" }])), recommended: true, full: true, lab: true });
-      assert.ok(args[2].endsWith("functional_check.py"));
+      if (runsPythonFile(args, "probe.py")) return JSON.stringify({ python: "3.12.99", packages: Object.fromEntries(["mcp-python-sdk", "mcp-types", "pypdf", "python-docx", "document-worker"].map((id) => [id, { version: id === "document-worker" ? require("../runtime").WORKER_VERSION : "9.9-observed", ok: true, detail: "Fixture check passed" }])), recommended: true, full: true, lab: true });
+      assert.ok(runsPythonFile(args, "functional_check.py"));
       if (failCheck) throw new Error("Synthetic functional check failure");
       const surface = (module, names) => {
         const tools = names.map((name) => ({ name, title: name, characters: 400, tokensEstimate: 140 }));
@@ -146,7 +149,7 @@ test("provider and selected-document reading use only the verified managed worke
   await harness.registered.get("researchToolkit.setupLocalComponents")();
   const definitions = await harness.api.mcpProvider.provideMcpServerDefinitions();
   assert.equal(definitions.length, 2); assert.equal(definitions[0].env.RESEARCH_STACK_WORKSPACE, root);
-  assert.deepEqual(definitions[0].args, ["-I", "-B", "-m", "research_stack.mcp_server"]);
+  assert.deepEqual(definitions[0].args, pythonArgv("-m", "research_stack.mcp_server"), "the MCP server child starts behind the reviewed isolation and UTF-8 flags");
   assert.match(definitions[0].version, new RegExp(`^${WORKER_VERSION}\\+research-core:[0-9a-f]{12}$`), "the definition version carries the runtime and the goal's tool surface");
   assert.equal(definitions[0].version, definitions[1].version, "servers of one goal share the surface signature");
   assert.equal(definitions[0].env.RESEARCH_STACK_TOOL_PRESET, "research-core");
@@ -162,7 +165,7 @@ test("provider and selected-document reading use only the verified managed worke
   harness.values.set("toolsPreset", "read-and-cite");
   const documents = await harness.api.mcpProvider.provideMcpServerDefinitions();
   assert.equal(documents.length, 1, "a goal that needs no research server does not start one");
-  assert.deepEqual(documents[0].args, ["-I", "-B", "-m", "research_stack.mcp_server"]);
+  assert.deepEqual(documents[0].args, pythonArgv("-m", "research_stack.mcp_server"), "the MCP server child starts behind the reviewed isolation and UTF-8 flags");
   assert.equal(documents[0].env.RESEARCH_STACK_TOOL_PRESET, "read-and-cite");
   assert.match(documents[0].version, new RegExp(`^${WORKER_VERSION}\\+read-and-cite:[0-9a-f]{12}$`), "changing the goal changes the version a client compares, so its tool list refreshes");
   assert.notEqual(documents[0].version, definitions[0].version);
@@ -170,7 +173,7 @@ test("provider and selected-document reading use only the verified managed worke
   harness.values.set("toolsPreset", "verify-citations");
   const metadata = await harness.api.mcpProvider.provideMcpServerDefinitions();
   assert.equal(metadata.length, 1);
-  assert.deepEqual(metadata[0].args, ["-I", "-B", "-m", "research_stack.recommended_server"]);
+  assert.deepEqual(metadata[0].args, pythonArgv("-m", "research_stack.recommended_server"), "the MCP server child starts behind the reviewed isolation and UTF-8 flags");
   await fs.writeFile(path.join(root, "paper.docx"), "fixture source");
   const read = await harness.registered.get("researchToolkit.readSelectedDocument")();
   assert.equal(read.document, "paper.docx"); assert.equal(harness.api.state().readingResult.preview, "Selected fixture text");
@@ -220,7 +223,7 @@ test("a runtime an earlier release installed is discovered, re-verified and can 
   const rolled = await rollbackRuntime(harness.vscode, harness.context, folder, "0.3.4", backend);
   assert.equal(rolled.previousVersion, WORKER_VERSION);
   assert.equal(rolled.check.ok, true, "the candidate is re-verified before it is activated");
-  assert.ok(backend.calls.some(({ args }) => String(args[2] || "").endsWith("functional_check.py")), "rollback runs the real reading check with the candidate interpreter");
+  assert.ok(backend.calls.some(({ args }) => runsPythonFile(args, "functional_check.py")), "rollback runs the real reading check with the candidate interpreter");
   const after = await discoverRuntimes(root);
   assert.equal(after.active.version, "0.3.4");
   assert.equal(after.active.previousVersion, WORKER_VERSION);
@@ -375,7 +378,8 @@ test("an ordinary sync failure gets no fallback, and plain `uv sync` is never is
 test("discovery sees this release's managed folder and rejects names the toolkit cannot ship (R7-14, T7-16)", async (t) => {
   const { root } = await fixture(t);
   const managed = path.join(root, MANAGED_FOLDER);
-  for (const name of ["worker-0.3.6", "worker-0.3.7", "worker-0.3.6.1", "worker-0.3"]) {
+  const shaped = ["0.3.6", "0.3.7", WORKER_VERSION].filter((item, index, all) => all.indexOf(item) === index);
+  for (const name of [...shaped.map((version) => `worker-${version}`), "worker-0.3.6.1", "worker-0.3"]) {
     const folder = path.join(managed, name);
     await fs.mkdir(path.join(folder, ".venv", process.platform === "win32" ? "Scripts" : "bin"), { recursive: true });
     await fs.writeFile(path.join(folder, "installation.json"), JSON.stringify({ workerVersion: name.replace("worker-", ""), updatedAt: "2026-11-02T15:13:11.812Z", checks: { ok: true } }));

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.8 — 4 November 2026 · The worker writes UTF-8, whatever the host console is
+
+This release answers the report filed against 0.3.7 from `k:\Soukromé_aktivity\Bankovní účet SVJ ČSA368`: the worker step 0.3.7 fixed now installs, and the next step does not. **Corpus index and record store** ended with **"python.exe -I failed with exit code 2: `{"error": "'charmap' codec can't encode character '\u010d' in position 67: character maps to <undefined>"}`"**, and the panel read **"Installation incomplete — 3 step(s) verified, 1 need attention (Corpus index and record store)."** The record store *was* created. What failed was the worker's ability to report that it had been created: the report contained the workspace path, and the child process had been handed the host's console encoding — cp1252 on an English-locale Windows 11, which has no byte for `č`. Your workspace, your Python, your uv and your network were not at fault.
+
+**The output encoding is stated, not inherited**
+
+- New module `src/research_stack/stdio.py`: `ensure_utf8_stdio()` reconfigures stdout and stderr to UTF-8 before a shipped entry point writes anything, and reports the encoding it ended up with. A stream the host replaced with something that cannot be reconfigured is reported honestly and never becomes the step's failure. `research_stack.cli` calls it first.
+- `extension/runner.js` now owns one reviewed interpreter flag set, `PYTHON_FLAGS = ["-I", "-B", "-X", "utf8"]`, and every Python child the toolkit starts is started with it: the store step, the notebook import check, the reading check, the diagnostics probe, the MCP server definitions handed to VS Code, and the child servers `functional_check.py` starts. `-X utf8` is the flag that does this; `PYTHONIOENCODING` cannot, because `-I` isolation ignores it — measured on this host, `PYTHONIOENCODING=cp1252 python -I -B -c "print(sys.stdout.encoding)"` prints `utf-8`, and the same command without `-I` prints `cp1252`.
+- The receipt the extension parses is ASCII-only: `research_stack.cli` prints with `ensure_ascii=True`, so a workspace path in a report can neither crash the command that prints it nor arrive garbled. `ČSA368` appears escaped in the raw JSON and correctly in the panel, which parses it.
+
+**A report the extension cannot read is refused, not recorded**
+
+- `runLabStoreStep` refuses a worker report that arrived as bytes which are not valid UTF-8: *"The worker's store-initialisation report was not valid UTF-8 text, so its store path cannot be trusted and this step is not recorded. The store itself may already exist; re-running this step is safe."* Before 0.3.8 the same child would have been recorded with a store path containing U+FFFD — a path the panel would later fail to find.
+- A codec failure is recognised as its own class in the reviewed boundary (`CODEC_SIGNATURE`, `isCodecFailure`): the step now says *"could not write its own result in this host's console encoding … This is a text-encoding failure, not a network, proxy or interpreter problem"*, and it is never retried as a transport failure.
+
+**Proven where the failure actually happens**
+
+- New `tests/test_stdio.py` (11 cases) drives the real failure with real pipes: a negative control that reproduces the field sentence on this host, the `-I`-ignores-`PYTHONIOENCODING` measurement, the exact argv `extension/runner.js` issues with `PYTHONIOENCODING=cp1252` in the child's environment, every CLI verb (`inspect`, `init`, `init-lab`) under a forced cp1252 stream, the error path that names a Czech path, and two unit cases for the helper. `tests/test_workspace.py` has always called `main()` in process, where `print()` writes into pytest's UTF-8 capture — that is why 0.3.7 shipped this defect, and it is now named in the new file's docstring.
+- `tests/test_stdio.py` also compares `extension/worker/src/research_stack/{stdio.py,cli.py}` with their source byte-for-byte: the field host runs the bundled copy, so a source fix that was not re-bundled now fails the suite.
+- Node: the store and notebook steps are asserted against the reviewed flags, a U+FFFD report is refused, and `isCodecFailure` / `describe` / `retryable` are tested against the recorded field stderr (`extension/test/steps.test.js`, `extension/test/runner.test.js`). The test fixtures now derive the expected argv from `runner.js` instead of reading `args[2]`.
+- `extension/test/lockfile-adversarial.test.js` builds its drift fixtures from the version the shipped pair actually records. Hard-coding it is what made 16 `String.replace` searches silently match nothing the moment 0.3.8 re-locked the pair.
+
+**Build and documentation**
+
+- `uv.lock` and `extension/worker/uv.lock` re-locked with the pinned uv 0.13.6: one line, the root entry `0.3.7 → 0.3.8`, the 40 resolved packages and 39 third-party pins unchanged. The worker bundle now carries 20 reviewed source/lock files.
+- `scripts/verify_vsix.py` refuses packaged documentation that names another release. 0.3.7 shipped guides and a worker README that still told the operator to install `research-stack-toolkit-0.3.6.vsix` and look in `worker-0.3.6/`; `README.md` and the four guides that carried it now name 0.3.8, and `tests/test_vsix.py` proves the new gate refuses a stale guide.
+- `scripts/verify_recommended_mcp.py` prints its receipt ASCII-safe like every other machine-consumed report.
+
 ## 0.3.7 — 2 November 2026 · A shipped lock that matches its own project file, and a refusal that says so
 
 This release answers the report filed against 0.3.6: the VSIX installed and component setup ran, but the isolated worker step failed and the panel read **"Installation incomplete — 1 step(s) verified, 1 need attention (Isolated locked worker (Python 3.12)). 1 of 4 package steps are installed in this workspace."** The step log held the whole diagnosis — ``uv.exe sync failed with exit code 1: Resolved 40 packages in 63ms | The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`.`` in `.research-toolkit/managed/worker-0.3.6`. The cause was in the toolkit build, not in the workspace: `extension/worker/pyproject.toml` declared `version = "0.3.6"` while the `extension/worker/uv.lock` beside it still recorded the root package `research-stack-basic` at `0.3.4`. uv compares a lockfile with the project metadata *before* it honours `--locked`, so it refused the pair on every managed setup and on every uv version. It is a packaging defect in the toolkit build — not a network, proxy, interpreter or workspace problem — but 0.3.6 reported it as a generic step failure, which is why it took a field user to find it.

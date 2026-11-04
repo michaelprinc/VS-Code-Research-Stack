@@ -1,0 +1,11 @@
+      3 extension/worker/README.md:research-stack-toolkit-0.3.8
+      3 README.md:research-stack-toolkit-0.3.8
+      2 extension/worker/README.md:worker-0.3.8
+      2 extension/guides/onboarding.md:worker-0.3.8
+      2 README.md:worker-0.3.8
+      1 extension/guides/toolkit.md:worker-0.3.8
+      1 extension/guides/python.md:worker-0.3.8
+      1 extension/guides/onboarding.md:research-stack-toolkit-0.3.8
+      1 extension/guides/document-worker.md:worker-0.3.8
+      1 extension/README.md:worker-0.3.8
+      1 extension/README.md:research-stack-toolkit-0.3.8

@@ -14,6 +14,8 @@ const { controlPanelHtml } = require("../ui");
 const { WORKER_FOLDER } = require("../runtime");
 const { readStatus, readLog, paths } = require("../setuplog");
 const { lockPath } = require("../preflight");
+// The Python argv shape comes from the shipped runner, not from a fixture's memory of it (0.3.8).
+const { hasPythonFlags, isPythonCall, runsPythonFile } = require("./python-argv");
 const TOOLKIT_VERSION = require("../package.json").version;
 
 async function fixture(t) {
@@ -42,9 +44,10 @@ function services(root, { fail = false } = {}) {
         return "";
       }
       if (args[0] === "--version") return "uv 0.7.3";
-      if (args[2].endsWith("probe.py")) return JSON.stringify({ python: "3.12.99", packages: {}, recommended: true, full: true, lab: true });
-      if (args.slice(0, 3).join(" ") === "-I -B -c") return "3.12.99 (fixture, main)";
-      assert.ok(args[2].endsWith("functional_check.py"));
+      assert.ok(hasPythonFlags(args), `every Python child carries the reviewed flags, got ${args.join(" ")}`);
+      if (runsPythonFile(args, "probe.py")) return JSON.stringify({ python: "3.12.99", packages: {}, recommended: true, full: true, lab: true });
+      if (isPythonCall(args, "-c")) return "3.12.99 (fixture, main)";
+      assert.ok(runsPythonFile(args, "functional_check.py"));
       const surface = (module, names) => ({ module, toolCount: names.length, characters: 400 * names.length, tokensEstimate: 140 * names.length, tools: names.map((name) => ({ name, title: name, characters: 400, tokensEstimate: 140 })) });
       return JSON.stringify({
         ok: true, pdfRead: true, docxRead: true, lexicalSearch: true, researchAdapter: true, corpusIndex: false, recordStore: false, externalProvidersChecked: false,

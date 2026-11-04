@@ -97,3 +97,41 @@ Durable process lessons. Release-specific decisions live in `specs/phase-N/desig
     `[(None,(3,14)), ((3,14),None)]` into `(None,(3,14))`, so the shipped `resolution-markers` partition
     read as a coverage hole on the toolkit's own release pair. Assert the unbounded result, and run the
     same corpus through both readers: 52 marker/range cases, 0 divergences, is what made the fix provable.
+
+## 0.3.8 (2026-11-04) — a report the host console could not carry
+
+28. **A step's failure and its effect are different facts.** The panel said *Corpus index and record
+    store* failed; the store had already been created and the report of that success is what raised. Read
+    the failing command's own error path in the source before repeating the panel's verb — `exitCode: 2`
+    was `cli.py`'s own `return 2`, not an interpreter crash.
+29. **`UnicodeEncodeError` is a `ValueError` subclass.** A CLI that catches
+    `except (DocumentError, OSError, ValueError)` to report domain errors turns an output-encoding failure
+    into a fake domain error, and the handler's own `print` can fail the same way. A codec failure needs
+    its own class at the boundary, and the boundary must not classify it by exit code.
+30. **Isolation changes what the environment can do.** `-I` implies `-E`, so `PYTHONIOENCODING` is inert
+    under it; in a non-isolated child `PYTHONIOENCODING` beats `-X utf8`. Both were measured on this host
+    before the fix was chosen, and both are now asserted in `tests/test_stdio.py`. Reasoning from
+    documentation would have produced a fix that does nothing.
+31. **A harness that captures stdout in UTF-8 cannot see a codec failure.** `tests/test_workspace.py`
+    calls `main()` in process, so `print()` writes into pytest's UTF-8 capture: 200+ green Python tests
+    shipped a defect that only appears when the child's stdout is a Windows code page. Encoding defects are
+    proven with real children, real pipes and a forced code page.
+32. **The parent's decoder is lossy and silent.** `stream.setEncoding("utf8")` turns a cp1250 child's
+    bytes into U+FFFD with exit 0, and the runner then holds a path that names nothing. Put the guard where
+    the semantics live — the step that will use the path — not in the byte boundary.
+33. **A receipt a machine parses must be ASCII.** `ensure_ascii=True` costs nothing, survives a stream that
+    cannot be reconfigured, and decodes back through `JSON.parse` to the same text the operator reads.
+34. **The position number in a codec error is a property of the path, not of the defect.** The field
+    reported `position 67`; the same defect on this host reports 59–63 depending on the prefix. Match the
+    sentence, the character and the exit code, not the offset.
+35. **Fixtures that hard-code the release value break on the release.** Re-locking to 0.3.8 made 16
+    `String.replace` searches in `extension/test/lockfile-adversarial.test.js` match nothing, so six "drift"
+    fixtures compared an unmutated pair and reported the opposite verdict from uv. Derive the value from
+    the shipped pair and bump to a version the pair cannot already hold.
+36. **Documentation inside the artifact is part of the artifact.** 0.3.7 shipped guides telling the operator
+    to install `research-stack-toolkit-0.3.6.vsix`. `scripts/verify_vsix.py` now refuses packaged
+    documentation that names another release, and a test proves the refusal by re-stamping a shipped guide.
+37. **A gate script's CLI is part of the gate.** `scripts/lockintegrity.py` takes an optional root, so
+    `lockintegrity.py --json` was read as a root directory and printed `"ok": false` with three
+    `missing pair:` lines — a false failure that looked like a real one. Run a verifier through its real
+    interface and check the receipt, not just the exit code.

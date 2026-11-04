@@ -49,8 +49,11 @@ async function run() {
     assert.equal(setupCheck.pdfRead, true); assert.equal(setupCheck.docxRead, true);
     const runtime = await runtimeApi.managedRuntime(context, folder);
     const { runFile } = require(path.join(extension.extensionPath, "diagnostics.js"));
+    // The receipt's own Python child uses the shipped flags, so the reference host exercises the
+    // same UTF-8 shape the extension gives every child (0.3.8).
+    const { PYTHON_FLAGS } = require(path.join(extension.extensionPath, "runner.js"));
     const source = path.join(folder.uri.fsPath, "Selected document é with spaces.docx");
-    await runFile(runtime.python, ["-I", "-B", "-c", "from docx import Document; import sys; d=Document(); d.add_paragraph('Actual selected document reading check: Výzkum a evidence.'); d.save(sys.argv[1])", source]);
+    await runFile(runtime.python, [...PYTHON_FLAGS, "-c", "from docx import Document; import sys; d=Document(); d.add_paragraph('Actual selected document reading check: Výzkum a evidence.'); d.save(sys.argv[1])", source]);
     selectedRead = await runtimeApi.functionalCheck(context, runtime, folder, source);
     assert.match(selectedRead.preview, /Výzkum a evidence/);
     assert.equal(selectedRead.locators[0].item, 1);
@@ -63,7 +66,10 @@ async function run() {
       assert.equal(definition.command, runtime.python);
       assert.equal(definition.env.RESEARCH_STACK_WORKSPACE, folder.uri.fsPath);
       assert.equal(definition.env.RESEARCH_STACK_TOOL_PRESET, "research-core");
-      assert.equal(definition.version, TOOLKIT_VERSION);
+      // The definition version is the surface signature, not the bare release: it is what a client
+      // compares to decide whether its tool list is current (see test/runtime.test.js).
+      assert.match(definition.version, new RegExp(`^${TOOLKIT_VERSION}\\+research-core:[0-9a-f]{12}$`), "the definition version carries the managed runtime and the goal's tool surface");
+      assert.deepEqual(definition.args.slice(0, PYTHON_FLAGS.length), PYTHON_FLAGS, "the editor starts the MCP server behind the reviewed isolation and UTF-8 flags");
     }
   }
   await vscode.commands.executeCommand("researchToolkit.openHelp");

@@ -13,7 +13,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { bundle, directory, isReparsePoint, managedRuntime, setupRuntime, WORKER_FOLDER, minimumVersionFor } = require("./runtime");
 const { resolverFrom } = require("./hosttools");
-const { runProcess, asRunProcess, stderrTail } = require("./runner");
+const { runProcess, asRunProcess, stderrTail, PYTHON_FLAGS } = require("./runner");
 const { pairProblems, isLockDrift } = require("./lockfile");
 
 const NOTEBOOK_PROJECT_NAME = "research-stack-analysis";
@@ -251,7 +251,7 @@ async function runNotebookStep({ root, context, services, settings, step, vscode
     throw error;
   }
   if (await isReparsePoint(path.join(project, ".venv"))) throw new Error("notebooks/analysis/.venv is a link or junction pointing outside the workspace. The environment was not accepted.");
-  const imports = await asRunProcess(services)(executable, ["-I", "-B", "-c", "import ipykernel, matplotlib, sys; print(sys.version)"], {
+  const imports = await asRunProcess(services)(executable, [...PYTHON_FLAGS, "-c", "import ipykernel, matplotlib, sys; print(sys.version)"], {
     timeout: 120000, cwd: project, signal: services.signal,
   });
   const pythonVersion = String(imports.stdout || "").trim().split("\n")[0];
@@ -276,10 +276,15 @@ async function runLabStoreStep({ root, context, folder, services, settings, step
   const runtime = await managedRuntime(context, folder);
   if (!runtime) throw new Error("Set up the isolated worker before the corpus index and record store step.");
   services.progress?.("Initialising the workspace corpus index and research record store…");
-  const payload = await asRunProcess(services)(runtime.python, ["-I", "-B", "-m", "research_stack.cli", "init-lab", "--workspace", root], {
+  const payload = await asRunProcess(services)(runtime.python, [...PYTHON_FLAGS, "-m", "research_stack.cli", "init-lab", "--workspace", root], {
     timeout: stepTimeout(step, settings), cwd: root, signal: services.signal,
   });
   let result;
+  // The runner decodes the child as UTF-8. Bytes in any other encoding arrive here as U+FFFD, and a
+  // path with U+FFFD in it is a store path the panel would record and later fail to find.
+  if (String(payload.stdout || "").includes("\uFFFD")) {
+    throw new Error("The worker's store-initialisation report was not valid UTF-8 text, so its store path cannot be trusted and this step is not recorded. The store itself may already exist; re-running this step is safe.");
+  }
   try { result = JSON.parse(payload.stdout); } catch { throw new Error("The worker returned invalid store-initialisation data. No store file was replaced."); }
   if (!result || result.ok !== true || !result.store) throw new Error((result && result.error) || "Corpus index and record store initialisation failed.");
   return { toolkitVersion: runtime.version, evidence: `SQLite record store initialised at ${result.store} with schema ${result.schemaVersion}; ${result.tableCount} tables.`, store: result.store, schemaVersion: result.schemaVersion, tableCount: result.tableCount, profile: result.profile };

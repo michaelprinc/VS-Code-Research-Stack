@@ -51,6 +51,18 @@ const TASKKILL = "taskkill.exe";
 const REAP_BOUND_MS = 2000;
 
 /**
+ * The interpreter flags every Python child this toolkit starts is given (0.3.8).
+ *
+ * `-I` isolation is what keeps a workspace's own files out of the worker's `sys.path`, and it also
+ * makes `PYTHONIOENCODING` inert: measured on this host, `PYTHONIOENCODING=cp1252 python -I -c
+ * "print('Č')"`. The variable is ignored, so the parent cannot make the child's stdio UTF-8
+ * through the environment. `-X utf8` is the flag that does it, whatever the Windows console code
+ * page is. The worker states the same promise itself (`src/research_stack/stdio.py`), which is
+ * what covers a managed runtime from an older toolkit that this release can still activate.
+ */
+const PYTHON_FLAGS = ["-I", "-B", "-X", "utf8"];
+
+/**
  * `/T` takes the whole tree rooted at the pid, `/F` forces it. The pid must still be alive when
  * this runs, which is why the reaper is called before the direct child is terminated.
  */
@@ -310,6 +322,21 @@ function stderrTail(text, limit = STDERR_TAIL_LINES) {
   return lines.slice(-limit).join(" | ");
 }
 
+/**
+ * A tool that died while writing its own result (0.3.8).
+ *
+ * The 0.3.7 field failure is `{"error": "'charmap' codec can't encode character '\\u010d' in
+ * position 67: character maps to <undefined>"}` from `python.exe -I -B -m research_stack.cli
+ * init-lab` in a Czech workspace on a cp1252 host: the store was created, and the worker then
+ * could not print the report that proves it. Naming the class matters because the generic exit
+ * sentence points the operator at the tool, while the cause is the host's console encoding.
+ */
+const CODEC_SIGNATURE = /codec can't (?:en|de)code|UnicodeEncodeError|UnicodeDecodeError|character maps to <undefined>/i;
+
+function isCodecFailure(runError) {
+  return CODEC_SIGNATURE.test(`${(runError && runError.stderr) || ""}\n${(runError && runError.message) || ""}`);
+}
+
 function describe(runError, hint) {
   const subject = `${path.basename(runError.command)} ${runError.args && runError.args.length ? runError.args[0] : ""}`.trim();
   const tail = stderrTail(runError.stderr);
@@ -329,6 +356,9 @@ function describe(runError, hint) {
   if (runError.kind === "buffer") return `${subject} produced more output than the ${Math.round(MAX_BUFFER_BYTES / 1024)} KiB capture limit (${where}). The output was truncated; the run was stopped.`;
   if (runError.kind === "exit" && isLockDrift(runError)) {
     return `${subject} refused the locked dependency file: ${tail} (${where}). This is a lockfile disagreement — not a network, proxy or interpreter problem; the toolkit's own check of the pair says whether this build is broken or this host's uv disagreed with a lockfile the toolkit reads as current. ${hint || "Retry setup; if it repeats, report this build."}${runError.scrubbedUv || ""}`;
+  }
+  if (runError.kind === "exit" && isCodecFailure(runError)) {
+    return `${subject} could not write its own result in this host's console encoding: ${tail} (${where}). This is a text-encoding failure, not a network, proxy or interpreter problem. This release starts every Python child with \`-X utf8\` and its worker states UTF-8 output itself, so re-run setup; if it repeats, the tool being run is not the toolkit's own worker.`;
   }
   return `${subject} failed with exit code ${runError.exitCode === null ? runError.signal || runError.launchCode : runError.exitCode}${tail ? `: ${tail}` : ""} (${where})${hint ? ` ${hint}` : ""}${runError.scrubbedUv || ""}`;
 }
@@ -586,6 +616,6 @@ async function runFile(executable, args, options = {}) {
 
 module.exports = {
   DEFAULT_TIMEOUT_MS, asRunProcess, MAX_BUFFER_BYTES, REPORT_LIMIT, RETRY_DELAY_MS, MAX_ATTEMPTS,
-  CONFLICTING_UV_VARIABLES, REVIEWED_UV_ENVIRONMENT,
-  runProcess, runFile, describe, retryable, stderrTail, setupEnvironment, conflictingUvVariables, conflictingPythonVariables, scrubbedUvVariables, uvCommandPolicy,
+  CONFLICTING_UV_VARIABLES, REVIEWED_UV_ENVIRONMENT, PYTHON_FLAGS, CODEC_SIGNATURE,
+  runProcess, runFile, describe, retryable, stderrTail, setupEnvironment, conflictingUvVariables, conflictingPythonVariables, scrubbedUvVariables, uvCommandPolicy, isCodecFailure,
 };

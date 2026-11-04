@@ -221,6 +221,25 @@ def test_vsix_verifier_accepts_the_shipped_text_members_as_lf(tmp_path: Path) ->
     assert receipt["result"] == "passed"
 
 
+def test_vsix_verifier_refuses_packaged_documentation_that_names_another_release(tmp_path: Path) -> None:
+    """T8-17: 0.3.7 shipped guides and a worker README that still said 0.3.6.
+
+    The guides and `extension/worker/README.md` are payload the operator follows, and only
+    `extension/readme.md` was version-checked. A guide that tells someone to install
+    `research-stack-toolkit-0.3.6.vsix` or look in `worker-0.3.6/` is now a failed audit.
+    """
+    guide = Path(__file__).resolve().parents[1] / "extension/guides/toolkit.md"
+    shipped = guide.read_bytes()
+    stale = shipped.replace(b"worker-0.3.8", b"worker-0.3.6")
+    assert stale != shipped, "the fixture produced no stale reference to test against"
+
+    package = tmp_path / "stale-docs.vsix"
+    source_root = _write_vsix(package, member_overrides={"extension/guides/toolkit.md": stale})
+
+    with pytest.raises(ValueError, match="documentation names a release other than"):
+        verify(package, source_root)
+
+
 def test_vsix_verifier_refuses_members_stamped_with_the_build_clock(tmp_path: Path) -> None:
     """Every member byte-identical is not enough: the entry headers carry the build time."""
     stamped = tmp_path / "stamped.vsix"

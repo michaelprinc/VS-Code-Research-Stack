@@ -49,6 +49,12 @@ const { pairProblems, markerKey, requirementKey, specifierKey, splitRequirement,
 const WORKER = path.join(__dirname, "..", "worker");
 const BASE_PY = fs.readFileSync(path.join(WORKER, "pyproject.toml"), "utf8");
 const BASE_LOCK = fs.readFileSync(path.join(WORKER, "uv.lock"), "utf8");
+// Every fixture below mutates the **shipped** pair, so each search string is built from the version
+// that pair actually records. Hard-coding it is what broke this suite on the next release: 0.3.8
+// bumped the pair, 16 `String.replace` searches silently matched nothing, and a drift fixture then
+// compared an unmutated pair and reported the opposite verdict from uv.
+const SHIPPED_VERSION = BASE_PY.match(/^version = "([^"]+)"/m)[1];
+const PADDED_VERSION = SHIPPED_VERSION.replace(/\.(\d+)$/, ".0$1");
 const UV = ["/tmp/uvs/uv-0.13.6", "/tmp/uvs/uv", process.env.DSH_UV_BIN].find((p) => p && fs.existsSync(p));
 
 const sub = (text, pairs) => pairs.reduce((acc, [from, to]) => acc.replace(from, to), text);
@@ -93,9 +99,9 @@ const MARKER_LOCK = `version = 1\nrevision = 5\nrequires-python = ">=3.12"\nreso
 const COMPOUND_PY = `[project]\nname = "mk-compound"\nversion = "1.0.0"\nrequires-python = ">=3.12,<3.15"\ndependencies = ["packaging==24.0; sys_platform == 'win32' and python_version >= '3.13'"]\n`;
 const COMPOUND_LOCK = `version = 1\nrevision = 5\nrequires-python = ">=3.12, <3.15"\nresolution-markers = [\n    "python_full_version >= '3.13' and sys_platform == 'win32'",\n    "python_full_version < '3.13' or sys_platform != 'win32'",\n]\n\n[[package]]\nname = "mk-compound"\nversion = "1.0.0"\nsource = { virtual = "." }\ndependencies = [\n    { name = "packaging", marker = "python_full_version >= '3.13' and sys_platform == 'win32'" },\n]\n\n[package.metadata]\nrequires-dist = [{ name = "packaging", marker = "python_full_version >= '3.13' and sys_platform == 'win32'", specifier = "==24.0" }]\n\n[[package]]\nname = "packaging"\nversion = "24.0"\nsource = { registry = "https://pypi.org/simple" }\nsdist = { url = "https://files.pythonhosted.org/packages/ee/b5/b43a27ac7472e1818c4bafd44430e69605baefe1f34440593e0332ec8b4d/packaging-24.0.tar.gz", hash = "sha256:eb82c5e3e56209074766e6885bb04b8c38a0c015d0a30036ebe7ece34c9989e9", size = 147882, upload-time = "2024-03-10T09:39:28.33Z" }\nwheels = [\n    { url = "https://files.pythonhosted.org/packages/49/df/1fceb2f8900f8639e278b056416d49134fb8d84c5942ffaa01ad34782422/packaging-24.0-py3-none-any.whl", hash = "sha256:2ddfb553fdf02fb784c234c7ba6ccc288296ceabec964ad2eae3777778130bc5", size = 53488, upload-time = "2024-03-10T09:39:25.947Z" },\n]\n`;
 
-const DYN_VERSION_PY = pyWith([['version = "0.3.7"\n', 'dynamic = ["version"]\n'],
+const DYN_VERSION_PY = pyWith([[`version = "${SHIPPED_VERSION}"\n`, 'dynamic = ["version"]\n'],
   ["[tool.hatch.build.targets.wheel]", '[tool.hatch.version]\npath = "src/research_stack/__init__.py"\n\n[tool.hatch.build.targets.wheel]']]);
-const NO_VERSION_LOCK = lockWith([['name = "research-stack-basic"\nversion = "0.3.7"', 'name = "research-stack-basic"']]);
+const NO_VERSION_LOCK = lockWith([[`name = "research-stack-basic"\nversion = "${SHIPPED_VERSION}"`, 'name = "research-stack-basic"']]);
 const EXTRA_PY = pyWith([["[dependency-groups]", '[project.optional-dependencies]\npdf = ["pypdf==6.4.1"]\n\n[dependency-groups]']]);
 const EMPTY_EXTRA_PY = pyWith([["[dependency-groups]", '[project.optional-dependencies]\npdf = []\n\n[dependency-groups]']]);
 const PEP735_PY = pyWith([['dev = ["pytest==8.4.2"]', 'dev = ["pytest==8.4.2"]\ntest = [{ include = "dev" }]']]);
@@ -137,7 +143,7 @@ const IN_LOCK = `version = 1\nrevision = 5\nrequires-python = ">=3.12, <3.15"\n\
 
 const AGREES = [
   ["shipped worker pair", BASE_PY, BASE_LOCK, 0],
-  ["root version bumped, lock not re-locked (the 0.3.6 defect)", pyWith([['version = "0.3.7"', 'version = "0.3.8"']]), BASE_LOCK, 1],
+  ["root version bumped, lock not re-locked (the 0.3.6 defect)", pyWith([[`version = "${SHIPPED_VERSION}"`, 'version = "0.4.0"']]), BASE_LOCK, 1],
   ["dependency dropped from the manifest", pyWith([['  "pypdf==6.4.1",\n', ""]]), BASE_LOCK, 1],
   ["dependency specifier changed", pyWith([['"pypdf==6.4.1"', '"pypdf==6.9.9"']]), BASE_LOCK, 1],
   ["group added to the manifest", pyWith([['dev = ["pytest==8.4.2"]', 'dev = ["pytest==8.4.2"]\ntyping = ["typing-extensions==4.16.0"]']]), BASE_LOCK, 1],
@@ -194,9 +200,9 @@ const AGREES = [
   ["requirement written as a triple-single-quoted string", pyWith([['"pypdf==6.4.1"', "'''pypdf==6.4.1'''"]]), BASE_LOCK, 0],
   ["extra named cli_tools: uv canonicalises it to cli-tools", MINI_PY, MINI_LOCK, 0],
   ["extra named CLI_TOOLS: uv canonicalises it to cli-tools", MINI_PY.replace("cli_tools = ", "CLI_TOOLS = "), MINI_LOCK, 0],
-  ["PEP 440 root version 0.3.7.0 (uv normalises it to 0.3.7)", pyWith([['version = "0.3.7"', 'version = "0.3.7.0"']]), BASE_LOCK, 0],
+  [`PEP 440 root version ${SHIPPED_VERSION}.0 (uv normalises it to ${SHIPPED_VERSION})`, pyWith([[`version = "${SHIPPED_VERSION}"`, `version = "${SHIPPED_VERSION}.0"`]]), BASE_LOCK, 0],
   ["valid TOML with leading whitespace before [project] keys", pyWith([['name = "research-stack-basic"', '  name = "research-stack-basic"'],
-    ['version = "0.3.7"', '  version = "0.3.7"'], ["dependencies = [", "  dependencies = ["]]), BASE_LOCK, 0],
+    [`version = "${SHIPPED_VERSION}"`, `  version = "${SHIPPED_VERSION}"`], ["dependencies = [", "  dependencies = ["]]), BASE_LOCK, 0],
   ["stray editable entry before the root entry", BASE_PY, stray(BASE_LOCK, packageStart(BASE_LOCK, "research-stack-basic")), 0],
   // Fixed false negatives: uv refuses these, the reader used to call them current.
   ["marker added to a requirement, the lock records none", MARKER_ADDED_PY, BASE_LOCK, 1],
@@ -254,11 +260,11 @@ const AGREES = [
   ["P05 a dependency group whose key is quoted TOML: \"dev\" = [ … ] (uv 0/0/0/0/0/0/0)",
     pyWith([['dev = ["pytest==8.4.2"]', '"dev" = ["pytest==8.4.2"]']]), BASE_LOCK, 0],
   ["P18 version written as a triple-quoted TOML string (uv 0/0/0/0/0/0/0)",
-    pyWith([['version = "0.3.7"', 'version = """0.3.7"""']]), BASE_LOCK, 0],
-  ["P12 root version spelled v0.3.7 against the lock's 0.3.7 (uv 0/0/0/0/0/0/0)",
-    pyWith([['version = "0.3.7"', 'version = "v0.3.7"']]), BASE_LOCK, 0],
-  ["P13 root version spelled 0.3.07 against the lock's 0.3.7 (uv 0/0/0/0/0/0/0)",
-    pyWith([['version = "0.3.7"', 'version = "0.3.07"']]), BASE_LOCK, 0],
+    pyWith([[`version = "${SHIPPED_VERSION}"`, `version = """${SHIPPED_VERSION}"""`]]), BASE_LOCK, 0],
+  [`P12 root version spelled v${SHIPPED_VERSION} against the lock's ${SHIPPED_VERSION} (uv 0/0/0/0/0/0/0)`,
+    pyWith([[`version = "${SHIPPED_VERSION}"`, `version = "v${SHIPPED_VERSION}"`]]), BASE_LOCK, 0],
+  [`P13 root version spelled ${PADDED_VERSION} against the lock's ${SHIPPED_VERSION} (uv 0/0/0/0/0/0/0)`,
+    pyWith([[`version = "${SHIPPED_VERSION}"`, `version = "${PADDED_VERSION}"`]]), BASE_LOCK, 0],
   ["P11 root version spelled 1.0-1 against the lock uv wrote, 1.0.post1 (uv 0/0/0/0/0/0/0)", POST_PY, POST_LOCK, 0],
   ["P31 root entry source written as editable = \"./\" (uv 0/0/0/0/0/0/0)", BASE_PY,
     lockWith([['source = { editable = "." }', 'source = { editable = "./" }']]), 0],
@@ -309,8 +315,8 @@ const AGREES = [
   ["P29 a duplicate version key inside one [[package]] block (uv 2/2/2/2/2/2/2)", BASE_PY,
     lockWith([['name = "pypdf"\nversion = "6.4.1"', 'name = "pypdf"\nversion = "6.4.1"\nversion = "6.4.1"']]), 2],
   ["P30 two local entries both claiming the source path \".\" (uv 2/2/2/2/2/2/2)", BASE_PY,
-    lockWith([['[[package]]\nname = "research-stack-basic"\nversion = "0.3.7"\nsource = { editable = "." }',
-      '[[package]]\nname = "research-stack-basic"\nversion = "0.3.7"\nsource = { editable = "." }\n\n[[package]]\nname = "research-stack-basic"\nversion = "0.3.7"\nsource = { editable = "." }']]), 2],
+    lockWith([[`[[package]]\nname = "research-stack-basic"\nversion = "${SHIPPED_VERSION}"\nsource = { editable = "." }`,
+      `[[package]]\nname = "research-stack-basic"\nversion = "${SHIPPED_VERSION}"\nsource = { editable = "." }\n\n[[package]]\nname = "research-stack-basic"\nversion = "${SHIPPED_VERSION}"\nsource = { editable = "." }`]]), 2],
   ["P23 the whole [[package]] block of a transitive-only dependency deleted (uv 2/2/2/2/2/2/2)", BASE_PY,
     dropPackage(BASE_LOCK, "h11"), 2],
   ["P24 the same transitive-only block duplicated (uv 2/2/2/2/2/2/2)", BASE_PY, dupPackage(BASE_LOCK, "h11"), 2],
@@ -319,7 +325,7 @@ const AGREES = [
     lockWith([["pypdf-6.4.1-py3-none-any.whl", "foreign-9.9.9-py3-none-any.whl"]]), 2],
   ["P19 the manifest declares [tool.uv] twice (uv 2/2/2/2/2/2/2)",
     BASE_PY + '[tool.uv]\npackage = true\n\n[tool.uv]\nno-build-isolation-package = ["hatchling"]\n', BASE_LOCK, 2],
-  ["P20 the manifest declares version twice (uv 2/2/2/2/2/2/2)", pyWith([['version = "0.3.7"', 'version = "0.3.7"\nversion = "0.3.7"']]), BASE_LOCK, 2],
+  ["P20 the manifest declares version twice (uv 2/2/2/2/2/2/2)", pyWith([[`version = "${SHIPPED_VERSION}"`, `version = "${SHIPPED_VERSION}"\nversion = "${SHIPPED_VERSION}"`]]), BASE_LOCK, 2],
   ["P10 the lock records [manifest] overrides while the manifest declares no override-dependencies (uv 2/2/2/1/1/1/1)",
     PROBE_PY, PROBE_LOCK.replace("\n[[package]]\nname = \"p-override-same\"",
       "\n[manifest]\noverrides = [{ name = \"packaging\", specifier = \"==24.0\" }]\n\n[[package]]\nname = \"p-override-same\""), 1],
@@ -573,7 +579,7 @@ test("uv cross-check: shipped pair accepted, 0.3.6 drift refused", { skip: UV ? 
       } catch (error) { return error.status; }
     };
     assert.equal(run(BASE_PY, BASE_LOCK), 0, "uv accepts the shipped pair");
-    assert.equal(run(pyWith([['version = "0.3.7"', 'version = "0.3.8"']]), BASE_LOCK), 1, "uv refuses the drifted pair");
+    assert.equal(run(pyWith([[`version = "${SHIPPED_VERSION}"`, 'version = "0.4.0"']]), BASE_LOCK), 1, "uv refuses the drifted pair");
     // The rows the alignment moved, re-measured here so the exit code each row names is not a claim
     // carried over from a notebook: the two group-reference spellings get opposite verdicts from uv,
     // and the reader now splits them the same way.

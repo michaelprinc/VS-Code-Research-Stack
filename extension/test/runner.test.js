@@ -5,7 +5,7 @@ const fsSync = require("node:fs");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const os = require("node:os");
-const { runProcess, runFile, retryable, stderrTail, describe, setupEnvironment, conflictingUvVariables, conflictingPythonVariables, scrubbedUvVariables, uvCommandPolicy, CONFLICTING_UV_VARIABLES, REVIEWED_UV_ENVIRONMENT, MAX_BUFFER_BYTES, REPORT_LIMIT, asRunProcess } = require("../runner");
+const { runProcess, runFile, retryable, stderrTail, describe, setupEnvironment, conflictingUvVariables, conflictingPythonVariables, scrubbedUvVariables, uvCommandPolicy, CONFLICTING_UV_VARIABLES, REVIEWED_UV_ENVIRONMENT, MAX_BUFFER_BYTES, REPORT_LIMIT, asRunProcess, PYTHON_FLAGS, CODEC_SIGNATURE, isCodecFailure } = require("../runner");
 
 const node = process.execPath;
 
@@ -818,4 +818,58 @@ test("a host uv setting is removed whatever spelling the host used (0.3.7 Window
   } finally {
     process.env = previous;
   }
+});
+
+/**
+ * The 0.3.7 field failure, recorded as it arrived: `python.exe -I -B -m research_stack.cli
+ * init-lab --workspace <root>` in `k:\Soukromé_aktivity\Bankovní účet SVJ ČSA368` exited 2 after the
+ * store was created, because the Windows child inherited the cp1252 console code page and `-I`
+ * makes `PYTHONIOENCODING` inert. The generic exit sentence pointed the operator at the worker;
+ * the cause was the host's console encoding.
+ */
+const FIELD_CWD = "k:\\Soukromé_aktivity\\Bankovní účet SVJ ČSA368";
+const FIELD_STDERR = "{\"error\": \"'charmap' codec can't encode character '\\u010d' in position 67: character maps to <undefined>\"}";
+const fieldCodecError = (overrides = {}) => ({
+  kind: "exit", exitCode: 2, attempts: 1, durationMs: 4200, timeoutMs: 120000,
+  command: `${FIELD_CWD}\\.research-toolkit\\managed\\worker-0.3.8\\.venv\\Scripts\\python.exe`,
+  args: [...PYTHON_FLAGS, "-m", "research_stack.cli", "init-lab", "--workspace", FIELD_CWD],
+  cwd: FIELD_CWD, stderr: FIELD_STDERR, message: "run failure",
+  ...overrides,
+});
+
+test("isCodecFailure recognises the recorded field failure and the traceback shape, and nothing else (0.3.8)", () => {
+  assert.equal(isCodecFailure(fieldCodecError()), true, "the recorded charmap sentence is a codec failure");
+  assert.equal(isCodecFailure(fieldCodecError({ stderr: "", message: FIELD_STDERR })), true, "the message is read too: Node does not always attach the captured stream");
+  const traceback = [
+    "Traceback (most recent call last):",
+    '  File "K:\\Soukromé_aktivity\\research_stack\\cli.py", line 118, in main',
+    "    print(json.dumps(report))",
+    "UnicodeEncodeError: 'charmap' codec can't encode character '\\u010d' in position 67: character maps to <undefined>",
+  ].join("\n");
+  assert.equal(isCodecFailure(fieldCodecError({ stderr: traceback })), true, "a UnicodeEncodeError traceback is the same failure");
+  assert.equal(isCodecFailure(fieldCodecError({ stderr: "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc3 in position 12: invalid continuation byte" })), true, "and so is the decode half");
+  assert.equal(isCodecFailure(fieldCodecError({ stderr: "error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided." })), false, "uv's lock-drift sentence is not a codec failure");
+  assert.equal(isCodecFailure(fieldCodecError({ stderr: "error: Request failed after 3 retries\n  Caused by: Failed to fetch: https://pypi.org/simple/pypdf/" })), false, "a transport failure is not a codec failure");
+  assert.equal(isCodecFailure(fieldCodecError({ stderr: "Traceback (most recent call last):\nZeroDivisionError: division by zero" })), false, "an ordinary crash is not a codec failure");
+  assert.equal(isCodecFailure(fieldCodecError({ stderr: "" })), false, "an exit with no captured output is not a codec failure");
+  assert.equal(isCodecFailure(undefined), false, "no run error is not a codec failure");
+  assert.ok(CODEC_SIGNATURE instanceof RegExp && CODEC_SIGNATURE.source.includes("codec can't"), "the signature the classification rests on is exported so it can be reviewed");
+});
+
+test("describe() calls a codec failure what it is, and the runner does not retry it (0.3.8)", () => {
+  const error = fieldCodecError();
+  const text = describe(error, "Retry setup; if it repeats, report this build.");
+  // The subject is `basename(command) args[0]`; on a POSIX host the recorded Windows path is one
+  // basename, so the assertion anchors on the interpreter and flag rather than the whole command.
+  assert.match(text, /python\.exe -I could not write its own result in this host's console encoding/, text);
+  assert.match(text, /This is a text-encoding failure, not a network, proxy or interpreter problem\./, text);
+  assert.match(text, /-X utf8/, "the sentence names the flag this release starts every Python child with");
+  assert.match(text, /charmap' codec can't encode character '\\u010d'/, "the worker's own sentence is kept, not replaced");
+  assert.match(text, /cwd k:\\Soukromé_aktivity\\Bankovní účet SVJ ČSA368/, "and the directory it ran in");
+  assert.match(text, /re-run setup/, "the operator is given the next action");
+  assert.ok(!/failed with exit code 2/.test(text), `the codec branch fires before the generic exit sentence: ${text}`);
+  assert.equal(retryable(error), false, "a deterministic encoding failure is not retried: a second attempt writes the same bytes");
+  const ordinary = fieldCodecError({ stderr: "error: something the worker said" });
+  assert.match(describe(ordinary), /failed with exit code 2/, "an ordinary exit still gets the generic sentence");
+  assert.equal(retryable(ordinary), false, "and is still not retried");
 });

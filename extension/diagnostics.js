@@ -5,7 +5,7 @@ const path = require("node:path");
 const catalog = require("./components.json");
 // 0.3.6: this module no longer spawns processes or searches for host executables itself.
 // Both concerns live in runner.js (the single reviewed process boundary) and hosttools.js.
-const { runFile } = require("./runner");
+const { runFile, PYTHON_FLAGS } = require("./runner");
 const { resolveHostTool, resolverFrom } = require("./hosttools");
 
 function baseInventory(vscode, context) {
@@ -121,7 +121,7 @@ async function checkInventory(vscode, context, folder, services = {}) {
   } else {
     try {
       const probePath = path.join(context.extensionUri.fsPath, "probe.py");
-      const payload = await run(python, ["-I", "-B", probePath]);
+      const payload = await run(python, [...PYTHON_FLAGS, probePath]);
       let probe;
       try {
         probe = JSON.parse(payload);
