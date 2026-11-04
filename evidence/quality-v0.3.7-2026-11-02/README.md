@@ -26,6 +26,7 @@ touching the tree; the recorded files below are the ones the release was gated o
 | [notebook-fallback.txt](notebook-fallback.txt) | The notebook pair's gated fallback measured with real uv: `--locked` exit 2 (0.5.0) / exit 1 (0.13.6), `--frozen` exit 0, `uv.lock` byte-identical after every run | the commands it names |
 | [sdist-name-uv-verdict.txt](sdist-name-uv-verdict.txt) | uv 0.13.6 `lock --check` exit 0 on a lock whose sdist filename names another version while the wheel agrees | the commands it names |
 | [round5-e2e-wording.md](round5-e2e-wording.md) + `round5-e2e-*.json` | What the operator sees after the reporting fixes: refusal, fallback install, failed fallback — headline, step row, recorded command line, next action, pasteable re-run instruction | `bash /tmp/round5-wording-run.sh <extension dir>` (scratch harness, receipts copied here) |
+| [clean-clone-rebuild.txt](clean-clone-rebuild.txt) | Two clean-clone builds of tag `v0.3.7` (commit `e0192ad`) produced the shipped artifact byte-for-byte: 332,448 bytes, sha256 `f221a9a8…`, both runs | `bash /tmp/repro_check.sh v0.3.7` (scratch harness, receipts copied here) |
 
 `vsix-audit.json` and `payload-check.json` are raw command output, not pure JSON: each begins with the
 two `npm notice run …` lines npm prints for the script, and the JSON payload starts after them. Strip

@@ -1,0 +1,16 @@
+# Clean-clone rebuild of tag v0.3.7, run twice on 2026-11-04
+# Command: bash /tmp/repro_check.sh v0.3.7  (git clone --branch v0.3.7 into a mktemp dir, PATH=/tmp/uvs:$PATH npm run package)
+# Tag v0.3.7 -> commit e0192ad2709d4679d5d7621cb8640e4650964eaf
+
+run 1  built   332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+run 1  shipped 332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+run 1  REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte (exit 0)
+
+run 2  built   332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+run 2  shipped 332448 bytes  f221a9a82a87541416770c7ff0fbe06b8e332dd4e952203d3b18b0ea1ac7ec16
+run 2  REPRODUCIBLE: the tag builds the shipped artifact byte-for-byte (exit 0)
+
+The clone has no node_modules (gitignored); the script symlinks the reviewed extension/node_modules so
+both builds use the same pinned @vscode/vsce 4.0.0 as the shipped build. The clone carries no CRLF
+(.gitattributes: * text=auto eol=lf), and package.js sets SOURCE_DATE_EPOCH=315532800 and staged mode 0644,
+so the ZIP member timestamps and permission bits match too.
