@@ -26,13 +26,13 @@ TOOL_SCHEMA_OVERHEAD_TOKENS = 40
 SERVER_BUDGETS = {
     'research_stack.mcp_server': 5,
     'research_stack.recommended_server': 6,
-    'research_stack.lab_server': 9,
+    'research_stack.lab_server': 10,
 }
 EXPECTED_TOOLS = {
     'research_stack.mcp_server': {'read_document', 'read_text_source', 'search_local_text', 'write_docx', 'write_markdown'},
     'research_stack.recommended_server': {'check_citation', 'prepare_zotero_import', 'search_literature', 'zotero_collections', 'zotero_item', 'search'},
     'research_stack.lab_server': {'claims_export', 'claims_read', 'claims_write', 'evidence_read', 'index_corpus',
-                                  'search_corpus', 'store_maintenance', 'store_status', 'unindex_corpus'},
+                                  'search_corpus', 'store_maintenance', 'store_status', 'unindex_corpus', 'verify_sources'},
 }
 
 
@@ -83,7 +83,7 @@ def make_pdf(path):
         writer.write(target)
 
 
-async def lab_checks(client):
+async def lab_checks(client, root):
     """Exercise the Full-package corpus index and record store through real MCP calls."""
     indexed = result_value(await client.call_tool('index_corpus', {'paths': ['notes.md'], 'mode': 'index'}))
     if not indexed.get('chunksStored') or not indexed.get('indexFingerprint'):
@@ -106,8 +106,18 @@ async def lab_checks(client):
     if not exported.get('references') or exported['references'][0]['reference'] != 'notes.md' or len(exported['references'][0]['sha256']) != 64:
         raise ValueError('Claim export validation failed.')
     status = result_value(await client.call_tool('store_status', {}))
-    if status.get('action') != 'status' or not status.get('store') or status.get('schemaVersion') != 2:
+    if status.get('action') != 'status' or not status.get('store') or status.get('schemaVersion') != 3:
         raise ValueError('Store status validation failed.')
+    if status.get('freshness', {}).get('verified') != 1:
+        raise ValueError('Store status does not report the freshness of the source it indexed.')
+    checked = result_value(await client.call_tool('verify_sources', {}))
+    if checked.get('verified') != ['notes.md'] or checked.get('changed') or checked.get('missing'):
+        raise ValueError('verify_sources did not confirm the source it just indexed.')
+    # The honest half of freshness: change the file under the index and prove the store notices.
+    (root / 'notes.md').write_text('Research toolkit evidence and provenance across selected notes. Changed after indexing.\n', encoding='utf-8')
+    changed = result_value(await client.call_tool('verify_sources', {}))
+    if changed.get('changed') != ['notes.md'] or changed.get('verified'):
+        raise ValueError('A source that changed after indexing was not reported as changed.')
     unconfirmed = result_value(await client.call_tool('store_maintenance', {'action': 'vacuum'}))
     if unconfirmed.get('resultState') != 'error' or 'CONFIRM_REQUIRED' not in json.dumps(unconfirmed):
         raise ValueError('Store maintenance confirmation rule not enforced.')
@@ -125,7 +135,8 @@ async def lab_checks(client):
     if link['resolvable'] is not True or link['stale'] is not True:
         raise ValueError('Stored claim evidence became unresolvable after re-indexing.')
     return {'chunksIndexed': indexed['chunksStored'], 'claimId': claim_id, 'indexFingerprint': indexed['indexFingerprint'],
-            'backupCreated': True, 'evidenceResolved': True, 'claimsExported': True, 'evidenceRetainedAfterUnindex': True}
+            'backupCreated': True, 'evidenceResolved': True, 'claimsExported': True, 'evidenceRetainedAfterUnindex': True,
+            'freshnessVerified': True, 'changedSourceDetected': True}
 
 
 async def smoke():
@@ -190,7 +201,7 @@ async def smoke():
             lab_surface = tool_surface('research_stack.lab_server', discovered)
             if not EXPECTED_TOOLS['research_stack.lab_server'] <= set(lab_tools):
                 raise ValueError('Corpus and record tools were not discovered.')
-            lab = await lab_checks(client)
+            lab = await lab_checks(client, root)
             servers.append(lab_surface)
         if any(hashlib.sha256((root / name).read_bytes()).hexdigest() != digest for name, digest in hashes.items()):
             raise ValueError('Source preservation validation failed.')

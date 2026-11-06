@@ -27,14 +27,15 @@ def test_real_mcp_fixture_reading_reports_search_and_research_adapter():
     assert result['externalProvidersChecked'] is False
     surface = result['toolSurface']
     assert surface['basis'] == 'measured from real tools/list responses'
-    assert surface['toolCount'] == 20
+    assert surface['toolCount'] == 21
     assert {server['module'] for server in surface['servers']} == {'research_stack.mcp_server', 'research_stack.recommended_server', 'research_stack.lab_server'}
     assert sorted(result['tools']) == ['read_document', 'read_text_source', 'search_local_text', 'write_docx', 'write_markdown']
     assert sorted(result['labTools']) == ['claims_export', 'claims_read', 'claims_write', 'evidence_read', 'index_corpus',
-                                          'search_corpus', 'store_maintenance', 'store_status', 'unindex_corpus']
+                                          'search_corpus', 'store_maintenance', 'store_status', 'unindex_corpus', 'verify_sources']
     assert result['lab']['chunksIndexed'] >= 1 and result['lab']['claimId'] and result['lab']['backupCreated'] is True
     assert result['lab']['evidenceResolved'] is True and result['lab']['claimsExported'] is True
     assert result['lab']['evidenceRetainedAfterUnindex'] is True
+    assert result['lab']['freshnessVerified'] is True and result['lab']['changedSourceDetected'] is True
     for server in surface['servers']:
         assert server['toolCount'] <= server['budget'], server['module']
     destructive = {tool['name'] for server in surface['servers'] for tool in server['tools'] if tool['destructiveHint'] is True}
@@ -49,7 +50,7 @@ def test_check_discovers_the_full_surface_even_when_a_narrow_preset_is_selected(
     # The check must measure the whole surface whatever goal the operator selected.
     code, result = invoke(preset='read-and-cite')
     assert code == 0
-    assert result['toolSurface']['toolCount'] == 20
+    assert result['toolSurface']['toolCount'] == 21
     assert sorted(result['tools']) == ['read_document', 'read_text_source', 'search_local_text', 'write_docx', 'write_markdown']
 
 

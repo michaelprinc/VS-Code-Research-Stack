@@ -87,13 +87,17 @@ async function main() {
     for (const file of [
       "extension.js", "ui.js", "diagnostics.js", "runner.js", "hosttools.js", "preflight.js",
       "setuplog.js", "steps.js", "status.js", "lockfile.js", "runtime.js", "installer.js", "probe.py",
-      "functional_check.py", "components.json", "presets.json",
+      "functional_check.py", "components.json", "presets.json", "bundles.js",
     ]) {
       fs.copyFileSync(path.join(projectRoot, file), path.join(stageRoot, file));
     }
     fs.cpSync(path.join(projectRoot, "media"), path.join(stageRoot, "media"), { recursive: true });
     fs.cpSync(path.join(projectRoot, "guides"), path.join(stageRoot, "guides"), { recursive: true });
     fs.cpSync(path.join(projectRoot, "worker"), path.join(stageRoot, "worker"), { recursive: true });
+    // 0.3.9: the reviewed skill-bundle catalog and the bundle payload ship beside the worker, and
+    // `scripts/verify_vsix.py` compares every `extension/bundles/catalog.json` digest with the member
+    // it packs and with the staged template tree the catalog was generated from.
+    fs.cpSync(path.join(projectRoot, "bundles"), path.join(stageRoot, "bundles"), { recursive: true });
     fs.copyFileSync(path.join(projectRoot, "README.md"), path.join(stageRoot, "README.md"));
     normalizeStagedLineEndings(stageRoot);
     normalizeStagedModes(stageRoot);

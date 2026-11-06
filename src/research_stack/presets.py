@@ -20,7 +20,7 @@ DEFAULT_PRESET = "all"
 
 DOCUMENT_TOOLS = frozenset({"read_document", "read_text_source", "search_local_text", "write_markdown", "write_docx"})
 RESEARCH_TOOLS = frozenset({"search_literature", "check_citation", "zotero_collections", "zotero_item", "prepare_zotero_import"})
-LAB_TOOLS = frozenset({"index_corpus", "unindex_corpus", "search_corpus", "evidence_read", "claims_read", "claims_write", "claims_export", "store_status", "store_maintenance"})
+LAB_TOOLS = frozenset({"index_corpus", "unindex_corpus", "search_corpus", "evidence_read", "verify_sources", "claims_read", "claims_write", "claims_export", "store_status", "store_maintenance"})
 ALL_TOOLS = DOCUMENT_TOOLS | RESEARCH_TOOLS | LAB_TOOLS
 
 #: Preset id -> the toolkit tools that the goal enables. Kept in sync with

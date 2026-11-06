@@ -208,7 +208,7 @@ async function main() {
     const state = panel.messages.at(-1);
     assert.equal(state.version, version);
     assert.equal(state.presets.length, 9, "Full offers the whole preset range");
-    assert.equal(state.toolSurface.toolCount, 19, "the preset-selectable surface is 19 tools");
+    assert.equal(state.toolSurface.toolCount, 20, "the preset-selectable surface is 20 tools: 5 document/recommended readers, 5 research verbs, 10 store verbs (0.3.9 adds verify_sources)");
     assert.equal(state.installPlan.package.id, "full");
     assert.equal(state.installPlan.steps.length, 4, "Full declares four component steps");
     assert.deepEqual(state.installPlan.counts, { installed: 3, outdated: 1, omittedOptional: 0 }, "the receipt plus produced files drive step status");
@@ -238,8 +238,9 @@ async function main() {
     assert.match(state.installation.line, /component setup|Installation/, state.installation.line);
     assert.equal(state.installation.toolkitVersion, version, "the installation card is labelled with the packaged release");
     report.commands = registered.size;
-    assert.equal(registered.size, 25, "every declared command is registered");
-    for (const command of ["researchToolkit.retryFailedSteps", "researchToolkit.clearSetupLock", "researchToolkit.openSetupLog", "researchToolkit.copyInstallationDiagnostics"]) {
+    assert.equal(registered.size, 30, "every declared command is registered (25 through 0.3.8 plus the five 0.3.9 corpus, freshness and bundle commands)");
+    for (const command of ["researchToolkit.retryFailedSteps", "researchToolkit.clearSetupLock", "researchToolkit.openSetupLog", "researchToolkit.copyInstallationDiagnostics",
+      "researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness", "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus"]) {
       assert.equal(typeof registered.get(command), "function", `${command} ships registered`);
     }
     for (const setting of ["researchStack.uvPath", "researchStack.setupTimeoutSeconds"]) {
@@ -253,11 +254,12 @@ async function main() {
     values.set("toolsPreset", "corpus-lab");
     const summary = await registered.get("researchToolkit.copyPresetSummary")();
     const corpusPreset = extension.presetCatalog.presets.find((item) => item.id === "corpus-lab");
-    assert.equal(corpusPreset.tools.length, 10);
-    assert.match(summary, new RegExp(`Toolkit tools \\(10\\): ${corpusPreset.tools.join(", ")}`), "the copied summary lists the shipped corpus verbs");
+    assert.equal(corpusPreset.tools.length, 11, "the corpus goal carries all ten store verbs plus the notes reader (0.3.9 adds verify_sources)");
+    assert.ok(corpusPreset.tools.includes("verify_sources"), "the shipped corpus preset can ask whether an indexed source still matches the file");
+    assert.match(summary, new RegExp(`Toolkit tools \\(11\\): ${corpusPreset.tools.join(", ")}`), "the copied summary lists the shipped corpus verbs");
     assert.match(summary, /measured from the installed worker's tools\/list schemas/);
     assert.equal(vscode.clipboard, summary);
-    assert.match(api.state().readiness, /Selected tools preset: Index, search and record claims · 10 toolkit tools/);
+    assert.match(api.state().readiness, /Selected tools preset: Index, search and record claims · 11 toolkit tools/);
     assert.match(api.state().readiness, /Package setup for Full: 3 of 4 component steps installed, 1 outdated for this toolkit release/);
     assert.equal(vscode.tree.getChildren()[2].label, "Tools preset: Index, search and record claims");
     assert.equal(vscode.tree.getChildren()[3].label, "Components: 3/4 steps ready");

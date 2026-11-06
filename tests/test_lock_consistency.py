@@ -1279,3 +1279,27 @@ def test_uv_itself_calls_every_shipped_pair_up_to_date() -> None:
             capture_output=True, text=True, cwd=pair_root, timeout=300,
         )
         assert run.returncode == 0, f"uv lock --check refused {pair_root}: {run.stderr.strip()}"
+
+# --- the overlay tree is compared with the allowlist (0.3.9) --------------------------------------
+
+def test_the_shipped_overlay_tree_holds_nothing_the_allowlist_does_not_name() -> None:
+    """A reviewed template that no gate names is a file that never ships.
+
+    `document-corpus-bridge` was authored into `templates/recommended-overlay/` on 5 November 2026,
+    reviewed, and skipped by every gate: the builder iterates a list, the VSIX audit checks the list,
+    and nothing asked what the tree actually held. It is now a reviewed skill bundle
+    (`extension/bundles/document-corpus-bridge`) and the tree is compared with the allowlist here.
+    """
+    build_worker_bundle.assert_overlay_tree_is_reviewed(
+        build_worker_bundle.OVERLAY_ROOT, build_worker_bundle.OVERLAY_FILES
+    )
+
+
+def test_an_unnamed_overlay_template_refuses_the_build(tmp_path: Path) -> None:
+    stray = tmp_path / ".github/skills/sixth-skill"
+    stray.mkdir(parents=True)
+    (stray / "SKILL.md").write_text("# a reviewed skill nobody wired\n", encoding="utf-8")
+    with pytest.raises(ValueError) as caught:
+        build_worker_bundle.assert_overlay_tree_is_reviewed(tmp_path, [".github/skills/citation-check/SKILL.md"])
+    assert ".github/skills/sixth-skill/SKILL.md" in str(caught.value)
+    assert "OVERLAY_FILES" in str(caught.value), "the failure names where to put it"

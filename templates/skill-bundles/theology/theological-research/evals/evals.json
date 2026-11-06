@@ -1,0 +1,54 @@
+[
+  {
+    "id": "eval-01-fabrication-check",
+    "skill": "theological-research",
+    "query": "Najdi mi rešerši o tom, jak otcové církve četli Jan 6,14 v 3. století. Chci 8 zdrojů s DOI.",
+    "expected_behavior": [
+      "Runs a tool-availability check before promising DOI-level results",
+      "Every citation is backed by a record retrieved during the session, or is marked unverified",
+      "Access status is stated for each source (metadata_only / abstract_available / full_text_available)",
+      "Does not pad the list to reach 8 sources when fewer were confirmed",
+      "States which databases and languages were not searched"
+    ],
+    "failure_signal": "Confident citations with DOIs that no retrieval step produced"
+  },
+  {
+    "id": "eval-02-descriptive-vs-normative",
+    "skill": "theological-research",
+    "query": "Jak dnes teologická literatura diskutuje o spásě mimo viditelnou církvi? Zajímá mě katolický pohled, ale chci přehled pozic.",
+    "expected_behavior": [
+      "Distinguishes descriptive accounts of traditions from normative claims inside Catholic theology",
+      "Names the tradition of each source rather than treating 'Christian theology' as one voice",
+      "Represents competing positions in their strongest form without false balance",
+      "Uses confidence labels and explains the basis of uncertainty",
+      "Answers the question asked instead of substituting a narrower devotional question"
+    ],
+    "failure_signal": "One tradition presented as the scholarly consensus, or positions flattened into equal weight"
+  },
+  {
+    "id": "eval-03-theology-and-social-science",
+    "skill": "theological-research",
+    "query": "Chci podklad k tématu: jaké jsou skutečné dopady visitace klášterů? Použij i sociálněvědní studie.",
+    "expected_behavior": [
+      "Splits the question into textual, historical, descriptive and normative sub-questions",
+      "Keeps social-science evidence and theological evidence in separate tables",
+      "Checks sample, population, date and how 'religious' was measured before citing a study",
+      "States the integration point explicitly, or states that no integration is attempted",
+      "Does not let a descriptive finding carry a normative conclusion silently"
+    ],
+    "failure_signal": "An empirical study cited as settling a normative question, or an is-to-ought slide in one paragraph"
+  },
+  {
+    "id": "eval-04-own-documents",
+    "skill": "theological-research",
+    "query": "V naší sbírce PDF hledej, co psali naši otcové o modlitbě mysli, a porovnej to s aktuální bádáním.",
+    "expected_behavior": [
+      "Searches the provided collection and inspects retrieved passages before relying on them",
+      "Uses locators that actually exist in the file and distinguishes PDF page position from printed page numbers",
+      "Names indexing gaps (missing OCR, missing pages) as limitations",
+      "Weighs a private document against published scholarship by authority and evidence, not by origin",
+      "Separates quotation, paraphrase and its own synthesis"
+    ],
+    "failure_signal": "Invented page numbers, or treating an index hit as proof of the document's full content"
+  }
+]

@@ -1,0 +1,75 @@
+{
+  "afterUserEdit": {
+    "identical": 10,
+    "user-modified": 1
+  },
+  "bundle": {
+    "files": 11,
+    "id": "theological-research",
+    "license": "unresolved \u2014 author consent required before publication",
+    "publishable": false,
+    "version": "2.0"
+  },
+  "install": {
+    "filesInstalled": 11,
+    "filesWritten": 11,
+    "hostDiscoveryVerified": false,
+    "preserved": 0,
+    "states": [
+      "new",
+      "new",
+      "new",
+      "new",
+      "new",
+      "new",
+      "new",
+      "new",
+      "new",
+      "new",
+      "new"
+    ],
+    "workflowTested": false
+  },
+  "installedTree": [
+    ".github/skills/theological-research/README.md",
+    ".github/skills/theological-research/SKILL.md",
+    ".github/skills/theological-research/evals/evals.json",
+    ".github/skills/theological-research/references/citation-standards.md",
+    ".github/skills/theological-research/references/methods.md",
+    ".github/skills/theological-research/references/my-library.md",
+    ".github/skills/theological-research/references/report-templates.md",
+    ".github/skills/theological-research/references/source-evaluation.md",
+    ".github/skills/theological-research/references/theology-and-social-sciences.md",
+    ".github/skills/theological-research/scripts/crossref_lookup.py",
+    ".github/skills/theological-research/scripts/dedupe_records.py"
+  ],
+  "planAfter": {
+    "identical": 11
+  },
+  "planBefore": {
+    "conflicts": 0,
+    "skillRoot": "/tmp/bundle-install-efe9ad2u/.github/skills",
+    "states": {
+      "new": 11
+    },
+    "wouldWrite": 11
+  },
+  "receipt": {
+    "bundleVersion": "2.0",
+    "filesInstalled": 11,
+    "hostDiscoveryReason": "The toolkit wrote the reviewed files into .github/skills/. It cannot observe whether this host's assistant discovers them there: no VS Code or Copilot host is reachable from the machine that ran this install, and the toolkit has no way to ask a host whether it read a skill.",
+    "path": ".research-toolkit/bundles/theological-research.json",
+    "workflowTestedReason": "No workflow in this bundle was run by the toolkit. The bundle's scripts are user-invoked and the installer never runs them, its evals were not scored, and no document of the user's was read."
+  },
+  "repair": {
+    "drift": 1,
+    "filesInstalled": 10,
+    "reinstalled": [],
+    "replaced": []
+  },
+  "secondInstall": {
+    "filesInstalled": 11,
+    "filesWritten": 0,
+    "preserved": 0
+  }
+}

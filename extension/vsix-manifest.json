@@ -2,7 +2,7 @@
   "name": "research-stack-toolkit",
   "displayName": "Research Stack Toolkit (Phase 4 Preview)",
   "description": "Set up package components, verify real MCP reading and research tools, and keep components updated.",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "publisher": "michaelprinc",
   "repository": {
     "type": "git",
@@ -184,6 +184,31 @@
         "category": "Research Toolkit"
       },
       {
+        "command": "researchToolkit.indexSelectedSources",
+        "title": "Index Selected PDF / DOCX / Text Sources",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.verifySourceFreshness",
+        "title": "Verify Source Freshness",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.installTopicBundle",
+        "title": "Install Topic Skill Bundle",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.repairTopicBundle",
+        "title": "Repair Topic Skill Bundle",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.showBundleStatus",
+        "title": "Show Topic Bundle Status",
+        "category": "Research Toolkit"
+      },
+      {
         "command": "researchToolkit.updateComponents",
         "title": "Update Outdated Or Repair Component Steps",
         "category": "Research Toolkit",
@@ -291,6 +316,8 @@
   },
   "files": [
     "README.md",
+    "bundles",
+    "bundles.js",
     "components.json",
     "diagnostics.js",
     "extension.js",

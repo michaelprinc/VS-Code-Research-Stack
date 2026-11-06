@@ -19,6 +19,9 @@ EXPECTED = {
     "extension/readme.md",
     "extension/extension.js",
     "extension/ui.js",
+    # 0.3.9: the bundle installer module. `extension/extension.js` requires './bundles', so a package
+    # that ships the bundle payload without the module that reads it activates and then fails to load.
+    "extension/bundles.js",
     "extension/media/controls.js",
     "extension/media/controls.css",
     "extension/media/toolkit.svg",
@@ -75,13 +78,41 @@ if _BUNDLE.get("schemaVersion") != 2 or _BUNDLE.get("overlayFiles") is None:
     raise ValueError("Worker bundle manifest is not the reviewed schemaVersion 2 layout")
 OVERLAY_FILES = list(_BUNDLE["overlayFiles"])
 EXPECTED.update(f"extension/worker/overlay/{relative}" for relative in OVERLAY_FILES)
+# --- 0.3.9 skill bundles (DD9-16, DD9-17, R9-19) ---
+# The bundle payload is a separate group from the worker overlay: `extension/runtime.js` and
+# `scripts/build_worker_bundle.py` allow only `.github/skills/<id>/SKILL.md` under the overlay, and a
+# bundle carries references/, scripts/, evals/ and README.md. The overlay regexes are deliberately not
+# widened; the bundle group is expected and audited here instead, from its own catalog.
+_BUNDLE_CATALOG = json.loads((_EXTENSION_ROOT / "bundles/catalog.json").read_text(encoding="utf-8"))
+if _BUNDLE_CATALOG.get("schemaVersion") != 1 or not _BUNDLE_CATALOG.get("bundles"):
+    raise ValueError("Skill-bundle catalog is not the reviewed schemaVersion 1 layout")
+BUNDLE_FILES: list[str] = []
+for _bundle in _BUNDLE_CATALOG["bundles"]:
+    for _entry in _bundle.get("files") or []:
+        _path = PurePosixPath(str(_entry.get("path")))
+        if _path.is_absolute() or ".." in _path.parts or "\\" in str(_entry.get("path")) or _path.parts[0] != _bundle["id"]:
+            raise ValueError(f"Unsafe bundle file path in the catalog: {_entry.get('path')!r}")
+        BUNDLE_FILES.append(_path.as_posix())
+if not BUNDLE_FILES:
+    raise ValueError("Skill-bundle catalog lists no files")
+EXPECTED.add("extension/bundles/catalog.json")
+EXPECTED.update(f"extension/bundles/{relative}" for relative in BUNDLE_FILES)
 for _component in _COMPONENTS:
     _guide = PurePosixPath(_component["guide"])
     if len(_guide.parts) != 2 or _guide.parts[0] != "guides" or _guide.suffix != ".md" or _guide.name != f"{_component['id']}.md":
         raise ValueError("Unsafe component guide path in registry")
     EXPECTED.add(f"extension/{_guide}")
 MAX_PACKAGE_BYTES = 50 * 1024 * 1024
-MAX_UNPACKED_BYTES = 1 * 1024 * 1024
+# Measured, not assumed. The 0.3.8 artifact unpacked to 1 035 352 bytes of the 1 048 576 this gate
+# allowed — 13 224 bytes of headroom across 87 members. 0.3.9 adds a reviewed skill bundle
+# (`extension/bundles/theological-research/**`, 60 825 bytes over 11 files) and its catalog
+# (`extension/bundles/catalog.json`, 5 536 bytes), and the 0.3.9 worker/guides growth measured in this
+# tree is 1 075 616 bytes for the same 87 members. The projected 0.3.9 payload is 1 141 977 bytes.
+# The ceiling is raised to 1 310 720 (1.25 MiB) deliberately: it keeps a real gate — 168 743 bytes of
+# headroom, not an open door — and it is stated here so the next member added to the payload is
+# measured against a number rather than discovered by a failing audit. If a build exceeds it, the fix
+# is to move payload out of the VSIX or to re-measure here, never to drop a reviewed file.
+MAX_UNPACKED_BYTES = 1_310_720
 SENSITIVE_NAMES = re.compile(r"(^|/)(\.env(\.|$)|\.venv|node_modules|\.git|corpus|models?|secrets?)(/|$)", re.I)
 # The capability scan is about starting a process or opening a socket. A method call on an object
 # (`SOME_PATTERN.exec(text)` on a RegExp, which `extension/lockfile.js` uses to read a version) is
@@ -156,7 +187,10 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
             names.append(name)
             unpacked_bytes += info.file_size
             if unpacked_bytes > MAX_UNPACKED_BYTES:
-                raise ValueError("unpacked payload exceeds the 1 MiB preview limit")
+                raise ValueError(
+                    f"unpacked payload exceeds the {MAX_UNPACKED_BYTES} byte preview limit "
+                    f"({unpacked_bytes} bytes measured)"
+                )
         if set(names) != EXPECTED:
             raise ValueError(f"unexpected package inventory: expected {sorted(EXPECTED)!r}; got {sorted(names)!r}")
         manifest = json.loads(archive.read("extension/package.json"))
@@ -367,8 +401,45 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
                 source = (_REPO_ROOT / relative) if not relative.startswith('overlay/') else (_REPO_ROOT / 'templates/recommended-overlay' / relative.removeprefix('overlay/'))
                 if payload != source.read_bytes():
                     raise ValueError(f'worker bundle drift from repository source: {relative}')
-        # The packaged pairs are the pairs a host runs `uv sync --locked` against, so they are compared
-        # as packaged bytes and not only as the repository tree: 0.3.6 shipped a worker lock that still
+        # Skill bundles (R9-19): source -> payload -> VSIX member is one chain. Every catalog file must
+        # be in the archive (the EXPECTED gate above), must hash to what the catalog says, must carry
+        # the byte count the catalog says, and must be byte-identical to the staged template tree the
+        # catalog was generated from. A bundle that is packaged but not the reviewed bundle is the same
+        # class of defect 0.3.6 shipped in a lockfile, so it is refused here rather than reported.
+        catalog = json.loads(archive.read("extension/bundles/catalog.json"))
+        if catalog != _BUNDLE_CATALOG:
+            raise ValueError("packaged skill-bundle catalog differs from the reviewed extension/bundles/catalog.json")
+        bundle_audit: list[dict[str, object]] = []
+        for bundle in catalog["bundles"]:
+            bundle_id = str(bundle["id"])
+            staged_tree = str((bundle.get("provenance") or {}).get("stagedTree") or "")
+            if not staged_tree:
+                raise ValueError(f"bundle {bundle_id}: provenance.stagedTree is required to audit the payload")
+            for entry in bundle["files"]:
+                member = f"extension/bundles/{entry['path']}"
+                payload = archive.read(member)
+                if hashlib.sha256(payload).hexdigest() != entry["sha256"]:
+                    raise ValueError(f"skill bundle hash mismatch: {entry['path']}")
+                if len(payload) != entry["bytes"]:
+                    raise ValueError(f"skill bundle byte count mismatch: {entry['path']}")
+                if source_root == _EXTENSION_ROOT:
+                    within = PurePosixPath(entry["path"]).relative_to(PurePosixPath(bundle_id))
+                    staged = _REPO_ROOT / staged_tree / within
+                    if not staged.is_file():
+                        raise ValueError(f"skill bundle has no staged source file: {entry['path']}")
+                    if _lf(payload) != _lf(staged.read_bytes()):
+                        raise ValueError(f"skill bundle drift from the staged template tree: {entry['path']}")
+            if str(bundle.get("license", "")).strip().lower().startswith("unresolved") and bundle.get("publishable"):
+                raise ValueError(f"bundle {bundle_id}: license is unresolved, so the package may not mark it publishable (DD9-24)")
+            bundle_audit.append({
+                "id": bundle_id,
+                "version": bundle.get("version"),
+                "files": len(bundle["files"]),
+                "bytes": sum(int(entry["bytes"]) for entry in bundle["files"]),
+                "license": bundle.get("license"),
+                "publishable": bool(bundle.get("publishable")),
+            })
+        # The packaged pairs are the pairs a host runs `uv sync --locked` against, so they are compared        # as packaged bytes and not only as the repository tree: 0.3.6 shipped a worker lock that still
         # recorded the 0.3.4 project version, and every managed setup on a real host stopped there.
         packaged_problems: list[str] = []
         for prefix in ("extension/worker", "extension/worker/overlay/notebooks/analysis"):
@@ -434,6 +505,20 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
         "pythonMembersScanned": sorted(python_members),
         "pythonDynamicCodeFindings": python_dynamic_code_findings,
         "outboundNetworkMembers": outbound_network_members,
+        "skillBundleCatalog": {
+            "bundles": bundle_audit,
+            "files": sum(int(item["files"]) for item in bundle_audit),
+            "bytes": sum(int(item["bytes"]) for item in bundle_audit),
+            "unresolvedLicenses": [item["id"] for item in bundle_audit if str(item["license"]).lower().startswith("unresolved")],
+            "publishable": all(bool(item["publishable"]) for item in bundle_audit),
+        },
+        "reviewedBundleBoundary": (
+            f"{len(bundle_audit)} reviewed skill bundle(s), {sum(int(item['files']) for item in bundle_audit)} file(s), "
+            "packaged under extension/bundles/ and hashed against extension/bundles/catalog.json and the "
+            "staged template tree. Bundle files are not worker overlay files: the overlay allowlist "
+            "(scripts/build_worker_bundle.py, extension/runtime.js) still accepts only "
+            ".github/skills/<id>/SKILL.md and was not widened."
+        ),
         "result": "passed",
     }
 

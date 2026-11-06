@@ -40,8 +40,8 @@ def test_init_creates_the_reviewed_schema_once_and_never_replaces_rows(tmp_path)
     first = records.init_store(root)
     assert first["ok"] is True and first["preexisting"] is False
     assert first["schemaVersion"] == records.SCHEMA_VERSION
-    assert first["tableCount"] == 7
-    assert set(first["tables"]) == {"claims", "claim_evidence", "claim_events", "chunks", "meta", "source_versions", "sources"}
+    assert first["tableCount"] == 8, "schema 3 adds index_runs: one row per ingestion call"
+    assert set(first["tables"]) == {"claims", "claim_evidence", "claim_events", "chunks", "index_runs", "meta", "source_versions", "sources"}
     records.index_corpus(root, [NOTES])
     again = records.init_store(root)
     assert again["preexisting"] is True
@@ -449,19 +449,30 @@ def test_export_claims_produces_validated_references_and_reports_unresolved_evid
 
 
 def test_index_limits_and_source_errors_stay_actionable(tmp_path):
+    """0.3.9 separates the two kinds of failure a batch can have.
+
+    A malformed request (no paths, a path that escapes the root) is refused for the whole call. A
+    file that cannot be read is a per-file outcome in the receipt, because one unreadable file must
+    not block the files that did read — and the error code still travels unchanged.
+    """
     root = workspace(tmp_path)
     with pytest.raises(StoreError) as failure:
         records.index_corpus(root, [])
     assert "SOURCE_COUNT" in str(failure.value)
     with pytest.raises(StoreError) as failure:
-        records.index_corpus(root, ["notes/missing.md"])
-    assert "SOURCE_NOT_FOUND" in str(failure.value)
-    with pytest.raises(StoreError) as failure:
         records.index_corpus(root, ["../outside.md"])
     assert "SOURCE_OUTSIDE_ROOT" in str(failure.value)
-    with pytest.raises(StoreError) as failure:
-        records.index_corpus(root, ["notes/dissertation.pdf"])
-    assert "UNSUPPORTED_FORMAT" in str(failure.value)
+
+    mixed = records.index_corpus(root, [NOTES, "notes/missing.md"])
+    assert mixed["status"] == "partial" and mixed["indexedSources"] == [NOTES] and mixed["written"] == 1
+    assert mixed["failedSources"] == [{"path": "notes/missing.md", "code": "SOURCE_NOT_FOUND",
+                                       "message": "selected file is missing or is not a file.",
+                                       "outcome": "failed", "keptPreviousVersion": True}]
+
+    refused = records.index_corpus(root, ["notes/notes.doc"])
+    assert refused["status"] == "failed" and refused["written"] == 0 and refused["indexedSources"] == []
+    assert refused["failedSources"][0]["code"] == "UNSUPPORTED_FORMAT"
+
     with pytest.raises(StoreError) as failure:
         records.get_chunks(root, [])
     assert "CHUNK_IDS" in str(failure.value)

@@ -11,6 +11,7 @@ from mcp.server import MCPServer
 from .documents import (
     DocumentError,
     extract_document,
+    read_document_at_locator,
     read_text_document,
     resolve_evidence,
     validate_sources,
@@ -25,8 +26,8 @@ from .tool_meta import TOOL_LIST_CACHE_HINTS, annotations
 server = MCPServer("research-stack-basic", cache_hints=TOOL_LIST_CACHE_HINTS)
 
 TOOL_TITLES = {
-    "search_local_text": "Search selected workspace notes",
-    "read_document": "Read a workspace PDF or DOCX",
+    "search_local_text": "Search selected workspace notes and documents",
+    "read_document": "Read a workspace PDF or DOCX, by range or by a stored locator",
     "read_text_source": "Read a workspace Markdown or text source",
     "write_markdown": "Write a cited Markdown report",
     "write_docx": "Write a cited DOCX report",
@@ -42,10 +43,10 @@ TOOL_ANNOTATIONS = {
 
 
 def search_local_text(paths: list[str], query: str, limit: int = 10) -> dict[str, object]:
-    """Search explicitly selected workspace Markdown/text files with provenance-bearing local BM25 results."""
+    """Search explicitly selected workspace Markdown, text, PDF or DOCX files with local BM25 results."""
     chunks = build_corpus(configured_root(), paths)
     return {"hits": [hit.as_dict() for hit in search_bm25(chunks, query, limit=limit)], "method": "bm25", "persistentIndex": False,
-            "reopenWith": "read_text_source(path, locator=<hit locator>)"}
+            "reopenWith": "read_text_source(path, locator=<hit locator>) for Markdown/text, read_document(path, locator=<hit locator>) for PDF or DOCX"}
 
 
 def configured_root() -> Path:
@@ -58,9 +59,15 @@ def configured_root() -> Path:
     return root
 
 
-def read_document(path: str, start: int = 1, count: int = 50) -> dict[str, object]:
-    """Read a selected PDF or DOCX under the configured workspace; returns text, locators and coverage."""
+def read_document(path: str, start: int = 1, count: int = 50, locator: str | None = None, context: int = 1) -> dict[str, object]:
+    """Read a selected PDF or DOCX under the configured workspace; returns text, locators and coverage.
+
+    Pass a stored locator (``page=3;chars=120-980`` or ``item=4;kind=table-1-row;chars=0-13``) to
+    reopen a search or evidence hit at the unit it came from, with ``context`` neighbouring units.
+    """
     source = resolve_under(configured_root(), path, must_exist=True)
+    if locator:
+        return read_document_at_locator(source, locator, context=context).as_dict()
     return extract_document(source, start=start, count=count).as_dict()
 
 

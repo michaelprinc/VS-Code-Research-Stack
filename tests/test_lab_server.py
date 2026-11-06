@@ -1,4 +1,4 @@
-"""The Full package MCP surface: nine corpus/record verbs with separated reads and writes."""
+"""The Full package MCP surface: ten corpus/record verbs with separated reads and writes."""
 import json
 from pathlib import Path
 
@@ -38,9 +38,11 @@ def workspace(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_the_shipped_lab_surface_is_nine_verbs_with_titles_annotations_and_cache_hints():
+def test_the_shipped_lab_surface_is_ten_verbs_with_titles_annotations_and_cache_hints():
+    # 0.3.9 adds verify_sources: the store must be able to say whether a present file was actually
+    # checked, and that claim needs its own verb rather than an inference from index_corpus.
     assert {item.__name__ for item in lab_server.LAB_TOOLS} == LAB_TOOLS
-    assert len(LAB_TOOLS) == 9
+    assert len(LAB_TOOLS) == 10
     assert set(lab_server.TOOL_TITLES) == LAB_TOOLS
     assert set(lab_server.TOOL_ANNOTATIONS) == LAB_TOOLS
     registry = next(server for server in REGISTRY['servers'] if server['module'] == 'research_stack.lab_server')

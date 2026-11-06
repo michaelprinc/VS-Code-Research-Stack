@@ -24,8 +24,11 @@ const REVIEWED = {
   "installer.js": ["runtime.js", "steps.js", "preflight.js", "setuplog.js", "status.js"],
   "diagnostics.js": ["runner.js", "hosttools.js", "runtime.js", "installer.js"],
   "runtime.js": ["runner.js", "hosttools.js", "lockfile.js"],
+  // 0.3.9: the skill-bundle catalog reader and staged installer. It reaches no other extension
+  // module, no process and no socket — it is paths, hashes and `fs` only.
+  "bundles.js": [],
   "ui.js": [],
-  "extension.js": ["ui.js", "diagnostics.js", "runtime.js", "installer.js", "setuplog.js", "status.js", "preflight.js", "steps.js", "hosttools.js", "runner.js"],
+  "extension.js": ["ui.js", "diagnostics.js", "runtime.js", "installer.js", "setuplog.js", "status.js", "preflight.js", "steps.js", "hosttools.js", "runner.js", "bundles.js"],
 };
 const DATA_FILES = ["components.json", "presets.json", "package.json", "vsix-manifest.json"];
 

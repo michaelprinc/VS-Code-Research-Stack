@@ -160,3 +160,66 @@ Report: [docs/research/windows-testing-on-linux-2026-11/](../docs/research/windo
 42. **A test file that is not enumerated never runs.** `extension/package.json` lists 16 test files
     explicitly; a 17th passes when run by hand and is invisible to CI. `module-boundaries.test.js` already
     refuses an unreviewed shipped module — the same guard is missing for test files.
+
+## 0.3.9 — direct ingestion, freshness and migration (2026-11-06)
+
+43. **A per-call reader cap is not an indexing cap.** `extract_document`'s 50-page/100-item limit is a
+    response-size rule. Reusing it as the indexing limit would have silently indexed the first 100 pages of
+    a 500-page PDF. `extract_source` loops under the same cap and `coverage.batches` proves the loop ran.
+44. **A failure must be attributed to the unit it belongs to.** One unreadable page is that page's
+    `failedUnits` entry, not the file's verdict. Classifying the whole file as failed because one page
+    raised throws away text that reads cleanly; classifying it as complete hides the gap.
+45. **A store audit must tolerate the schema it is auditing.** `_snapshot` counted `index_runs` in every
+    copy it made, so `backup` refused a genuine 0.3.8 store — the exact store the migration story needs a
+    backup of. Count what the snapshot has, and assert `schemaVersion` in the receipt.
+46. **Do not swallow a database error in a helper whose failure is the only signal.**
+    `_record_cancelled_run` caught `sqlite3.Error` and rolled back; the audit row was never written because
+    `_connect(root)` opens **read-only** and an audit write needs `create=True`. The swallow turned a
+    one-line mistake into a full test cycle of "the row is just missing".
+47. **A `--workspace` verb must resolve relative paths against the workspace it was given.** The CLI
+    resolved them against the process cwd, so the panel's own relative paths came back as
+    `SOURCE_OUTSIDE_ROOT`. Verified by `tests/test_stdio.py::test_a_source_outside_the_workspace_is_refused_by_the_verb`.
+48. **Read the release tag, not the memory of it.** `tests/test_migration.py` builds its fixture by
+    `git archive v0.3.8` and running **that** code. The alternative — hand-writing the old DDL — tests the
+    test. It also found the read-refusal behaviour (`STORE_SCHEMA_UPGRADE_REQUIRED`) that a hand-written
+    fixture would have invented wrongly.
+49. **A version bump is a re-lock and a documentation change.** `uv lock` (pinned 0.13.6) changed exactly
+    one line; `scripts/verify_vsix.py` then refused the packaged guides because they still told the
+    operator to install `research-stack-toolkit-0.3.8.vsix` and look in `worker-0.3.8/`. Both are the same
+    release-identity defect class as 0.3.7's stale docs.
+50. **Counting gates are the cheapest drift detectors, and they break loudly.** `unit.test.js` pins the
+    contributed-command count and the disposed-subscription count; adding five commands moved both. Update
+    the number **and** name the new commands in the assertion, so the gate keeps its meaning.
+51. **A payload directory is not a payload module.** The 0.3.9 bundle work staged `extension/bundles/` in
+    `extension/scripts/package.js` but not `extension/bundles.js`, and `extension/package.json`'s `files`
+    allowlist did not name it either. The VSIX audit passed — the inventory simply did not expect the
+    module — while `npm run check:payload` failed with `Cannot find module './bundles'` loading the packaged
+    `extension.js`. A package that activates and then fails to load is not caught by a content audit; it is
+    caught by running the packaged entry point. When a release adds a module, add it to the staging list,
+    the `files` allowlist, the manifest mirror and the audit inventory, in that order.
+52. **vsce refuses an include pattern that matches nothing it staged.** Adding `bundles.js` to `files`
+    without adding it to the staging list produced `ERROR The following include patterns … do not match any
+    files packaged` and `npm run package` exited 1 — masked as exit 0 by `| tail -4`. Check the real exit
+    code of a pipeline before believing a build succeeded.
+53. **A plan that is handed no observation must not assume an empty world.** `planInstall` reported all 11
+    files `new` when the caller supplied no hashes, and the control panel is exactly such a caller: it would
+    have offered to rewrite files that were already the reviewed bytes and called an operator's edit
+    something it never installed. When a function takes caller-supplied state, either require it or observe
+    it yourself; a default of "nothing exists" is a lie with a nice API.
+54. **A fixture that hard-codes the previous release stops testing the gate it exists to test.**
+    `tests/test_vsix.py` built its stale-documentation fixture by replacing `worker-0.3.8`; once the guides
+    said `worker-0.3.9` the replacement matched nothing and `assert stale != shipped` failed — the same class
+    as 0.3.8's `lockfile-adversarial.test.js` trap. Derive the fixture from the reviewed version
+    (`extension/vsix-manifest.json`) so the gate survives the next bump.
+55. **Generated files are edited by their builder, not by hand.** `extension/worker/README.md` is a copy of
+    the repository `README.md` whose SHA-256 is recorded in `extension/worker/bundle.json`. Editing the copy
+    breaks the worker-bundle hash check; the fix is to edit the source and re-run
+    `scripts/build_worker_bundle.py`. A documentation task that names a generated file has a packaging step
+    hidden inside it.
+56. **A list-based allowlist silently drops a reviewed file, and no gate notices.** A sixth overlay skill was
+    authored into `templates/recommended-overlay/` and never shipped: the builder iterates `OVERLAY_FILES`,
+    the VSIX audit checks the members it expects, and nothing asked what the tree actually held. The file was
+    also stale — it described 0.3.8 behaviour as though it were current, so the harm was not only a missing
+    file but a wrong instruction sitting in a reviewed tree. Compare the tree with the allowlist at build time
+    (`scripts/build_worker_bundle.py::assert_overlay_tree_is_reviewed`), and when a release changes what a
+    reviewed document says, change the document or remove it.

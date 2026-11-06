@@ -93,9 +93,59 @@ def test_the_lab_store_command_reports_success_on_a_cp1252_stream(tmp_path: Path
     text = decoded(result.stdout)
     assert "\uFFFD" not in text, f"the runner would decode this as a replacement character: {text}"
     report = json.loads(text)
-    assert report["ok"] is True and report["tableCount"] == 7, report
+    assert report["ok"] is True and report["tableCount"] == 8, report
     assert Path(report["store"]).is_file(), "the store the report names does not exist"
     assert Path(report["profile"]).is_file()
+
+
+def test_the_corpus_index_verb_reports_a_run_a_cp1252_stream_can_hold(tmp_path: Path) -> None:
+    """`index-corpus` is the verb the 0.3.9 panel calls; its receipt is the proof the run happened."""
+    workspace = tmp_path / FIELD_WORKSPACE
+    (workspace / "notes").mkdir(parents=True)
+    (workspace / "notes" / "dissertace.md").write_text(
+        "# Dissertace\n\nBarefoot sandals appear in the guild records.\n", encoding="utf-8")
+    result = cp1252_cli("from research_stack.cli import main\nraise SystemExit(main())",
+                        "index-corpus", "--workspace", str(workspace), "notes/dissertace.md")
+    assert result.returncode == 0, decoded(result.stderr)
+    text = decoded(result.stdout)
+    assert "\uFFFD" not in text, text
+    report = json.loads(text)
+    assert report["status"] == "complete" and report["written"] == 1, report
+    assert report["indexedSources"] == ["notes/dissertace.md"] and report["runId"]
+    assert report["sourceFilesModified"] is False
+    assert (workspace / ".research-toolkit" / "store" / "research.sqlite3").is_file()
+
+
+def test_the_source_verification_verb_reports_freshness_without_touching_the_source(tmp_path: Path) -> None:
+    workspace = tmp_path / FIELD_WORKSPACE
+    (workspace / "notes").mkdir(parents=True)
+    source = workspace / "notes" / "dissertace.md"
+    source.write_text("# Dissertace\n\nBarefoot sandals appear in the guild records.\n", encoding="utf-8")
+    before = source.read_bytes()
+    indexed = cp1252_cli("from research_stack.cli import main\nraise SystemExit(main())",
+                         "index-corpus", "--workspace", str(workspace), "notes/dissertace.md")
+    assert indexed.returncode == 0, decoded(indexed.stderr)
+
+    result = cp1252_cli("from research_stack.cli import main\nraise SystemExit(main())",
+                        "verify-sources", "--workspace", str(workspace))
+    assert result.returncode == 0, decoded(result.stderr)
+    report = json.loads(decoded(result.stdout))
+    assert report["verified"] == ["notes/dissertace.md"] and report["changed"] == [], report
+    assert report["sourceFilesModified"] is False
+    assert source.read_bytes() == before, "verify-sources reports on the file, it does not write it"
+
+
+def test_a_source_outside_the_workspace_is_refused_by_the_verb(tmp_path: Path) -> None:
+    workspace = tmp_path / FIELD_WORKSPACE
+    (workspace / "notes").mkdir(parents=True)
+    outside = tmp_path / "outside.md"
+    outside.write_text("# Outside\n\nNot part of this workspace.\n", encoding="utf-8")
+    result = cp1252_cli("from research_stack.cli import main\nraise SystemExit(main())",
+                        "index-corpus", "--workspace", str(workspace), str(outside))
+    assert result.returncode == 2
+    failure = json.loads(decoded(result.stderr))
+    assert "SOURCE_OUTSIDE_ROOT" in failure["error"], failure
+    assert not (workspace / ".research-toolkit" / "store" / "research.sqlite3").exists()
 
 
 def test_the_command_the_extension_issues_is_ascii_clean_on_a_cp1252_host(tmp_path: Path) -> None:

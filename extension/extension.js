@@ -17,7 +17,8 @@ const setuplog = require("./setuplog");
 const statusModel = require("./status");
 const { clearStaleLock, inspectLock, setupWindowMs } = require("./preflight");
 const { clearHostToolCache } = require("./hosttools");
-const { PYTHON_FLAGS } = require("./runner");
+const { PYTHON_FLAGS, asRunProcess } = require("./runner");
+const bundles = require("./bundles");
 const componentCatalog = require("./components.json");
 const presetCatalog = require("./presets.json");
 const COMPONENTS_BY_ID = new Map(componentCatalog.components.map((item) => [item.id, item]));
@@ -549,6 +550,103 @@ function activateWith(vscode, context, diagnosticServices) {
     output.clear(); output.appendLine(JSON.stringify(result, null, 2)); output.show(true);
     return result;
   }));
+  async function selectedWorkspaceSources(title, extensions) {
+    const folder = folderSelected();
+    const root = requireLocal(vscode, folder);
+    const selected = await vscode.window.showOpenDialog({ canSelectMany: true, canSelectFolders: false, defaultUri: folder.uri,
+      title, filters: { "Research sources": extensions } });
+    if (!selected?.length) return undefined;
+    const relative = [];
+    for (const uri of selected) {
+      const rel = path.relative(root, uri.fsPath);
+      if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
+        throw new Error(`Choose sources inside the selected workspace folder. ${uri.fsPath} is outside it, and nothing outside the workspace is indexed.`);
+      }
+      relative.push(rel.split(path.sep).join("/"));
+    }
+    return { root, relative };
+  }
+  /** Run one reviewed CLI verb and parse its receipt the way the component steps parse theirs. */
+  async function workerReceipt(runtime, argv, cwd, timeout) {
+    const executed = await asRunProcess({})(runtime.python, [...PYTHON_FLAGS, "-m", "research_stack.cli", ...argv], { timeout, cwd });
+    if (String(executed.stdout || "").includes("\uFFFD")) {
+      throw new Error("The worker's report was not valid UTF-8 text, so its receipt cannot be trusted and nothing is recorded from it. The store itself may already have changed; re-running the command is safe.");
+    }
+    let report;
+    try { report = JSON.parse(executed.stdout); } catch { throw new Error("The worker returned invalid data. Nothing in the store was replaced."); }
+    if (executed.exitCode !== 0) throw new Error(report?.error || String(executed.stderr || "").slice(-400) || "The worker command failed.");
+    return report;
+  }
+  register("researchToolkit.indexSelectedSources", () => exclusive(async () => {
+    const folder = folderSelected(); requireLocal(vscode, folder);
+    const runtime = await managedRuntime(context, folder);
+    if (!runtime) throw new Error("Set up package components before indexing sources.");
+    const picked = await selectedWorkspaceSources("Choose PDF, DOCX or text sources to index into the research store", ["pdf", "docx", "md", "markdown", "txt"]);
+    if (!picked) return undefined;
+    progressMessage = `Indexing ${picked.relative.length} selected source(s) into the workspace research store…`; refresh();
+    let report;
+    try { report = await workerReceipt(runtime, ["index-corpus", "--workspace", picked.root, ...picked.relative], picked.root, 120000); }
+    catch (error) { throw new Error(`Corpus indexing failed for ${picked.relative.length} selected source(s): ${error.message}`); }
+    output.clear(); output.appendLine(JSON.stringify(report, null, 2)); output.show(true);
+    void vscode.window.showInformationMessage(`Corpus index ${report.status}: ${report.written} source(s) written${report.failedSources?.length ? `; ${report.failedSources.length} refused and left at their previous version` : ""}. Source files were not modified.`);
+    return report;
+  }));
+  register("researchToolkit.verifySourceFreshness", () => exclusive(async () => {
+    const folder = folderSelected(); const root = requireLocal(vscode, folder);
+    const runtime = await managedRuntime(context, folder);
+    if (!runtime) throw new Error("Set up package components before checking source freshness.");
+    progressMessage = "Re-hashing the indexed sources against the files that are present…"; refresh();
+    const report = await workerReceipt(runtime, ["verify-sources", "--workspace", root], root, 120000);
+    output.clear(); output.appendLine(JSON.stringify(report, null, 2)); output.show(true);
+    void vscode.window.showInformationMessage(`Source freshness: ${report.verified.length} verified, ${report.changed.length} changed, ${report.missing.length} missing, ${report.inaccessible.length} inaccessible, ${report.uncheckedRemaining} still unchecked.`);
+    return report;
+  }));
+  async function topicBundleChoice(title) {
+    const catalog = await bundles.readCatalog(path.join(context.extensionUri.fsPath, "bundles", "catalog.json"));
+    const choice = await vscode.window.showQuickPick(catalog.bundles.map((bundle) => ({
+      id: bundle.id, label: `${bundle.id} ${bundle.version}`, description: `${bundle.topic} · ${bundle.skills.length} skill(s) · licence: ${bundle.license}`,
+    })), { title, matchOnDescription: true });
+    return choice ? { catalog, bundleId: choice.id } : undefined;
+  }
+  register("researchToolkit.installTopicBundle", () => exclusive(async () => {
+    const folder = folderSelected(); const root = requireLocal(vscode, folder);
+    const picked = await topicBundleChoice(`Install a topic skill bundle into ${folder.name}`);
+    if (!picked) return undefined;
+    const plan = await bundles.planInstall({ workspaceRoot: root, catalog: picked.catalog, bundleId: picked.bundleId });
+    const detail = `${plan.files.length} reviewed file(s) into ${plan.skillRoot}. Writes: ${plan.wouldWrite}. Already in place: ${plan.counts.identical || 0}. `
+      + `Conflicts preserved: ${plan.conflicts.length}. Prerequisites: ${plan.prerequisites.join(" ")} `
+      + `Licence status: ${plan.license}. Installing records a receipt under .research-toolkit/bundles/ and never deletes a file.`;
+    const choice = await vscode.window.showInformationMessage(`Install ${plan.bundleId} ${plan.bundleVersion} into ${folder.name}?`,
+      { modal: true, detail }, "Install skill bundle");
+    if (choice !== "Install skill bundle") return undefined;
+    const receipt = await bundles.installBundle({ workspaceRoot: root, catalog: picked.catalog, bundleId: picked.bundleId });
+    output.clear(); output.appendLine(JSON.stringify(receipt, null, 2)); output.show(true);
+    void vscode.window.showInformationMessage(`Bundle ${plan.bundleId}: ${receipt.filesInstalled} file(s) installed and hash-verified. Host skill discovery and workflow testing are not claimed by this install.`);
+    return receipt;
+  }));
+  register("researchToolkit.repairTopicBundle", () => exclusive(async () => {
+    const folder = folderSelected(); const root = requireLocal(vscode, folder);
+    const picked = await topicBundleChoice(`Repair a topic skill bundle in ${folder.name}`);
+    if (!picked) return undefined;
+    const receipt = await bundles.repairBundle({ workspaceRoot: root, catalog: picked.catalog, bundleId: picked.bundleId });
+    output.clear(); output.appendLine(JSON.stringify(receipt, null, 2)); output.show(true);
+    return receipt;
+  }));
+  register("researchToolkit.showBundleStatus", () => exclusive(async () => {
+    const folder = folderSelected(); const root = requireLocal(vscode, folder);
+    const catalog = await bundles.readCatalog(path.join(context.extensionUri.fsPath, "bundles", "catalog.json"));
+    const status = [];
+    for (const bundle of catalog.bundles) {
+      const receipt = await bundles.readReceipt(root, bundle.id);
+      const plan = await bundles.planInstall({ workspaceRoot: root, catalog, bundleId: bundle.id });
+      status.push({ bundleId: bundle.id, version: bundle.version, installed: Boolean(receipt), filesInstalled: receipt?.filesInstalled ?? 0,
+        inPlace: plan.counts.identical || 0, missing: plan.counts.new || 0, preserved: plan.conflicts.length,
+        hostDiscoveryVerified: receipt?.hostDiscoveryVerified ?? false, workflowTested: receipt?.workflowTested ?? false,
+        hostDiscoveryReason: bundles.HOST_DISCOVERY_REASON, workflowTestedReason: bundles.WORKFLOW_TESTED_REASON });
+    }
+    output.clear(); output.appendLine(JSON.stringify(status, null, 2)); output.show(true);
+    return status;
+  }));
   const mcpProvider = {
     onDidChangeMcpServerDefinitions: changed.event,
     async provideMcpServerDefinitions() {
@@ -766,6 +864,8 @@ function activateWith(vscode, context, diagnosticServices) {
       readingCheck: "researchToolkit.runReadingCheck", readDocument: "researchToolkit.readSelectedDocument",
       copyPreset: "researchToolkit.copyPresetSummary", status: "researchToolkit.refreshComponentStatus", rollback: "researchToolkit.rollbackRuntime",
       retry: "researchToolkit.retryFailedSteps", clearLock: "researchToolkit.clearSetupLock", setupLog: "researchToolkit.openSetupLog", copySetup: "researchToolkit.copyInstallationDiagnostics",
+      indexCorpus: "researchToolkit.indexSelectedSources", verifySources: "researchToolkit.verifySourceFreshness",
+      installBundle: "researchToolkit.installTopicBundle", repairBundle: "researchToolkit.repairTopicBundle", bundleStatus: "researchToolkit.showBundleStatus",
     };
     try {
       if (message.type === "setPackage") {

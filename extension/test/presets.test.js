@@ -36,7 +36,7 @@ test("preset registry is goal-shaped, unique, and offered by a package", () => {
 test("preset tools come from the shipped worker servers and never exceed the client ceiling", () => {
   const shipped = new Set(catalog.servers.flatMap((server) => server.tools));
   assert.equal(catalog.servers.length, 3);
-  assert.equal(shipped.size, 19, "the shipped toolkit surface is nineteen tools across three servers");
+  assert.equal(shipped.size, 20, "the shipped toolkit surface is twenty tools across three servers");
   const budget = catalog.budget;
   assert.equal(budget.clientCeiling, 128);
   assert.equal(budget.toolkitCeilingPerPreset, 12, "C-13: no preset may ship more than twelve toolkit tools");
@@ -66,7 +66,8 @@ test("preset tools come from the shipped worker servers and never exceed the cli
   assert.equal(narrow.level, "focused");
   assert.ok(widest.headroom >= budget.minimumHeadroom, "the widest preset leaves headroom for later releases");
   const corpus = extension.presetEstimate(extension.PRESETS_BY_ID.get("corpus-lab"));
-  assert.equal(corpus.toolkitTools, 10, "the corpus goal carries the full record-store surface plus the text reader");
+  assert.equal(corpus.toolkitTools, 11, "the corpus goal carries the full record-store surface, including verify_sources, plus the text reader");
+  assert.ok(extension.PRESETS_BY_ID.get("corpus-lab").tools.includes("verify_sources"), "0.3.9: the corpus goal must be able to re-hash what it indexed");
   assert.deepEqual(corpus.servers, ["research_stack.mcp_server", "research_stack.lab_server"], "the corpus goal uses the record-store server plus the text reader");
   const workflow = extension.presetEstimate(extension.PRESETS_BY_ID.get("research-workflow"));
   assert.equal(workflow.toolkitTools, 11, "the Full journey preset stays inside the twelve-tool budget");

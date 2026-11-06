@@ -41,6 +41,7 @@
         "unindex_corpus",
         "search_corpus",
         "evidence_read",
+        "verify_sources",
         "claims_read",
         "claims_write",
         "claims_export",
@@ -314,10 +315,11 @@
     {
       "id": "corpus-lab",
       "label": "Index, search and record claims",
-      "goal": "Index the Markdown and text sources you select, search that stored corpus with file/paragraph provenance, resolve evidence, and keep each claim linked to the exact chunks that support it.",
+      "goal": "Index the Markdown, text, PDF or DOCX sources you select, search that stored corpus with page or paragraph provenance, resolve evidence, check that the indexed files are still the files on disk, and keep each claim linked to the exact chunks that support it.",
       "tips": [
         "The index and claims live in .research-toolkit/store/research.sqlite3 in this workspace; source files are never modified.",
-        "unindex_corpus and store_maintenance are marked destructive: a restore is staged as a candidate first and vacuum needs confirmation.",
+        "A PDF chunk carries its original page number and offsets in that page's extracted text; a DOCX chunk carries its ordered paragraph or table-row item. A chunk never crosses a page or an item.",
+        "verify_sources is the only verb that may call a source verified: it re-hashes the present file. A source nobody checked stays 'unchecked'. unindex_corpus and store_maintenance are destructive: a restore is staged as a candidate first and vacuum needs confirmation.",
         "Lexical BM25 only: no embeddings, no vector search and no third-party database are installed by this preset."
       ],
       "packages": [
@@ -329,6 +331,7 @@
         "unindex_corpus",
         "search_corpus",
         "evidence_read",
+        "verify_sources",
         "claims_read",
         "claims_write",
         "claims_export",

@@ -13,6 +13,21 @@ Schema version 2 separates three things that version 1 conflated:
   claim still references them; ``current`` marks live index membership only), and
 * **recorded assessments** (``claims`` plus ``claim_events`` history; a ``supported`` status is
   what the researcher recorded, never proof supplied by the database).
+
+Schema version 3 adds what 0.3.9 needs and changes nothing that version 2 already stated:
+
+* **what a source is** (``kind``, ``unit``, ``parser_id``, unit counts, warnings and the ingestion
+  ``outcome``), so a PDF, a DOCX and a Markdown note are distinguishable in the store;
+* **whether the present file was actually checked** (``verification`` plus ``last_verified_at``),
+  which is a different fact from "this version is in the index" — ``unchecked`` is never reported
+  as ``verified``;
+* **structured locators** (``unit_kind``, ``unit_index``, ``char_start``, ``char_end``) beside the
+  existing locator text, so a PDF page or a DOCX table row is queryable and reopenable; and
+* **one row per ingestion run** (``index_runs``), so a mixed batch that indexed nine files and
+  refused one is a fact the store can still report afterwards.
+
+A migrated row is labelled ``legacy``/``unchecked`` rather than back-filled: 0.3.8 did not record
+coverage or a hash check, and inventing one would be a false claim about the past.
 """
 
 from __future__ import annotations
@@ -33,8 +48,8 @@ STORE_NAME = "research.sqlite3"
 BACKUP_DIRECTORY = "backups"
 RESTORE_PREFIX = "research-restore-"
 PRE_RESTORE_PREFIX = "research-pre-restore-"
-SCHEMA_VERSION = 2
-SUPPORTED_SCHEMA_VERSIONS = (1, 2)
+SCHEMA_VERSION = 3
+SUPPORTED_SCHEMA_VERSIONS = (1, 2, 3)
 
 MAX_INDEX_SOURCES = 1000
 MAX_STORE_CHUNKS = 20000
@@ -44,6 +59,11 @@ MAX_NOTE_CHARS = 4000
 MAX_EVIDENCE_LINKS = 200
 MAX_CLAIM_PAGE = 200
 MAX_RATIONALE_CHARS = 1000
+
+SOURCE_KINDS = ("text", "pdf", "docx")
+INGESTION_OUTCOMES = ("complete", "partial", "failed", "legacy")
+VERIFICATION_STATES = ("verified", "changed", "missing", "inaccessible", "unchecked")
+RUN_STATUSES = ("complete", "partial", "failed", "cancelled")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -60,7 +80,17 @@ CREATE TABLE IF NOT EXISTS sources (
     source_sha256 TEXT NOT NULL,
     bytes INTEGER NOT NULL,
     chunk_count INTEGER NOT NULL,
-    indexed_at TEXT NOT NULL
+    indexed_at TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'text',
+    unit TEXT NOT NULL DEFAULT 'paragraph',
+    parser_id TEXT NOT NULL DEFAULT '',
+    units_total INTEGER NOT NULL DEFAULT 0,
+    units_extracted INTEGER NOT NULL DEFAULT 0,
+    empty_units TEXT NOT NULL DEFAULT '[]',
+    warnings TEXT NOT NULL DEFAULT '[]',
+    outcome TEXT NOT NULL DEFAULT 'legacy',
+    verification TEXT NOT NULL DEFAULT 'unchecked',
+    last_verified_at TEXT
 );
 CREATE TABLE IF NOT EXISTS chunks (
     chunk_id TEXT PRIMARY KEY,
@@ -73,11 +103,16 @@ CREATE TABLE IF NOT EXISTS chunks (
     chunker_id TEXT NOT NULL,
     chars INTEGER NOT NULL,
     current INTEGER NOT NULL DEFAULT 1,
-    indexed_at TEXT NOT NULL
+    indexed_at TEXT NOT NULL,
+    unit_kind TEXT NOT NULL DEFAULT 'paragraph',
+    unit_index INTEGER NOT NULL DEFAULT 0,
+    char_start INTEGER NOT NULL DEFAULT -1,
+    char_end INTEGER NOT NULL DEFAULT -1
 );
 CREATE INDEX IF NOT EXISTS chunks_source_idx ON chunks (source_path);
 CREATE INDEX IF NOT EXISTS chunks_current_idx ON chunks (current);
 CREATE INDEX IF NOT EXISTS chunks_content_idx ON chunks (content_id);
+CREATE INDEX IF NOT EXISTS chunks_unit_idx ON chunks (source_path, unit_index);
 CREATE TABLE IF NOT EXISTS claims (
     claim_id TEXT PRIMARY KEY,
     statement TEXT NOT NULL,
@@ -103,6 +138,17 @@ CREATE TABLE IF NOT EXISTS claim_events (
     kind TEXT NOT NULL,
     detail TEXT NOT NULL DEFAULT '',
     at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS index_runs (
+    run_id TEXT PRIMARY KEY,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    mode TEXT NOT NULL,
+    source_count INTEGER NOT NULL DEFAULT 0,
+    chunk_count INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    accepted_partial INTEGER NOT NULL DEFAULT 0,
+    detail TEXT NOT NULL DEFAULT ''
 );
 """
 
@@ -237,9 +283,23 @@ def _toolkit_version() -> str:
 
 
 def _migrate_to_current(connection: sqlite3.Connection, from_version: int) -> None:
-    """Reviewed 1 -> 2 migration: add the columns the durable-evidence model needs."""
+    """Reviewed migrations: 1 → 2 (durable evidence), 2 → 3 (document provenance and freshness).
+
+    Additive only. No table is rebuilt and no stored chunk row is rewritten: a chunk id is a hash of
+    its content, so rewriting a row would stale every claim that cites it.
+    """
     if from_version >= SCHEMA_VERSION:
         return
+    if from_version == 1:
+        _migrate_1_to_2(connection)
+    _migrate_2_to_3(connection)
+    connection.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
+    connection.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('migrated_from', ?)", (str(from_version),))
+    connection.commit()
+
+
+def _migrate_1_to_2(connection: sqlite3.Connection) -> None:
+    """Version 1 → 2: add the columns the durable-evidence model needs."""
     columns = {row["name"] for row in connection.execute("PRAGMA table_info(chunks)")}
     if "content_id" not in columns:
         connection.execute("ALTER TABLE chunks ADD COLUMN content_id TEXT NOT NULL DEFAULT ''")
@@ -265,9 +325,42 @@ def _migrate_to_current(connection: sqlite3.Connection, from_version: int) -> No
         connection.execute("INSERT OR IGNORE INTO source_versions (source_sha256, bytes, first_seen_at) VALUES (?, ?, ?)", (row["source_sha256"], 0, stamp))
     for row in connection.execute("SELECT path, source_sha256 FROM sources").fetchall() if "sources" in _table_names(connection) else []:
         connection.execute("INSERT OR IGNORE INTO source_versions (source_sha256, bytes, first_seen_at) VALUES (?, ?, ?)", (row["source_sha256"], 0, stamp))
-    connection.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
-    connection.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('migrated_from', ?)", (str(from_version),))
-    connection.commit()
+
+
+def _migrate_2_to_3(connection: sqlite3.Connection) -> None:
+    """Version 2 → 3: document provenance, structured locators, freshness and one row per run.
+
+    A migrated source row lands on ``outcome = 'legacy'`` and ``verification = 'unchecked'``. That is
+    the honest value: 0.3.8 recorded no coverage and never re-checked a present hash, and a default
+    that read like a real measurement would be a claim the store cannot support.
+    """
+    source_additions = {
+        "kind": "TEXT NOT NULL DEFAULT 'text'",
+        "unit": "TEXT NOT NULL DEFAULT 'paragraph'",
+        "parser_id": "TEXT NOT NULL DEFAULT ''",
+        "units_total": "INTEGER NOT NULL DEFAULT 0",
+        "units_extracted": "INTEGER NOT NULL DEFAULT 0",
+        "empty_units": "TEXT NOT NULL DEFAULT '[]'",
+        "warnings": "TEXT NOT NULL DEFAULT '[]'",
+        "outcome": "TEXT NOT NULL DEFAULT 'legacy'",
+        "verification": "TEXT NOT NULL DEFAULT 'unchecked'",
+        "last_verified_at": "TEXT",
+    }
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(sources)")}
+    for name, definition in source_additions.items():
+        if name not in columns:
+            connection.execute(f"ALTER TABLE sources ADD COLUMN {name} {definition}")
+    chunk_additions = {
+        "unit_kind": "TEXT NOT NULL DEFAULT 'paragraph'",
+        "unit_index": "INTEGER NOT NULL DEFAULT 0",
+        "char_start": "INTEGER NOT NULL DEFAULT -1",
+        "char_end": "INTEGER NOT NULL DEFAULT -1",
+    }
+    chunk_columns = {row["name"] for row in connection.execute("PRAGMA table_info(chunks)")}
+    for name, definition in chunk_additions.items():
+        if name not in chunk_columns:
+            connection.execute(f"ALTER TABLE chunks ADD COLUMN {name} {definition}")
+    connection.executescript(SCHEMA)
 
 
 def _connect(root: Path, *, create: bool = False) -> sqlite3.Connection:
@@ -318,7 +411,7 @@ def init_store(root: Path) -> dict[str, object]:
     connection = _connect(root, create=True)
     try:
         tables = sorted(name for name in _table_names(connection) if not name.startswith("sqlite_"))
-        counts = {table: connection.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"] for table in ("sources", "chunks", "claims", "claim_evidence")}
+        counts = {table: connection.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"] for table in ("sources", "chunks", "claims", "claim_evidence", "index_runs")}
         connection.commit()
     finally:
         connection.close()
@@ -407,13 +500,24 @@ def remove_sources(root: Path, relative_paths: list[str]) -> dict[str, object]:
 def index_state(root: Path) -> dict[str, object]:
     connection = _connect(root)
     try:
-        sources = [dict(row) for row in connection.execute("SELECT path, source_sha256, bytes, chunk_count, indexed_at FROM sources ORDER BY path")]
+        sources = [dict(row) for row in connection.execute(
+            "SELECT path, source_sha256, bytes, chunk_count, indexed_at, kind, unit, parser_id, units_total, units_extracted, "
+            "empty_units, warnings, outcome, verification, last_verified_at FROM sources ORDER BY path")]
         meta = {row["key"]: row["value"] for row in connection.execute("SELECT key, value FROM meta")}
         chunk_count = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 1").fetchone()["n"]
         retained = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 0").fetchone()["n"]
         claim_count = connection.execute("SELECT COUNT(*) AS n FROM claims").fetchone()["n"]
     finally:
         connection.close()
+    for source in sources:
+        source["emptyUnits"] = json.loads(source.pop("empty_units") or "[]")
+        source["warnings"] = json.loads(source.pop("warnings") or "[]")
+        source["parser"] = json.loads(source.pop("parser_id") or "{}") if source.get("parser_id") else {}
+        source["lastVerifiedAt"] = source.pop("last_verified_at")
+        source["freshness"] = source.pop("verification")
+    freshness_counts: dict[str, int] = {}
+    for source in sources:
+        freshness_counts[source["freshness"]] = freshness_counts.get(source["freshness"], 0) + 1
     return {
         "schemaVersion": int(meta.get("schema_version", SCHEMA_VERSION)),
         "created_at": meta.get("created_at"),
@@ -423,71 +527,238 @@ def index_state(root: Path) -> dict[str, object]:
         "chunkCount": chunk_count,
         "retainedChunkCount": retained,
         "claimCount": claim_count,
+        "freshness": freshness_counts,
+        "freshnessNote": (
+            "Freshness is a recorded hash check, not an inference from the index. 'unchecked' means the "
+            "present file has never been hashed against this index; run verify_sources to check it."
+        ),
         "sources": sources,
     }
 
 
-def index_corpus(root: Path, relative_paths: list[str], *, chunk_chars: int = 1200, overlap_chars: int = 120) -> dict[str, object]:
-    """Chunk the selected Markdown/text sources and store them with stable identities.
+def _code_of(message: str) -> tuple[str, str]:
+    """Split a ``CODE: sentence`` into its code and its sentence."""
+    code, _, rest = str(message).partition(":")
+    return code.strip(), rest.strip()
 
-    Source files are read only. The selected paths become the current index membership for
-    those paths, including a path that now produces no chunks at all. Chunks a claim still
-    references are retained as historical evidence instead of being deleted.
+
+class _Cancelled(Exception):
+    """Internal signal: the caller asked for this run to stop, so nothing is committed."""
+
+
+def _cancelled_report(run_id: str, started_at: str, *, written: int) -> dict[str, object]:
+    return {
+        "runId": run_id,
+        "status": "cancelled",
+        "indexedSources": [],
+        "keptPreviousVersion": [],
+        "failedSources": [],
+        "partialSources": [],
+        "emptySources": [],
+        "acceptedPartial": False,
+        "written": written,
+        "storeChunks": None,
+        "retainedEvidenceChunks": 0,
+        "collectedUnreferencedChunks": 0,
+        "indexFingerprint": None,
+        "indexedAt": started_at,
+        "cancelled": True,
+        "sourceFilesModified": False,
+        "note": "The run was cancelled before it committed. The store is exactly as it was.",
+    }
+
+
+def _record_cancelled_run(root: Path, run_id: str, started_at: str, source_count: int) -> None:
+    """Leave an audit row for a run that stopped before it committed.
+
+    The data transaction is already rolled back, so this is a separate write into the audit table
+    only. It is skipped when no store exists yet: cancelling an index call must not create a store
+    the operator never asked for. A failure to write the audit row is not turned into an error,
+    because the cancellation itself already succeeded.
     """
-    from .full import chunks_for_source, scan_sources
+    if not store_path(root).is_file():
+        return
+    connection = _connect(root, create=True)
+    try:
+        connection.execute(
+            "INSERT INTO index_runs (run_id, started_at, finished_at, mode, source_count, chunk_count, status, accepted_partial, detail) "
+            "VALUES (?, ?, ?, 'index', ?, 0, 'cancelled', 0, ?)",
+            (run_id, started_at, _now(), source_count, json.dumps({"cancelled": True, "sourcesRequested": source_count}, ensure_ascii=False)),
+        )
+        connection.commit()
+    except sqlite3.Error:
+        connection.rollback()
+    finally:
+        connection.close()
+
+
+def index_corpus(
+    root: Path,
+    relative_paths: list[str],
+    *,
+    chunk_chars: int = 1200,
+    overlap_chars: int = 120,
+    accept_partial: bool = False,
+    cancel=None,
+) -> dict[str, object]:
+    """Index the selected Markdown/text, PDF or DOCX sources with original-document provenance.
+
+    Source files are read only. The selected paths become the current index membership for those
+    paths, including a path that now produces no chunks at all. Chunks a claim still references are
+    retained as historical evidence instead of being deleted.
+
+    Three rules make a mixed batch honest:
+
+    * every source is read and chunked **before** anything is written, and one call is one
+      transaction — a failure after the writes began rolls the whole call back;
+    * a source that could not be read, or that was only partly readable, is reported per file and
+      is **not** written: its previous indexed version stays current. With ``accept_partial=True`` a
+      partial source is written and labelled partial;
+    * if nothing could be written, nothing is written, and the receipt says so.
+    """
+    from .full import MAX_TOTAL_BYTES, chunks_for_source, scan_sources
 
     if not relative_paths or len(relative_paths) > MAX_INDEX_SOURCES:
         raise StoreError(f"SOURCE_COUNT: index 1..{MAX_INDEX_SOURCES} explicit files per call.")
+    if cancel is not None and not callable(cancel):
+        raise StoreError("CANCEL_TOKEN: pass a callable that returns True to stop, or nothing.")
     root_path = Path(root).expanduser().resolve()
-    try:
-        source_records = scan_sources(root_path, relative_paths)
-    except Exception as exc:
-        raise _prototype_error(exc) from exc
+    run_id = f"{_now().replace(':', '').replace('+0000', 'Z')}-{secrets.token_hex(4)}"
+    started_at = _now()
 
-    per_source: dict[str, list] = {}
-    for record in source_records:
+    prepared: dict[str, tuple] = {}
+    failed: list[dict[str, object]] = []
+    total_bytes = 0
+    for relative_path in dict.fromkeys(relative_paths):
+        if cancel is not None and cancel():
+            _record_cancelled_run(root_path, run_id, started_at, len(dict.fromkeys(relative_paths)))
+            return _cancelled_report(run_id, started_at, written=0)
         try:
-            per_source[record.source_path] = (record, chunks_for_source(record, chunk_chars=chunk_chars, overlap_chars=overlap_chars))
+            records = scan_sources(root_path, [relative_path])
         except Exception as exc:
-            raise _prototype_error(exc) from exc
+            code, message = _code_of(str(exc))
+            if code in {"SOURCE_COUNT", "ROOT_NOT_FOUND", "INVALID_SOURCE", "SOURCE_OUTSIDE_ROOT"}:
+                # A malformed request is not a per-file outcome; the whole call is refused.
+                raise _prototype_error(exc) from exc
+            failed.append({"path": relative_path, "code": code, "message": message, "outcome": "failed", "keptPreviousVersion": True})
+            continue
+        if not records:
+            continue
+        record = records[0]
+        total_bytes += record.bytes
+        if total_bytes > MAX_TOTAL_BYTES:
+            failed.append({"path": record.source_path, "code": "CORPUS_TOO_LARGE",
+                           "message": f"total limit is {MAX_TOTAL_BYTES} bytes for one index call.",
+                           "outcome": "failed", "keptPreviousVersion": True})
+            continue
+        try:
+            chunks = chunks_for_source(record, chunk_chars=chunk_chars, overlap_chars=overlap_chars)
+        except Exception as exc:
+            code, message = _code_of(str(exc))
+            failed.append({"path": record.source_path, "code": code, "message": message, "outcome": "failed", "keptPreviousVersion": True})
+            continue
+        prepared[record.source_path] = (record, chunks)
 
     connection = _connect(root, create=True)
+    committed = False
     try:
-        paths = set(per_source)
-        placeholders = ",".join("?" for _ in paths)
+        paths = set(prepared)
+        placeholders = ",".join("?" for _ in paths) if paths else "''"
         current_total = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 1").fetchone()["n"]
-        current_for_paths = connection.execute(f"SELECT COUNT(*) AS n FROM chunks WHERE current = 1 AND source_path IN ({placeholders})", tuple(paths)).fetchone()["n"]
-        incoming = sum(len(chunks) for _, chunks in per_source.values())
+        current_for_paths = connection.execute(f"SELECT COUNT(*) AS n FROM chunks WHERE current = 1 AND source_path IN ({placeholders})", tuple(paths)).fetchone()["n"] if paths else 0
+        incoming = sum(len(chunks) for _, chunks in prepared.values())
         if current_total - current_for_paths + incoming > MAX_STORE_CHUNKS:
             raise StoreError(f"STORE_CHUNK_LIMIT: the store holds at most {MAX_STORE_CHUNKS} current chunks.")
-        stamp = _now()
+        stamp = started_at
+        indexed: list[str] = []
+        kept: list[dict[str, object]] = []
+        partial_sources: list[dict[str, object]] = []
         empty_sources: list[str] = []
         retained = 0
         collected = 0
-        for path, (record, chunks) in sorted(per_source.items()):
+        for path, (record, chunks) in sorted(prepared.items()):
+            if cancel is not None and cancel():
+                raise _Cancelled()
+            if record.outcome in ("partial", "failed") and not accept_partial:
+                existing = connection.execute("SELECT source_sha256, chunk_count FROM sources WHERE path = ?", (path,)).fetchone()
+                kept.append({
+                    "path": path,
+                    "outcome": record.outcome,
+                    "hadPreviousVersion": existing is not None,
+                    "previousChunks": existing["chunk_count"] if existing is not None else 0,
+                    "reason": "accept_partial is false: an incomplete read never replaces an indexed version.",
+                })
+                continue
             connection.execute("UPDATE chunks SET current = 0 WHERE source_path = ?", (path,))
             retained += _retained_count(connection, {path})
             connection.execute("DELETE FROM sources WHERE path = ?", (path,))
             connection.execute("INSERT OR REPLACE INTO source_versions (source_sha256, bytes, first_seen_at) VALUES (?, ?, ?)", (record.source_version_id, record.bytes, stamp))
             for chunk in chunks:
                 connection.execute(
-                    "INSERT INTO chunks (chunk_id, content_id, source_path, source_sha256, locator, text, text_sha256, chunker_id, chars, current, indexed_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?) ON CONFLICT(chunk_id) DO UPDATE SET current = 1, indexed_at = excluded.indexed_at",
-                    (chunk.chunk_id, chunk.content_id, chunk.source_path, chunk.source_version_id, chunk.locator, chunk.text, chunk.text_sha256, chunk.chunker_id, len(chunk.text), stamp),
+                    "INSERT INTO chunks (chunk_id, content_id, source_path, source_sha256, locator, text, text_sha256, chunker_id, chars, current, indexed_at, "
+                    "unit_kind, unit_index, char_start, char_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(chunk_id) DO UPDATE SET current = 1, indexed_at = excluded.indexed_at",
+                    (chunk.chunk_id, chunk.content_id, chunk.source_path, chunk.source_version_id, chunk.locator, chunk.text, chunk.text_sha256, chunk.chunker_id,
+                     len(chunk.text), stamp, chunk.unit_kind, chunk.unit_index, chunk.char_start, chunk.char_end),
                 )
+            coverage = record.coverage or {}
             connection.execute(
-                "INSERT INTO sources (path, source_sha256, bytes, chunk_count, indexed_at) VALUES (?, ?, ?, ?, ?)",
-                (path, record.source_version_id, record.bytes, len(chunks), stamp),
+                "INSERT INTO sources (path, source_sha256, bytes, chunk_count, indexed_at, kind, unit, parser_id, units_total, units_extracted, "
+                "empty_units, warnings, outcome, verification, last_verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', ?)",
+                (path, record.source_version_id, record.bytes, len(chunks), stamp, record.kind, record.unit,
+                 json.dumps(record.parser, ensure_ascii=False) if record.parser else "",
+                 int(coverage.get("totalUnits", 0) or 0), int(coverage.get("unitsRead", 0) or 0),
+                 json.dumps(coverage.get("emptyUnits", []), ensure_ascii=False), json.dumps(list(record.warnings), ensure_ascii=False),
+                 record.outcome, stamp),
             )
             if not chunks:
                 empty_sources.append(path)
+            if record.outcome == "partial":
+                partial_sources.append({"path": path, "unitsTotal": coverage.get("totalUnits"), "unitsExtracted": coverage.get("unitsRead"),
+                                        "emptyUnits": coverage.get("emptyUnits", []), "accepted": True})
             collected += _collect_retired(connection, {path})
+            indexed.append(path)
+        if not indexed:
+            # Nothing was writable: leave the store byte-for-byte as it was.
+            connection.rollback()
+            sources = [(row["path"], row["source_sha256"]) for row in connection.execute("SELECT path, source_sha256 FROM sources")]
+            return {
+                "runId": run_id,
+                "status": "failed",
+                "indexedSources": [],
+                "keptPreviousVersion": kept,
+                "failedSources": failed,
+                "partialSources": [],
+                "emptySources": [],
+                "acceptedPartial": accept_partial,
+                "written": 0,
+                "storeChunks": current_total,
+                "retainedEvidenceChunks": 0,
+                "collectedUnreferencedChunks": 0,
+                "indexFingerprint": _fingerprint(sources),
+                "indexedAt": stamp,
+                "sourceFilesModified": False,
+                "note": "No selected source could be indexed. Nothing in the store changed.",
+            }
         sources = [(row["path"], row["source_sha256"]) for row in connection.execute("SELECT path, source_sha256 FROM sources")]
         connection.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('index_fingerprint', ?)", (_fingerprint(sources),))
         connection.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('indexed_at', ?)", (stamp,))
+        status = "complete" if not failed and not kept and not partial_sources else "partial"
+        connection.execute(
+            "INSERT INTO index_runs (run_id, started_at, finished_at, mode, source_count, chunk_count, status, accepted_partial, detail) "
+            "VALUES (?, ?, ?, 'index', ?, ?, ?, ?, ?)",
+            (run_id, started_at, _now(), len(indexed), sum(len(chunks) for path, (_, chunks) in prepared.items() if path in indexed),
+             status, 1 if accept_partial else 0,
+             json.dumps({"indexed": indexed, "kept": kept, "failed": failed, "partial": partial_sources, "empty": empty_sources}, ensure_ascii=False)),
+        )
         connection.commit()
+        committed = True
         stored = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 1").fetchone()["n"]
         retained_total = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 0").fetchone()["n"]
+    except _Cancelled:
+        connection.rollback()
+        _record_cancelled_run(root_path, run_id, started_at, len(prepared))
+        return _cancelled_report(run_id, started_at, written=0)
     except StoreError:
         connection.rollback()
         raise
@@ -497,27 +768,106 @@ def index_corpus(root: Path, relative_paths: list[str], *, chunk_chars: int = 12
     finally:
         connection.close()
     return {
-        "indexedSources": sorted(per_source),
+        "runId": run_id,
+        "status": status,
+        "indexedSources": indexed,
+        "keptPreviousVersion": kept,
+        "failedSources": failed,
+        "partialSources": partial_sources,
         "emptySources": sorted(empty_sources),
-        "chunksStored": incoming,
+        "acceptedPartial": accept_partial,
+        "written": len(indexed),
+        "chunksStored": sum(len(chunks) for path, (_, chunks) in prepared.items() if path in indexed),
         "storeChunks": stored,
         "retainedEvidenceChunks": retained_total,
         "collectedUnreferencedChunks": collected,
         "indexFingerprint": _fingerprint(sources),
         "indexedAt": stamp,
+        "committed": committed,
         "sourceFilesModified": False,
     }
 
 
+def verify_sources(root: Path, relative_paths: list[str] | None = None) -> dict[str, object]:
+    """Re-hash the sources the index claims and record what the present file actually is.
+
+    This is the only verb that may call a source ``verified``. Indexing sets the flag because it
+    hashed the bytes it read; a store migrated from 0.3.8 starts ``unchecked`` and stays unchecked
+    until this verb has looked at the file. Source files are read only.
+    """
+    from .documents import sha256_file
+    from pathlib import PurePosixPath
+
+    if relative_paths is not None and (not relative_paths or len(relative_paths) > MAX_INDEX_SOURCES):
+        raise StoreError(f"SOURCE_COUNT: verify 1..{MAX_INDEX_SOURCES} explicit files per call.")
+    root_path = Path(root).expanduser().resolve()
+    connection = _connect(root, create=True)
+    try:
+        if relative_paths is None:
+            rows = connection.execute("SELECT path, source_sha256 FROM sources ORDER BY path").fetchall()
+        else:
+            rows = []
+            for relative_path in dict.fromkeys(relative_paths):
+                candidate = PurePosixPath(str(relative_path).replace("\\", "/"))
+                if candidate.is_absolute() or ".." in candidate.parts:
+                    raise StoreError("SOURCE_OUTSIDE_ROOT: verify paths inside the workspace root.")
+                rows.append(connection.execute("SELECT path, source_sha256 FROM sources WHERE path = ?", (candidate.as_posix(),)).fetchone())
+            rows = [row for row in rows if row is not None]
+        stamp = _now()
+        buckets: dict[str, list[str]] = {state: [] for state in VERIFICATION_STATES}
+        for row in rows:
+            target = root_path / Path(*PurePosixPath(row["path"]).parts)
+            if not target.exists():
+                state = "missing"
+            elif not target.is_file():
+                state = "inaccessible"
+            else:
+                try:
+                    actual = sha256_file(target)
+                except OSError:
+                    state = "inaccessible"
+                else:
+                    state = "verified" if actual == row["source_sha256"] else "changed"
+            connection.execute("UPDATE sources SET verification = ?, last_verified_at = ? WHERE path = ?", (state, stamp, row["path"]))
+            buckets[state].append(row["path"])
+        unchecked = connection.execute("SELECT COUNT(*) AS n FROM sources WHERE verification = 'unchecked'").fetchone()["n"]
+        connection.commit()
+    except StoreError:
+        connection.rollback()
+        raise
+    except sqlite3.Error as exc:
+        connection.rollback()
+        raise _translate(exc) from exc
+    finally:
+        connection.close()
+    return {
+        "checked": len(rows),
+        "verified": sorted(buckets["verified"]),
+        "changed": sorted(buckets["changed"]),
+        "missing": sorted(buckets["missing"]),
+        "inaccessible": sorted(buckets["inaccessible"]),
+        "uncheckedRemaining": unchecked,
+        "checkedAt": stamp,
+        "sourceFilesModified": False,
+        "note": "Freshness is a recorded check. A source is 'verified' only when its present bytes were hashed in this call.",
+    }
+
+
 def stored_chunks(root: Path, *, limit: int = MAX_STORE_CHUNKS, include_retired: bool = False):
-    """Load stored chunks as the shared evidence-chunk records used by retrieval."""
+    """Load stored chunks as the shared evidence-chunk records used by retrieval.
+
+    ``limit`` defaults to ``MAX_STORE_CHUNKS`` on purpose: the same constant bounds the store in
+    ``index_corpus`` and bounds the candidate set here, so the index can never grow past the set
+    search is willing to rank. A test asserts the two uses agree.
+    """
     from .full import EvidenceChunk
 
     connection = _connect(root)
     try:
         clause = "" if include_retired else "WHERE current = 1"
         rows = connection.execute(
-            f"SELECT chunk_id, content_id, source_sha256, source_path, locator, text, text_sha256, chunker_id FROM chunks {clause} ORDER BY source_path, locator, chunk_id LIMIT ?",
+            f"SELECT chunk_id, content_id, source_sha256, source_path, locator, text, text_sha256, chunker_id, "
+            f"unit_kind, unit_index, char_start, char_end FROM chunks {clause} ORDER BY source_path, locator, chunk_id LIMIT ?",
             (limit,),
         ).fetchall()
     finally:
@@ -532,6 +882,10 @@ def stored_chunks(root: Path, *, limit: int = MAX_STORE_CHUNKS, include_retired:
             text=row["text"],
             text_sha256=row["text_sha256"],
             chunker_id=row["chunker_id"],
+            unit_kind=row["unit_kind"],
+            unit_index=row["unit_index"],
+            char_start=row["char_start"],
+            char_end=row["char_end"],
         )
         for row in rows
     ]
@@ -558,7 +912,9 @@ def get_chunks(root: Path, chunk_ids: list[str]) -> list[dict[str, object]]:
     try:
         placeholders = ",".join("?" for _ in chunk_ids)
         rows = connection.execute(
-            f"SELECT chunk_id, content_id, source_path, source_sha256, locator, text, text_sha256, chunker_id, current FROM chunks WHERE chunk_id IN ({placeholders})",
+            f"SELECT c.chunk_id, c.content_id, c.source_path, c.source_sha256, c.locator, c.text, c.text_sha256, c.chunker_id, c.current, "
+            f"c.unit_kind, c.unit_index, c.char_start, c.char_end, s.verification, s.last_verified_at, s.kind, s.outcome "
+            f"FROM chunks c LEFT JOIN sources s ON s.path = c.source_path WHERE c.chunk_id IN ({placeholders})",
             tuple(chunk_ids),
         ).fetchall()
     finally:
@@ -574,10 +930,25 @@ def get_chunks(root: Path, chunk_ids: list[str]) -> list[dict[str, object]]:
             "text": row["text"],
             "textSha256": row["text_sha256"],
             "chunkerId": row["chunker_id"],
+            "unitKind": row["unit_kind"],
+            "unitIndex": row["unit_index"],
+            "charStart": row["char_start"],
+            "charEnd": row["char_end"],
+            "sourceKind": row["kind"] if row["kind"] else "text",
             "resolvable": True,
             "current": bool(row["current"]),
         }
         record["stale"] = not record["current"]
+        # A retired chunk came from a version the index no longer holds, so the freshness of the
+        # present file says nothing about it: it is labelled historical instead. For a current chunk
+        # the freshness is the store's own recorded check of that exact path and version.
+        if record["stale"]:
+            record["sourceVerification"] = "historical"
+            record["sourceLastVerifiedAt"] = None
+            record["verificationNote"] = "Retained evidence from an earlier version of this source; the store no longer indexes that version."
+        else:
+            record["sourceVerification"] = row["verification"] if row["verification"] else "unindexed"
+            record["sourceLastVerifiedAt"] = row["last_verified_at"]
         resolved.append(record)
     resolved.sort(key=lambda item: item["chunk_id"])
     return resolved
@@ -585,8 +956,10 @@ def get_chunks(root: Path, chunk_ids: list[str]) -> list[dict[str, object]]:
 
 def _evidence_links(connection: sqlite3.Connection, claim_id: str) -> list[dict[str, object]]:
     rows = connection.execute(
-        "SELECT e.chunk_id, e.locator, e.role, e.rationale, e.added_at, c.source_path, c.source_sha256, c.text_sha256, c.current "
-        "FROM claim_evidence e LEFT JOIN chunks c ON c.chunk_id = e.chunk_id WHERE e.claim_id = ? ORDER BY e.added_at, e.chunk_id",
+        "SELECT e.chunk_id, e.locator, e.role, e.rationale, e.added_at, c.source_path, c.source_sha256, c.text_sha256, c.current, "
+        "s.verification, s.last_verified_at "
+        "FROM claim_evidence e LEFT JOIN chunks c ON c.chunk_id = e.chunk_id LEFT JOIN sources s ON s.path = c.source_path "
+        "WHERE e.claim_id = ? ORDER BY e.added_at, e.chunk_id",
         (claim_id,),
     ).fetchall()
     links: list[dict[str, object]] = []
@@ -605,8 +978,15 @@ def _evidence_links(connection: sqlite3.Connection, claim_id: str) -> list[dict[
             link["sourcePath"] = row["source_path"]
             link["sourceSha256"] = row["source_sha256"]
             link["textSha256"] = row["text_sha256"]
+            if link["stale"]:
+                link["sourceVerification"] = "historical"
+                link["sourceLastVerifiedAt"] = None
+            else:
+                link["sourceVerification"] = row["verification"] if row["verification"] else "unindexed"
+                link["sourceLastVerifiedAt"] = row["last_verified_at"]
         else:
             link["sourcePath"] = None
+            link["sourceVerification"] = "unresolvable"
             link["warning"] = "EVIDENCE_UNRESOLVABLE: this chunk id is no longer in the store."
         links.append(link)
     return links
@@ -831,12 +1211,23 @@ def _reconcile_evidence(connection: sqlite3.Connection, claim_id: str, chunk_ids
     return {"added": added, "removed": removed}
 
 
-def export_claims(root: Path, claim_ids: list[str], *, include_stale: bool = False) -> dict[str, object]:
+UNVERIFIED_SOURCE_STATES = ("changed", "missing", "inaccessible", "unresolvable")
+
+
+def export_claims(root: Path, claim_ids: list[str], *, include_stale: bool = False, include_unverified: bool = False) -> dict[str, object]:
     """Resolve stored claims into report-ready references with validated source identity.
 
-    A reference is only produced when the cited chunk still resolves in the store. Stale
-    (retired) evidence is excluded unless the caller explicitly asks for it, so a report never
-    cites a source version that no longer exists without saying so.
+    A reference is only produced when the cited chunk still resolves in the store. Two exclusions
+    apply by default, and both are counted in the receipt:
+
+    * **stale** — the chunk is retained evidence from a version the index no longer holds;
+    * **unverified** — the source file is known to be `changed`, `missing`, `inaccessible`, or the
+      chunk no longer resolves at all.
+
+    A source that is `unchecked` is included and counted separately: it is the version the index
+    holds, and the honest statement about it is "the present file has never been re-hashed", not
+    "it is wrong". Anything included against the default is labelled, never quietly merged into the
+    live references.
     """
     if not claim_ids or len(claim_ids) > MAX_EVIDENCE_LINKS:
         raise StoreError(f"CLAIM_IDS: export 1..{MAX_EVIDENCE_LINKS} claim ids per call.")
@@ -846,14 +1237,28 @@ def export_claims(root: Path, claim_ids: list[str], *, include_stale: bool = Fal
         claims: list[dict[str, object]] = []
         unresolved: list[str] = []
         excluded_stale = 0
+        excluded_unverified = 0
+        unchecked_references = 0
         for claim_id in claim_ids:
             row = connection.execute("SELECT * FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()
             if row is None:
                 unresolved.append(claim_id)
                 continue
             links = _evidence_links(connection, claim_id)
-            usable = [link for link in links if link["resolvable"] and (include_stale or link["current"])]
-            excluded_stale += sum(1 for link in links if link["resolvable"] and link["stale"] and not include_stale)
+            usable: list[dict[str, object]] = []
+            for link in links:
+                if not link["resolvable"]:
+                    excluded_unverified += 1
+                    if not include_unverified:
+                        continue
+                elif link["sourceVerification"] in UNVERIFIED_SOURCE_STATES:
+                    excluded_unverified += 1
+                    if not include_unverified:
+                        continue
+                elif link["stale"] and not include_stale:
+                    excluded_stale += 1
+                    continue
+                usable.append(link)
             claims.append({
                 "claim_id": row["claim_id"],
                 "statement": row["statement"],
@@ -861,8 +1266,11 @@ def export_claims(root: Path, claim_ids: list[str], *, include_stale: bool = Fal
                 "evidenceCount": len(links),
                 "usableEvidenceCount": len(usable),
                 "staleEvidenceCount": sum(1 for link in links if link["stale"]),
+                "unverifiedEvidenceCount": sum(1 for link in links if link["sourceVerification"] in UNVERIFIED_SOURCE_STATES),
             })
             for link in usable:
+                if link["sourceVerification"] == "unchecked":
+                    unchecked_references += 1
                 references.append({
                     "label": f"{link['sourcePath']} · {link['locator']}",
                     "reference": link["sourcePath"],
@@ -871,6 +1279,8 @@ def export_claims(root: Path, claim_ids: list[str], *, include_stale: bool = Fal
                     "chunkId": link["chunk_id"],
                     "role": link["role"],
                     "current": link["current"],
+                    "sourceVerification": link["sourceVerification"],
+                    "historical": bool(link["stale"]) or link["sourceVerification"] in UNVERIFIED_SOURCE_STATES,
                 })
     finally:
         connection.close()
@@ -879,33 +1289,55 @@ def export_claims(root: Path, claim_ids: list[str], *, include_stale: bool = Fal
         "references": references,
         "unresolvedClaims": sorted(unresolved),
         "excludedStaleReferences": excluded_stale,
+        "excludedUnverifiedReferences": excluded_unverified,
+        "uncheckedReferences": unchecked_references,
         "readOnly": True,
         "assessment": ASSESSMENT_NOTE,
+        "freshnessNote": (
+            "References marked historical are retained evidence from a version this index no longer holds, "
+            "or from a source whose present file was found changed, missing or inaccessible. References marked "
+            "unchecked are the indexed version, but the present file has never been re-hashed against it."
+        ),
     }
 
 
 def reindex_preview(root: Path, relative_paths: list[str]) -> dict[str, object]:
-    """Show what an index run would change, without creating or writing anything."""
+    """Show what an index run would change, without creating or writing anything.
+
+    A source that cannot be read appears in ``unreadableSources`` with its own code instead of
+    aborting the preview: the point of a preview is to see the whole batch before committing to it.
+    """
     from .full import chunks_for_source, scan_sources
 
     root_path = Path(root).expanduser().resolve()
-    try:
-        source_records = scan_sources(root_path, relative_paths)
-    except Exception as exc:
-        raise _prototype_error(exc) from exc
     store_exists = store_path(root).is_file()
     affected: dict[str, dict[str, object]] = {}
-    for record in source_records:
+    unreadable: list[dict[str, object]] = []
+    for relative_path in dict.fromkeys(relative_paths):
+        try:
+            records = scan_sources(root_path, [relative_path])
+        except Exception as exc:
+            code, message = _code_of(str(exc))
+            unreadable.append({"path": relative_path, "code": code, "message": message})
+            continue
+        if not records:
+            continue
+        record = records[0]
         try:
             new_chunks = len(chunks_for_source(record))
         except Exception as exc:
-            raise _prototype_error(exc) from exc
+            code, message = _code_of(str(exc))
+            unreadable.append({"path": record.source_path, "code": code, "message": message})
+            continue
         affected[record.source_path] = {
             "currentSha256": None,
             "newSha256": record.source_version_id,
             "currentChunks": 0,
             "newChunks": new_chunks,
             "changed": True,
+            "kind": record.kind,
+            "outcome": record.outcome,
+            "unitsTotal": record.coverage.get("totalUnits", 0) or None,
         }
     if store_exists:
         connection = _connect(root)
@@ -925,6 +1357,7 @@ def reindex_preview(root: Path, relative_paths: list[str]) -> dict[str, object]:
         "sources": affected,
         "changedSources": sorted(path for path, detail in affected.items() if detail["changed"]),
         "unchangedSources": sorted(path for path, detail in affected.items() if not detail["changed"]),
+        "unreadableSources": unreadable,
         "written": False,
     }
 
@@ -944,6 +1377,7 @@ def _snapshot(source: Path, destination: Path) -> dict[str, object]:
     """Copy a live SQLite database consistently and validate the copy."""
     source_connection = sqlite3.connect(_read_only_uri(source), uri=True)
     destination_connection = sqlite3.connect(destination)
+    destination_connection.row_factory = sqlite3.Row
     try:
         source_connection.backup(destination_connection)
         destination_connection.commit()
@@ -951,9 +1385,12 @@ def _snapshot(source: Path, destination: Path) -> dict[str, object]:
         if check is None or check[0] != "ok":
             raise StoreError("BACKUP_INVALID: the snapshot failed its integrity check; the live store was not changed.")
         meta = {row[0]: row[1] for row in destination_connection.execute("SELECT key, value FROM meta")}
+        # A store written by an older toolkit has no newer tables. Counting only what the snapshot
+        # really has is what makes `backup` work on a 0.3.8 store, before any migration has run.
+        existing = _table_names(destination_connection)
         counts = {}
-        for table in ("sources", "chunks", "claims", "claim_evidence"):
-            counts[table] = destination_connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        for table in ("sources", "chunks", "claims", "claim_evidence", "index_runs"):
+            counts[table] = destination_connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] if table in existing else 0
     except sqlite3.Error as exc:
         raise _translate(exc) from exc
     finally:

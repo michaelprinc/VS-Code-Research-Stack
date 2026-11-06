@@ -2,18 +2,23 @@
 
 Verbs are separated so a client can gate them by what they actually do:
 
-``index_corpus``      build/refresh the workspace corpus index for selected sources
+``index_corpus``      build/refresh the workspace corpus index for selected sources (Markdown/text, PDF, DOCX)
 ``unindex_corpus``    drop selected sources from the current index (retained evidence stays)
 ``search_corpus``     BM25 retrieval over the current stored chunks, with provenance
 ``evidence_read``     resolve chunk ids to source path, locator, text hash and freshness
+``verify_sources``    re-hash the indexed sources and record what the present files actually are
 ``claims_read``       list or read claims with hydrated, freshness-flagged evidence links
 ``claims_write``      create or patch one claim and reconcile its evidence links
 ``claims_export``     turn stored claims into validated report references
-``store_status``      read the store's inventory and counters
+``store_status``      read the store's inventory, counters and freshness summary
 ``store_maintenance`` backup, candidate restore and confirmed vacuum
 
 Everything is local to the workspace store under ``.research-toolkit/store/``. Source files
 are read only. No vector search, embedding model or third-party database is implied.
+
+A structured failure is returned as ``{"resultState": "error", "error": {"code", "message"}}`` with
+the MCP envelope left non-error, exactly as in 0.3.8: the client is meant to read the code, not to
+treat a domain refusal as a transport failure.
 """
 
 from __future__ import annotations
@@ -36,11 +41,12 @@ TOOL_TITLES = {
     "claims_read": "Read claims and their evidence links",
     "claims_write": "Create or update a claim with evidence links",
     "evidence_read": "Resolve evidence chunk ids to source text and provenance",
-    "index_corpus": "Index or re-index selected workspace sources",
+    "index_corpus": "Index or re-index selected workspace sources (Markdown, text, PDF, DOCX)",
     "search_corpus": "Search the indexed corpus with provenance",
     "store_maintenance": "Back up, restore or vacuum the research record store",
     "store_status": "Inspect the research record store",
     "unindex_corpus": "Remove selected sources from the current index",
+    "verify_sources": "Re-check the indexed sources against the files present now",
 }
 
 # Annotations describe the real effect of each verb: reads never write, the removal verb is
@@ -55,6 +61,9 @@ TOOL_ANNOTATIONS = {
     "store_maintenance": annotations(read_only=False, destructive=True, idempotent=False, open_world_hint=False),
     "store_status": annotations(read_only=True),
     "unindex_corpus": annotations(read_only=False, destructive=True, idempotent=True, open_world_hint=False),
+    # verify_sources re-reads source files and records the result in the store: it writes the store,
+    # never a source, and re-running it is safe.
+    "verify_sources": annotations(read_only=False, destructive=False, idempotent=True, open_world_hint=False),
 }
 
 
@@ -85,14 +94,20 @@ def _failure(exc: Exception, **extra: object) -> dict[str, object]:
     return {"resultState": "error", "error": {"code": code, "message": message}, **extra}
 
 
-def index_corpus(paths: list[str], mode: str = "index") -> dict[str, object]:
-    """Index or re-index selected Markdown/text sources; removals belong to unindex_corpus."""
+def index_corpus(paths: list[str], mode: str = "index", accept_partial: bool = False) -> dict[str, object]:
+    """Index or re-index selected Markdown, text, PDF or DOCX sources; removals belong to unindex_corpus.
+
+    Every selected file is reported individually: ``indexedSources``, ``failedSources`` with its code,
+    ``keptPreviousVersion`` for a file whose readable version was left alone, and ``partialSources``
+    when ``accept_partial`` was set. A partial or failed read never replaces a good indexed version
+    unless the caller asks for it.
+    """
     try:
         if mode == "remove":
             return {"resultState": "error", "error": {"code": "INDEX_MODE_REMOVED", "message": "Removing sources is destructive and now has its own verb: call unindex_corpus with the same paths."}}
         if mode not in {"index", "reindex"}:
             raise StoreError("INDEX_MODE: expected index or reindex.")
-        return {"mode": mode, **records.index_corpus(configured_root(), paths), "persistentIndex": True}
+        return {"mode": mode, **records.index_corpus(configured_root(), paths, accept_partial=accept_partial), "persistentIndex": True}
     except (StoreError, PathPolicyError) as exc:
         return _failure(exc)
 
@@ -160,12 +175,25 @@ def claims_write(
         return _failure(exc)
 
 
-def claims_export(claim_ids: list[str], include_stale: bool = False) -> dict[str, object]:
+def claims_export(claim_ids: list[str], include_stale: bool = False, include_unverified: bool = False) -> dict[str, object]:
     """Resolve stored claims into report-ready references; unresolved evidence is reported, not invented."""
     try:
-        return {"readOnly": True, **records.export_claims(configured_root(), claim_ids, include_stale=include_stale)}
+        return {"readOnly": True, **records.export_claims(configured_root(), claim_ids, include_stale=include_stale, include_unverified=include_unverified)}
     except (StoreError, PathPolicyError) as exc:
         return _failure(exc, readOnly=True)
+
+
+def verify_sources(paths: list[str] | None = None) -> dict[str, object]:
+    """Re-hash the indexed sources against the files present now, and record what each one is.
+
+    This is the verb that may call a source ``verified``. The result separates ``verified``,
+    ``changed``, ``missing`` and ``inaccessible``, and counts what is still ``unchecked`` — a source
+    nobody has looked at is not a source that is fine.
+    """
+    try:
+        return {"readOnly": False, "writeMode": "store-only", **records.verify_sources(configured_root(), paths), "persistentIndex": True}
+    except (StoreError, PathPolicyError) as exc:
+        return _failure(exc)
 
 
 def store_status() -> dict[str, object]:
@@ -191,7 +219,7 @@ def corpus_status(root: Path) -> dict[str, object]:
     return records.index_state(root)
 
 
-LAB_TOOLS = (claims_export, claims_read, claims_write, evidence_read, index_corpus, search_corpus, store_maintenance, store_status, unindex_corpus)
+LAB_TOOLS = (claims_export, claims_read, claims_write, evidence_read, index_corpus, search_corpus, store_maintenance, store_status, unindex_corpus, verify_sources)
 
 
 def main() -> None:

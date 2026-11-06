@@ -8,7 +8,7 @@ import hashlib
 import json
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lockintegrity
@@ -32,6 +32,26 @@ OVERLAY_PATTERN = re.compile(
     r"^(\.github/skills/[a-z0-9-]+/SKILL\.md|\.research-toolkit/recommended-profile\.json"
     r"|notebooks/analysis/(pyproject\.toml|uv\.lock|\.python-version)|notebooks/[a-z0-9-]+\.ipynb|research/README\.md)$"
 )
+
+
+def assert_overlay_tree_is_reviewed(overlay_root: Path = OVERLAY_ROOT, allowed: list[str] = OVERLAY_FILES) -> None:
+    """Refuse to build when the overlay tree holds a template the allowlist does not name.
+
+    On 5 November 2026 a sixth overlay skill (`document-corpus-bridge`) was authored into this tree,
+    reviewed, and silently skipped: the allowlist is a list, the audit only checks what it expects, and
+    nothing compared the two. A reviewed file that never ships is worse than a missing one, because the
+    tree says it exists.
+    """
+    present = {
+        PurePosixPath(path.relative_to(overlay_root)).as_posix()
+        for path in overlay_root.rglob('*') if path.is_file()
+    }
+    unnamed = sorted(present - set(allowed))
+    if unnamed:
+        raise ValueError(
+            "overlay templates are not in the allowlist — package them by naming them in OVERLAY_FILES, "
+            f"or move them out of the overlay tree: {unnamed}"
+        )
 
 
 def assert_locks_current(pairs: list[tuple[str, str]], root: Path = ROOT) -> None:
@@ -70,6 +90,7 @@ def build():
         destination.write_bytes(content)
         entries[relative] = hashlib.sha256(content).hexdigest()
     overlay_entries = {}
+    assert_overlay_tree_is_reviewed(OVERLAY_ROOT, OVERLAY_FILES)
     for relative in OVERLAY_FILES:
         if not OVERLAY_PATTERN.match(relative):
             raise ValueError(f"Overlay path is outside the reviewed pattern: {relative}")

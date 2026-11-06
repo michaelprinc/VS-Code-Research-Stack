@@ -19,6 +19,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+import docx
+import pypdf
 from docx import Document
 from docx.oxml.ns import qn
 from docx.table import Table
@@ -29,6 +31,15 @@ MAX_INPUT_BYTES = 50 * 1024 * 1024
 MAX_PDF_PAGES = 500
 MAX_RESULT_CHARS = 1_000_000
 MAX_TEXT_ITEMS = 200
+# 0.3.9: the per-call unit cap is a reader limit, not an indexing limit. `extract_source` loops
+# under it, so a 500-page PDF is read in five batches and its coverage proves all five happened.
+MAX_BATCH_UNITS = 100
+MAX_INDEX_CHARS = 5_000_000
+MAX_WARNING_DETAIL = 10
+# The parser is part of the stored provenance: a reindex has to be able to say which reader, and
+# which version of it, produced the text a chunk cites.
+PDF_PARSER_ID = "pypdf"
+DOCX_PARSER_ID = "python-docx"
 TEXT_SUFFIXES = {".md", ".markdown", ".txt"}
 DOCUMENT_SUFFIXES = {".pdf", ".docx"}
 CITABLE_SUFFIXES = DOCUMENT_SUFFIXES | TEXT_SUFFIXES
@@ -51,6 +62,65 @@ class ExtractedDocument:
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class DocumentUnit:
+    """One extractable unit of a source: a PDF page, or a DOCX paragraph or table row, in source order.
+
+    ``error`` is set when that one unit could not be read. A unit failure is a fact about the unit,
+    never a reason to discard the units that were read.
+    """
+
+    index: int
+    kind: str
+    text: str
+    characters: int
+    error: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class ExtractedSource:
+    """A whole PDF or DOCX read in bounded batches, with the coverage needed to classify the outcome.
+
+    ``outcome`` is ``complete`` when every unit the source reported was read without a unit failure,
+    ``partial`` when some units were read and some were not, and ``failed`` when no unit yielded text
+    and at least one unit failed. Units that exist but hold no text are recorded in ``coverage`` as
+    empty units; they are not a failure and they are not hidden.
+    """
+
+    path: str
+    kind: str
+    sha256: str
+    units: list[DocumentUnit]
+    coverage: dict[str, Any]
+    warnings: list[str]
+    parser: dict[str, str]
+    outcome: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "kind": self.kind,
+            "sha256": self.sha256,
+            "units": [unit.as_dict() for unit in self.units],
+            "coverage": self.coverage,
+            "warnings": self.warnings,
+            "parser": self.parser,
+            "outcome": self.outcome,
+        }
+
+
+def parser_identity(suffix: str) -> dict[str, str]:
+    """Which parser produced this text, and which version of it. Stored so a reindex can be compared."""
+    if suffix == ".pdf":
+        return {"id": PDF_PARSER_ID, "version": pypdf.__version__}
+    if suffix == ".docx":
+        return {"id": DOCX_PARSER_ID, "version": docx.__version__}
+    return {"id": "utf-8-decode", "version": "1"}
 
 
 @dataclass
@@ -82,78 +152,244 @@ def _check_input(path: Path, suffixes: set[str], formats_code: str) -> Path:
     return path
 
 
-def _docx_body_blocks(document: Document) -> list[tuple[str, str]]:
-    """Body blocks in document order, so a paragraph/table/paragraph document stays in order."""
-    blocks: list[tuple[str, str]] = []
+def _docx_blocks_with_status(document: Document) -> list[tuple[str, str, str | None]]:
+    """Body blocks in document order as ``(kind, text, error)``.
+
+    One unreadable paragraph or table is reported as that item's failure instead of discarding the
+    items around it. Order is what makes a DOCX locator honest, so it is preserved here.
+    """
+    blocks: list[tuple[str, str, str | None]] = []
     table_index = 0
     for child in document.element.body.iterchildren():
         if child.tag == qn("w:p"):
-            blocks.append(("paragraph", Paragraph(child, document).text))
+            try:
+                blocks.append(("paragraph", Paragraph(child, document).text, None))
+            except Exception as exc:  # pragma: no cover - a malformed paragraph
+                blocks.append(("paragraph", "", f"DOCX_ITEM_PARSE_FAILED: {type(exc).__name__}"))
         elif child.tag == qn("w:tbl"):
             table_index += 1
-            table = Table(child, document)
-            for row_index, row in enumerate(table.rows, start=1):
-                blocks.append((f"table-{table_index}-row", " | ".join(cell.text for cell in row.cells)))
+            try:
+                table = Table(child, document)
+                for row in table.rows:
+                    blocks.append((f"table-{table_index}-row", " | ".join(cell.text for cell in row.cells), None))
+            except Exception as exc:  # pragma: no cover - a malformed table
+                blocks.append((f"table-{table_index}-row", "", f"DOCX_TABLE_PARSE_FAILED: {type(exc).__name__}"))
     return blocks
+
+
+def _docx_body_blocks(document: Document) -> list[tuple[str, str]]:
+    """Body blocks in document order, so a paragraph/table/paragraph document stays in order."""
+    blocks: list[tuple[str, str]] = []
+    for kind, text, error in _docx_blocks_with_status(document):
+        if error is not None:
+            raise DocumentError(f"DOCX_PARSE_FAILED: {error}; source was not changed.")
+        blocks.append((kind, text))
+    return blocks
+
+
+def _pdf_units(reader: PdfReader, start: int, end: int, *, tolerate_unit_failure: bool) -> list[DocumentUnit]:
+    """Read pages ``start..end``. A page that raises is that page's failure, never the file's verdict."""
+    units: list[DocumentUnit] = []
+    for page_number in range(start, end + 1):
+        try:
+            text = reader.pages[page_number - 1].extract_text() or ""
+        except Exception as exc:
+            if not tolerate_unit_failure:
+                raise DocumentError(f"PDF_PARSE_FAILED: {type(exc).__name__}; source was not changed.") from exc
+            units.append(DocumentUnit(page_number, "page", "", 0, f"PDF_PAGE_PARSE_FAILED: {type(exc).__name__}"))
+            continue
+        units.append(DocumentUnit(page_number, "page", text, len(text)))
+    return units
+
+
+def _docx_units(blocks: list[tuple[str, str, str | None]], start: int, end: int) -> list[DocumentUnit]:
+    units: list[DocumentUnit] = []
+    for index in range(start, end + 1):
+        kind, text, error = blocks[index - 1]
+        units.append(DocumentUnit(index, kind, text, len(text), error))
+    return units
 
 
 def extract_document(path: Path, *, start: int = 1, count: int = 50) -> ExtractedDocument:
     """Extract a page/paragraph range; locators are 1-based and stable within the source."""
     path = _check_input(path, {".pdf", ".docx"}, "use a text-bearing PDF or DOCX file.")
-    if start < 1 or count < 1 or count > 100:
-        raise DocumentError("INVALID_RANGE: start must be positive and count must be 1..100.")
+    if start < 1 or count < 1 or count > MAX_BATCH_UNITS:
+        raise DocumentError(f"INVALID_RANGE: start must be positive and count must be 1..{MAX_BATCH_UNITS}.")
 
     warnings: list[str] = []
-    locators: list[dict[str, Any]] = []
-    parts: list[str] = []
     if path.suffix.lower() == ".pdf":
         try:
             reader = PdfReader(str(path), strict=False)
             if reader.is_encrypted:
                 raise DocumentError("PDF_ENCRYPTED: provide an unlocked copy; the source was not changed.")
-            page_total = len(reader.pages)
-            if page_total > MAX_PDF_PAGES:
-                raise DocumentError(f"PAGE_LIMIT: PDF has {page_total} pages; limit is {MAX_PDF_PAGES}.")
-            if page_total == 0:
+            total_units = len(reader.pages)
+            if total_units > MAX_PDF_PAGES:
+                raise DocumentError(f"PAGE_LIMIT: PDF has {total_units} pages; limit is {MAX_PDF_PAGES}.")
+            if total_units == 0:
                 raise DocumentError("PDF_EMPTY: document contains no pages.")
-            end = min(page_total, start + count - 1)
-            if start > page_total:
-                raise DocumentError(f"INVALID_RANGE: PDF has {page_total} pages.")
-            for page_number in range(start, end + 1):
-                text = reader.pages[page_number - 1].extract_text() or ""
-                parts.append(text)
-                locators.append({"page": page_number, "characters": len(text)})
-            if not any(p.strip() for p in parts):
-                warnings.append("NO_TEXT_EXTRACTED: this may be a scanned PDF; OCR is not included in Phase 1.")
+            if start > total_units:
+                raise DocumentError(f"INVALID_RANGE: PDF has {total_units} pages.")
+            end = min(total_units, start + count - 1)
+            units = _pdf_units(reader, start, end, tolerate_unit_failure=False)
             kind = "pdf"
-            coverage = {"totalUnits": page_total, "unit": "page", "returnedFrom": start, "returnedTo": end, "truncated": end < page_total}
+            unit_name = "page"
         except DocumentError:
             raise
         except Exception as exc:
             raise DocumentError(f"PDF_PARSE_FAILED: {type(exc).__name__}; source was not changed.") from exc
     else:
         try:
-            elements = _docx_body_blocks(Document(str(path)))
-            if not elements:
+            blocks = _docx_blocks_with_status(Document(str(path)))
+            for _kind, _text, error in blocks:
+                if error is not None:
+                    raise DocumentError(f"DOCX_PARSE_FAILED: {error}; source was not changed.")
+            total_units = len(blocks)
+            if total_units == 0:
                 raise DocumentError("DOCX_EMPTY: no paragraphs or table rows were found.")
-            end = min(len(elements), start + count - 1)
-            if start > len(elements):
-                raise DocumentError(f"INVALID_RANGE: DOCX has {len(elements)} extractable paragraphs/rows.")
-            for index in range(start, end + 1):
-                kind_name, text = elements[index - 1]
-                parts.append(text)
-                locators.append({"item": index, "kind": kind_name, "characters": len(text)})
+            if start > total_units:
+                raise DocumentError(f"INVALID_RANGE: DOCX has {total_units} extractable paragraphs/rows.")
+            end = min(total_units, start + count - 1)
+            units = _docx_units(blocks, start, end)
             kind = "docx"
-            coverage = {"totalUnits": len(elements), "unit": "paragraph or table row", "returnedFrom": start, "returnedTo": end, "truncated": end < len(elements)}
+            unit_name = "paragraph or table row"
         except DocumentError:
             raise
         except Exception as exc:
             raise DocumentError(f"DOCX_PARSE_FAILED: {type(exc).__name__}; source was not changed.") from exc
 
-    result = "\n\n".join(parts)
+    if kind == "pdf":
+        locators = [{"page": unit.index, "characters": unit.characters} for unit in units]
+    else:
+        locators = [{"item": unit.index, "kind": unit.kind, "characters": unit.characters} for unit in units]
+    result = "\n\n".join(unit.text for unit in units)
+    if kind == "pdf" and not any(unit.text.strip() for unit in units):
+        warnings.append("NO_TEXT_EXTRACTED: this may be a scanned PDF; OCR is not included in Phase 1.")
     if len(result) > MAX_RESULT_CHARS:
         raise DocumentError("RESULT_TOO_LARGE: reduce the requested range; extraction is never silently truncated.")
+    coverage = {"totalUnits": total_units, "unit": unit_name, "returnedFrom": start, "returnedTo": end, "truncated": end < total_units}
     return ExtractedDocument(str(path), kind, sha256_file(path), result, locators, warnings, coverage)
+
+
+def extract_source(path: Path) -> ExtractedSource:
+    """Read a whole PDF or DOCX in bounded batches, and report the coverage that classifies the outcome.
+
+    This is the indexing reader. It reuses the same extraction as ``extract_document`` and loops under
+    the same per-call unit cap, so a 500-page document is read in five batches and ``coverage`` proves
+    all five happened. The source is hashed before the first batch and re-hashed after the last one:
+    a file that changes while it is being read is refused rather than indexed as one version.
+
+    Source files are read only. Nothing here writes to them.
+    """
+    path = _check_input(path, {".pdf", ".docx"}, "index_corpus accepts a text-bearing PDF or DOCX file.")
+    suffix = path.suffix.lower()
+    source_sha256 = sha256_file(path)
+    units: list[DocumentUnit] = []
+    total_units = 0
+
+    if suffix == ".pdf":
+        try:
+            reader = PdfReader(str(path), strict=False)
+            if reader.is_encrypted:
+                raise DocumentError("PDF_ENCRYPTED: provide an unlocked copy; the source was not changed.")
+            total_units = len(reader.pages)
+            if total_units > MAX_PDF_PAGES:
+                raise DocumentError(f"PAGE_LIMIT: PDF has {total_units} pages; limit is {MAX_PDF_PAGES}.")
+            if total_units == 0:
+                raise DocumentError("PDF_EMPTY: document contains no pages.")
+            kind, unit_name, start, batches = "pdf", "page", 1, 0
+            while start <= total_units:
+                end = min(total_units, start + MAX_BATCH_UNITS - 1)
+                units.extend(_pdf_units(reader, start, end, tolerate_unit_failure=True))
+                batches += 1
+                start = end + 1
+        except DocumentError:
+            raise
+        except Exception as exc:
+            raise DocumentError(f"PDF_PARSE_FAILED: {type(exc).__name__}; source was not changed.") from exc
+    else:
+        try:
+            blocks = _docx_blocks_with_status(Document(str(path)))
+            total_units = len(blocks)
+            if total_units == 0:
+                raise DocumentError("DOCX_EMPTY: no paragraphs or table rows were found.")
+            kind, unit_name, start, batches = "docx", "paragraph or table row", 1, 0
+            while start <= total_units:
+                end = min(total_units, start + MAX_BATCH_UNITS - 1)
+                units.extend(_docx_units(blocks, start, end))
+                batches += 1
+                start = end + 1
+        except DocumentError:
+            raise
+        except Exception as exc:
+            raise DocumentError(f"DOCX_PARSE_FAILED: {type(exc).__name__}; source was not changed.") from exc
+
+    if sha256_file(path) != source_sha256:
+        raise DocumentError(
+            "SOURCE_CHANGED_DURING_INDEX: the source's SHA-256 changed while it was being read. "
+            "Nothing was indexed for it and its previous version is unchanged."
+        )
+
+    extracted_chars = sum(unit.characters for unit in units)
+    if extracted_chars > MAX_INDEX_CHARS:
+        raise DocumentError(
+            f"SOURCE_TEXT_TOO_LARGE: this document yields {extracted_chars} characters; the limit is "
+            f"{MAX_INDEX_CHARS}. Index a smaller document rather than a truncated index."
+        )
+
+    failed_units = [unit.index for unit in units if unit.error]
+    empty_units = [unit.index for unit in units if unit.error is None and unit.characters == 0]
+    warnings: list[str] = []
+    if failed_units:
+        shown = ", ".join(str(index) for index in failed_units[:MAX_WARNING_DETAIL])
+        more = f" and {len(failed_units) - MAX_WARNING_DETAIL} more" if len(failed_units) > MAX_WARNING_DETAIL else ""
+        warnings.append(f"UNITS_UNREADABLE: {len(failed_units)} of {total_units} {unit_name}s could not be read and were not indexed: {shown}{more}.")
+    if empty_units:
+        shown = ", ".join(str(index) for index in empty_units[:MAX_WARNING_DETAIL])
+        more = f" and {len(empty_units) - MAX_WARNING_DETAIL} more" if len(empty_units) > MAX_WARNING_DETAIL else ""
+        warnings.append(f"NO_TEXT_UNITS: {len(empty_units)} of {total_units} {unit_name}s hold no extractable text: {shown}{more}. OCR is not included.")
+    if not any(unit.text.strip() for unit in units):
+        warnings.append("NO_TEXT_EXTRACTED: this document yielded no text at all; it is indexed as a source with no chunks.")
+
+    coverage = {
+        "unit": unit_name,
+        "totalUnits": total_units,
+        "unitsRead": len(units),
+        "unitsWithText": sum(1 for unit in units if unit.error is None and unit.characters > 0),
+        "emptyUnits": empty_units,
+        "failedUnits": failed_units,
+        "batches": batches,
+        "batchLimit": MAX_BATCH_UNITS,
+        "complete": len(units) == total_units and not failed_units,
+        "textBearing": extracted_chars > 0,
+        "extractedCharacters": extracted_chars,
+    }
+    if failed_units and coverage["unitsWithText"] == 0:
+        outcome = "failed"
+    elif failed_units:
+        outcome = "partial"
+    else:
+        outcome = "complete"
+    return ExtractedSource(str(path), kind, source_sha256, units, coverage, warnings, parser_identity(suffix), outcome)
+
+
+_LOCATOR_PATTERN = re.compile(r"^(?:page|item|paragraph)=(\d+)(?:;kind=([A-Za-z0-9-]+))?(?:;chars=(\d+)-(\d+))?$")
+
+
+def locator_unit(locator: str) -> int:
+    """The unit index a stored locator points at, whatever unit kind it names."""
+    match = _LOCATOR_PATTERN.fullmatch(str(locator).strip())
+    if not match:
+        raise DocumentError("LOCATOR_INVALID: expected a locator such as page=3;chars=120-980 or item=4;kind=table-1-row;chars=0-13.")
+    return int(match.group(1))
+
+
+def read_document_at_locator(path: Path, locator: str, *, context: int = 1) -> ExtractedDocument:
+    """Reopen a stored PDF/DOCX locator in the source it came from, with its neighbouring units."""
+    if context < 0 or context > 5:
+        raise DocumentError("CONTEXT_LIMIT: context must be 0..5 neighbouring units.")
+    unit_index = locator_unit(locator)
+    start = max(1, unit_index - context)
+    return extract_document(path, start=start, count=1 + 2 * context)
 
 
 _PARAGRAPH_PATTERN = re.compile(r"\S.*?(?=(?:\r?\n[ \t]*\r?\n)|\Z)", flags=re.DOTALL)

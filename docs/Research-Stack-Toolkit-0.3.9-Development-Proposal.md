@@ -1,0 +1,11 @@
+# Research Stack Toolkit 0.3.9 — document ingestion development task
+
+**Status:** task proposal for the local LLM working in the DeepSeek Harness Docker container. The product remains a VS Code extension. The consolidated [0.3.9 Harness development brief](Research-Stack-Toolkit-0.3.9-Development-Summary-and-Skill-Bundles.md) is authoritative for scope, including the theological skill-bundle interface and execution boundaries.
+
+Implement direct ingestion of user-selected text-bearing PDF and DOCX documents into the existing local research store. Reuse the current reader's extraction logic in bounded batches, index complete or explicitly accepted partial results, and preserve the original file's hash and source locator in search, evidence, claims and reports. PDF evidence identifies pages and offsets in extracted page text; DOCX evidence identifies ordered paragraphs or table rows. Maintain compatibility with existing Markdown/text records and preserve historical evidence on reindex.
+
+The implementation must report per-source coverage, empty/image-only pages, parser/chunker versions and actionable failures. It must not silently claim OCR, invent layout coordinates or replace a good index after a failed/partial read. Distinguish a live source-hash match from an indexed-version flag, and handle changed, missing and inaccessible files explicitly. Define atomic updates, mixed-batch behavior, cancellation, schema migration and rollback. Errors must be recognizable by the MCP client.
+
+Using isolated data from within the Harness container, test multi-page PDF and multi-item DOCX (including a table), source hashes and locators, search and evidence links, restart persistence, source edits, corrupt/encrypted/scanned inputs, text regression, migration and failure recovery. Run applicable package and extension-host checks supported by the container. A Windows VS Code/Copilot check is a separate unverified host validation unless actually performed; do not infer it from container tests.
+
+Version 0.3.8 can already expose the `read_document` tool to a compatible assistant: a previous VS Code/Qwen synthetic PDF read passed. Its persistent corpus currently accepts Markdown/text and the prior direct PDF index attempt returned `UNSUPPORTED_FORMAT`. This task proposes the missing native ingestion, not a new reader claim or a deployed release.

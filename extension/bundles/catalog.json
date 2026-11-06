@@ -1,0 +1,138 @@
+{
+  "bundles": [
+    {
+      "files": [
+        {
+          "bytes": 6972,
+          "path": "document-corpus-bridge/SKILL.md",
+          "sha256": "c9e7299b40b7df512cc47c27b9a7919259076904207521aebfb457f4fb9b6adc"
+        }
+      ],
+      "id": "document-corpus-bridge",
+      "license": "toolkit-authored; the Research Stack Toolkit repository is UNLICENSED — publication requires an explicit licence decision",
+      "owners": {
+        "document-corpus-bridge": "document-corpus-bridge"
+      },
+      "payloadTree": "extension/bundles/document-corpus-bridge",
+      "prerequisites": [
+        "The Corpus index and record store component step has run in this workspace.",
+        "A preset that carries the store verbs: Index, search and record claims carries all ten; Full research workflow carries index_corpus and search_corpus.",
+        "The toolkit provides a local lexical (BM25) index over text sources. It provides no vector or embedding search, no OCR and no scanned-image recognition.",
+        "The host must read skills from .github/skills/<skill-id>/SKILL.md. The toolkit writes that path but cannot observe whether the host discovers it."
+      ],
+      "provenance": {
+        "adaptations": "docs/implementation/phase-9-document-ingestion/bundle-notes.md",
+        "date": "2026-11-06",
+        "hashMethod": "SHA-256 measured over the bytes of each file in the payload copy by scripts/build_bundle_catalog.py, then compared byte-for-byte with the staged tree; scripts/verify_vsix.py compares the same digests with the packaged VSIX members.",
+        "payloadTree": "extension/bundles/document-corpus-bridge/",
+        "sourceSnapshot": "templates/recommended-overlay/.github/skills/document-corpus-bridge/SKILL.md (0.3.8-era workaround skill, added 2026-11-05, never packaged)",
+        "stagedTree": "templates/skill-bundles/toolkit/document-corpus-bridge/"
+      },
+      "publishable": false,
+      "purpose": "Index user-selected PDF and DOCX files into the corpus and cite them by the page or item of the original document, with coverage, warnings, freshness and the limits of the extraction kept visible. Replaces the 0.3.8 derived-Markdown workaround, which is kept only as an explicit fallback for files the indexer refuses.",
+      "sharedSkillRule": "Every skill in `skills` has exactly one owner bundle in `owners`. Only the owner bundle writes that skill's files; another bundle that lists the same skill reports it as shared and writes nothing there. No bundle ever removes a skill, and no bundle removes a skill owned by another bundle.",
+      "skills": [
+        "document-corpus-bridge"
+      ],
+      "stagedTree": "templates/skill-bundles/toolkit/document-corpus-bridge",
+      "topic": "documents",
+      "version": "2.0"
+    },
+    {
+      "files": [
+        {
+          "bytes": 5070,
+          "path": "theological-research/README.md",
+          "sha256": "0998116a9cd7590b8d733d8f99a3d2b1796ca6d7a36dc43bf3d5dc09efebda44"
+        },
+        {
+          "bytes": 9895,
+          "path": "theological-research/SKILL.md",
+          "sha256": "5f4f9d205f19091038d6f6039982aed4c154a60086cdf15150a3f4ffed2718d3"
+        },
+        {
+          "bytes": 3224,
+          "path": "theological-research/evals/evals.json",
+          "sha256": "162a5951eec9ad0aaa08abd185edbf5d89f4927fe9bbfe686125fd79f45f21ec"
+        },
+        {
+          "bytes": 2639,
+          "path": "theological-research/references/citation-standards.md",
+          "sha256": "aae444bcdda0c5899214e3d7fd7f7377b142925306775db065efd63641df3ae0"
+        },
+        {
+          "bytes": 4819,
+          "path": "theological-research/references/methods.md",
+          "sha256": "ff17c68ab4e08009e10bc671c7aae8bf9ed8a67a42e8cd32877f7118f2e39a3d"
+        },
+        {
+          "bytes": 3188,
+          "path": "theological-research/references/my-library.md",
+          "sha256": "a071dad31f2ba8a4fac15ff566846bfe6ffbafc8df4d557e339889813f2c0e07"
+        },
+        {
+          "bytes": 2545,
+          "path": "theological-research/references/report-templates.md",
+          "sha256": "432f41cd49f60b77c49d0233009b4562db12d66eaa01cfe75684c10ecc191641"
+        },
+        {
+          "bytes": 3446,
+          "path": "theological-research/references/source-evaluation.md",
+          "sha256": "cf6ca30ec556070886acf3598a81d84e9f2c66f5b1a863ebaa598f65fa37ebfd"
+        },
+        {
+          "bytes": 8106,
+          "path": "theological-research/references/theology-and-social-sciences.md",
+          "sha256": "7bc0ed6c0a4ee264fb9ed92330199bbe928cdd6940086f787b6e88b2a4b3b3c9"
+        },
+        {
+          "bytes": 10701,
+          "path": "theological-research/scripts/crossref_lookup.py",
+          "sha256": "eb5ae6556ed6942107fbecf23d6086fcd682fdc7396d8c3558a578e48979b032"
+        },
+        {
+          "bytes": 7192,
+          "path": "theological-research/scripts/dedupe_records.py",
+          "sha256": "8bd24daca1679503e45ce6588eec2aa7f1fde1b9a5513a8747d14be2b7dc3e34"
+        }
+      ],
+      "id": "theological-research",
+      "license": "unresolved — author consent required before publication",
+      "owners": {
+        "theological-research": "theological-research"
+      },
+      "payloadTree": "extension/bundles/theological-research",
+      "prerequisites": [
+        "Python 3.12 or newer available as `python3` — only for the two optional scripts; they import the Python standard library only and need no pip install, no uv and no toolkit venv.",
+        "Network access to api.crossref.org and api.openalex.org — only when you run scripts/crossref_lookup.py yourself. The toolkit installer and the control panel never run it and make no network request.",
+        "No licensed database (ATLA or similar) is provisioned, connected or entitlement-checked by the toolkit; any such access belongs to the user's institution.",
+        "The toolkit provides a local lexical (BM25) index over text sources. It provides no vector or embedding search, no OCR and no scanned-image recognition.",
+        "references/my-library.md installs as an empty template: the bundle ships with no record of the user's holdings.",
+        "The host must read skills from .github/skills/<skill-id>/SKILL.md. The toolkit writes that path but cannot observe whether the host discovers it."
+      ],
+      "provenance": {
+        "adaptations": "docs/implementation/phase-9-document-ingestion/bundle-notes.md",
+        "date": "2026-11-05",
+        "hashMethod": "SHA-256 measured over the bytes of each file in the payload copy by scripts/build_bundle_catalog.py, then compared byte-for-byte with the staged tree; scripts/verify_vsix.py compares the same digests with the packaged VSIX members.",
+        "payloadTree": "extension/bundles/theological-research/",
+        "sourceSnapshot": "Aplikovaná umělá inteligence pro sestry karmelitky/theological-research/ (author working directory, 2026-10-29)",
+        "stagedTree": "templates/skill-bundles/theology/theological-research/"
+      },
+      "publishable": false,
+      "purpose": "Scholarly theological research: frame the question, search in the languages the field is published in, keep bibliographic records reviewable, label access status and confidence, and write a report whose limits are stated. Version 2.0 of the PoC written by s. Denisa and Michal, packaged with the adaptations recorded in docs/implementation/phase-9-document-ingestion/bundle-notes.md.",
+      "sharedSkillRule": "Every skill in `skills` has exactly one owner bundle in `owners`. Only the owner bundle writes that skill's files; another bundle that lists the same skill reports it as shared and writes nothing there. No bundle ever removes a skill, and no bundle removes a skill owned by another bundle.",
+      "skills": [
+        "theological-research"
+      ],
+      "stagedTree": "templates/skill-bundles/theology/theological-research",
+      "topic": "theology",
+      "version": "2.0"
+    }
+  ],
+  "generatedBy": "scripts/build_bundle_catalog.py",
+  "schemaVersion": 1,
+  "sharedSkillRule": "Only the owner bundle named in `owners` writes a skill's files; a non-owner reports it as shared and writes nothing. No bundle removes a skill, and never one owned by another bundle.",
+  "unresolvedLicenses": [
+    "theological-research"
+  ]
+}

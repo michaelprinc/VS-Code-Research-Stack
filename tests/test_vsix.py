@@ -230,8 +230,15 @@ def test_vsix_verifier_refuses_packaged_documentation_that_names_another_release
     """
     guide = Path(__file__).resolve().parents[1] / "extension/guides/toolkit.md"
     shipped = guide.read_bytes()
-    stale = shipped.replace(b"worker-0.3.8", b"worker-0.3.6")
-    assert stale != shipped, "the fixture produced no stale reference to test against"
+    # The stale reference is derived from the reviewed release, not hard-coded: a literal here is the
+    # trap the 0.3.8 changelog records for `lockfile-adversarial.test.js` — the fixture silently stops
+    # matching the moment the guides are bumped, and the gate then proves nothing.
+    reviewed = json.loads(
+        (Path(__file__).resolve().parents[1] / "extension/vsix-manifest.json").read_text(encoding="utf-8")
+    )["version"]
+    previous = ".".join(str(int(part) - 1) if index == 1 else part for index, part in enumerate(reviewed.split(".")))
+    stale = shipped.replace(f"worker-{reviewed}".encode(), f"worker-{previous}".encode())
+    assert stale != shipped, f"the fixture produced no stale reference to test against (looked for worker-{reviewed})"
 
     package = tmp_path / "stale-docs.vsix"
     source_root = _write_vsix(package, member_overrides={"extension/guides/toolkit.md": stale})

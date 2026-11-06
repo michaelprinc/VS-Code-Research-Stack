@@ -1,0 +1,94 @@
+{
+  "artifact": "research-stack-toolkit-0.3.9.vsix",
+  "commands": 30,
+  "failedSetup": {
+    "blocked": [
+      "notebook-env"
+    ],
+    "logFiles": 1,
+    "outcome": "partial",
+    "verdict": "Installation incomplete \u2014 1 step(s) verified, 2 need attention (Isolated locked worker (Python 3.12), Notebook analysis environment). 1 of 3 package steps are installed in this workspace."
+  },
+  "gui": {
+    "measuredToolkitTokens": 3200,
+    "presets": 9,
+    "widestPresetContextPercent": 46.7,
+    "widestPresetTokens": 59780
+  },
+  "help": {
+    "guides": 32
+  },
+  "presets": {
+    "corpusLab": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "corpus-lab"
+      },
+      {
+        "module": "research_stack.lab_server",
+        "preset": "corpus-lab"
+      }
+    ],
+    "readAndCite": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "read-and-cite"
+      }
+    ],
+    "recommendedDefault": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "research-core"
+      },
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "research-core"
+      }
+    ],
+    "researchLabMax": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "research-lab-max"
+      },
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "research-lab-max"
+      }
+    ],
+    "researchWorkflow": [
+      {
+        "module": "research_stack.mcp_server",
+        "preset": "research-workflow"
+      },
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "research-workflow"
+      },
+      {
+        "module": "research_stack.lab_server",
+        "preset": "research-workflow"
+      }
+    ],
+    "verifyCitations": [
+      {
+        "module": "research_stack.recommended_server",
+        "preset": "verify-citations"
+      }
+    ]
+  },
+  "receipt": {
+    "extensionVersion": "0.3.9",
+    "managedPath": ".research-toolkit/managed/worker-0.3.9",
+    "workerVersion": "0.3.9"
+  },
+  "refresh": {
+    "states": 7
+  },
+  "result": "passed",
+  "version": "0.3.9",
+  "workerBundle": {
+    "files": 20,
+    "overlayFiles": 11,
+    "workerVersion": "0.3.9"
+  }
+}

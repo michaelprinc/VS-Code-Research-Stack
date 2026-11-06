@@ -43,7 +43,7 @@ def test_init_lab_creates_the_store_and_records_only_what_exists(tmp_path: Path)
     (workspace / "notes").mkdir()
     (workspace / "notes" / "one.md").write_text("# One\n\nA claim about the guild records.\n", encoding="utf-8")
     result = init_lab_workspace(workspace)
-    assert result["ok"] is True and result["tableCount"] == 7
+    assert result["ok"] is True and result["tableCount"] == 8
     assert result["store"] == str(workspace / ".research-toolkit/store/research.sqlite3")
     state = json.loads((workspace / ".research-toolkit/lab-state.json").read_text(encoding="utf-8"))
     assert state["profileId"] == "full" and state["serviceMode"] == "local-stdio"
@@ -75,7 +75,7 @@ def test_the_bootstrap_workspace_ignores_every_derived_record_store_path(tmp_pat
                     ".research-toolkit/logs/"):
         assert derived in ignore, f"{derived} is not ignored by the bootstrap workspace"
     created = init_lab_workspace(workspace)
-    assert created["ok"] is True and created["tableCount"] == 7, "the store step reports what the store contains"
+    assert created["ok"] is True and created["tableCount"] == 8, "the store step reports what the store contains"
     assert created["store"] == str(workspace / ".research-toolkit/store/research.sqlite3")
 
 

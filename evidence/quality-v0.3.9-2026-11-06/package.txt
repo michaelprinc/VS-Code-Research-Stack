@@ -1,0 +1,40 @@
+npm notice run research-stack-toolkit@0.3.9 package
+npm notice run uv run --locked python ../scripts/build_guide_index.py && uv run --locked python ../scripts/build_worker_bundle.py && node scripts/package.js
+Guide hub built from 29 component guides.
+Worker bundle built: 20 reviewed source/lock files and 11 overlay templates for worker 0.3.9.
+ INFO  Files included in the VSIX:
+research-stack-toolkit-0.3.9.vsix
+├─ [Content_Types].xml 
+├─ extension.vsixmanifest 
+└─ extension/
+   ├─ bundles.js [32.18 KB]
+   ├─ components.json [22.11 KB]
+   ├─ diagnostics.js [18.36 KB]
+   ├─ extension.js [69.21 KB]
+   ├─ functional_check.py [16.96 KB]
+   ├─ hosttools.js [18.65 KB]
+   ├─ installer.js [36.27 KB]
+   ├─ lockfile.js [92.32 KB]
+   ├─ package.json [10.21 KB]
+   ├─ preflight.js [11.06 KB]
+   ├─ presets.json [11.95 KB]
+   ├─ probe.py [2.57 KB]
+   ├─ readme.md [36.26 KB]
+   ├─ runner.js [32 KB]
+   ├─ runtime.js [25.86 KB]
+   ├─ setuplog.js [6.95 KB]
+   ├─ status.js [13.7 KB]
+   ├─ steps.js [18.74 KB]
+   ├─ ui.js [9.71 KB]
+   ├─ bundles/ (13 files) [74.31 KB]
+   ├─ guides/ (32 files) [82.19 KB]
+   ├─ media/ (3 files) [40.19 KB]
+   └─ worker/ (32 files) [502.59 KB]
+
+=> Run vsce ls --tree to see all included files.
+
+ DONE  Packaged: /data/dsh/home/Aplikovaná umělá inteligence pro sestry karmelitky/Research-Stack/toolkit/dist/research-stack-toolkit-0.3.9.vsix (101 files, 391.1 KB)
+{
+  "packagePath": "/data/dsh/home/Aplikovaná umělá inteligence pro sestry karmelitky/Research-Stack/toolkit/dist/research-stack-toolkit-0.3.9.vsix",
+  "packageBytes": 400486
+}

@@ -1,0 +1,8 @@
+{
+  "artifact": "research-stack-toolkit-0.3.9.vsix",
+  "sha256": "d5fe4675b4a9f3d1e489cfdff28ea1f8e4bc67ae05e7720db008dbc33f698ee4",
+  "packageBytes": 400486,
+  "unpackedBytes": 1216022,
+  "sourceFilesMatch": true,
+  "result": "passed"
+}

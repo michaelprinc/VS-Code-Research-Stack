@@ -6,7 +6,7 @@ const { createHash } = require("node:crypto");
 const { runProcess, asRunProcess, stderrTail, PYTHON_FLAGS } = require("./runner");
 const { resolverFrom } = require("./hosttools");
 const { pairProblems, isLockDrift } = require("./lockfile");
-const WORKER_VERSION = "0.3.8";
+const WORKER_VERSION = "0.3.9";
 // The managed worker folder name is derived from the version so a release cannot leave one stale.
 const WORKER_FOLDER = `.research-toolkit/managed/worker-${WORKER_VERSION}`;
 const componentCatalog = require("./components.json");

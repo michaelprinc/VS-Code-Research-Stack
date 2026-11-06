@@ -4,11 +4,11 @@ Serve document reads and report creation through local MCP.
 
 ## Setup
 
-In a trusted local workspace, choose **Set up package components**. The VSIX includes reviewed worker source and dependency locks; uv installs Python 3.12 and dependencies into `.research-toolkit/managed/worker-0.3.8/.venv`. The environment is separate from your project's packages. Your source documents and MCP configuration are preserved. The step is reported as installed only after `.venv/bin/python` (Linux/macOS) or `.venv/Scripts/python.exe` (Windows) and the managed `src/research_stack/mcp_server.py` are re-checked on disk.
+In a trusted local workspace, choose **Set up package components**. The VSIX includes reviewed worker source and dependency locks; uv installs Python 3.12 and dependencies into `.research-toolkit/managed/worker-0.3.9/.venv`. The environment is separate from your project's packages. Your source documents and MCP configuration are preserved. The step is reported as installed only after `.venv/bin/python` (Linux/macOS) or `.venv/Scripts/python.exe` (Windows) and the managed `src/research_stack/mcp_server.py` are re-checked on disk.
 
 ## First task and readiness
 
-Setup discovers real MCP tools, reads synthetic PDF/DOCX sources with hashes/locators, and creates Markdown/DOCX reports. **Run MCP reading check** repeats it. **Read selected PDF / DOCX** reads the first five pages/paragraphs of your selected workspace source and displays a local preview. Ready includes protocol evidence and timestamp, rather than module presence alone. The **Installation status** card reports this step's outcome, duration and — when it failed — its exit code and error.
+Setup discovers real MCP tools, reads synthetic PDF/DOCX sources with hashes/locators, and creates Markdown/DOCX reports. **Run MCP reading check** repeats it. **Read selected PDF / DOCX** reads the first five pages/paragraphs of your selected workspace source and displays a local preview. Ready includes protocol evidence and timestamp, rather than module presence alone. The **Installation status** card reports this step's outcome, duration and — when it failed — its exit code and error. The same worker also indexes selected PDF and DOCX sources into the Full package's research store; see [corpus index](research-corpus-index.md).
 
 ## Troubleshooting and limits
 
@@ -16,6 +16,6 @@ Use MCP: List Servers to start the provided Basic documents server for assistant
 
 ## Current documentation
 
-[Current official documentation](https://github.com/michaelprinc/VS-Code-Research-Stack). Local onboarding reviewed on 1 November 2026. The bundled guide is a release snapshot; the official link opens the maintained source and may describe a newer version than your lock.
+[Current official documentation](https://github.com/michaelprinc/VS-Code-Research-Stack). Local onboarding reviewed on 6 November 2026. The bundled guide is a release snapshot; the official link opens the maintained source and may describe a newer version than your lock.
 
 [Back to guide hub](index.md)

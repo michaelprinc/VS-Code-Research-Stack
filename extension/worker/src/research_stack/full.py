@@ -1,7 +1,13 @@
-"""Small deterministic Phase 3 corpus and lexical-retrieval prototype.
+"""Corpus inventory, chunk identity and lexical retrieval for the workspace record store.
 
-This module is intentionally local and dependency-free. It does not persist an
+The module owns three things and only three: which selected files are valid sources, what identity
+a chunk of one of those sources carries, and how stored chunks are ranked. It does not persist an
 index, create embeddings, access the network, or claim evidence truth.
+
+Since 0.3.9 it knows two kinds of source. UTF-8 Markdown/text is read directly. A PDF or DOCX is
+read through ``documents.extract_source`` — the same extraction the reader exposes to an assistant,
+so indexing does not ask the user to prepare text first. A chunk never crosses a unit boundary, so a
+PDF chunk's page number and a DOCX chunk's item index are true for the whole chunk.
 """
 
 from __future__ import annotations
@@ -10,20 +16,34 @@ import hashlib
 import json
 import math
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 MAX_SOURCES = 1000
 MAX_SOURCE_BYTES = 5 * 1024 * 1024
+MAX_BINARY_SOURCE_BYTES = 25 * 1024 * 1024
 MAX_TOTAL_BYTES = 50 * 1024 * 1024
 MAX_CHUNK_CHARS = 4000
+TEXT_SUFFIXES = {".md", ".markdown", ".txt"}
+BINARY_SUFFIXES = {".pdf", ".docx"}
 CHUNKER_ID = "paragraph-window-v1"
+PDF_CHUNKER_ID = "pdf-page-window-v1"
+DOCX_CHUNKER_ID = "docx-item-window-v1"
 TOKENIZER_ID = "unicode-word-v1"
 _TOKEN_PATTERN = re.compile(r"[^\W_]+", flags=re.UNICODE)
 
 
 class FullPrototypeError(ValueError):
-    """An actionable error from the bounded Phase 3 prototype."""
+    """An actionable error from the bounded corpus layer."""
+
+
+@dataclass(frozen=True)
+class SourceUnit:
+    """One extractable unit of a binary source, in source order, carrying its own text."""
+
+    index: int
+    kind: str
+    text: str
 
 
 @dataclass(frozen=True)
@@ -36,19 +56,34 @@ class EvidenceChunk:
     text: str
     text_sha256: str
     chunker_id: str
+    unit_kind: str = "paragraph"
+    unit_index: int = 0
+    char_start: int = -1
+    char_end: int = -1
 
-    def as_dict(self) -> dict[str, str]:
+    def as_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
 @dataclass(frozen=True)
 class SourceRecord:
-    """One validated selected source, independent of how many chunks it produced."""
+    """One validated selected source, independent of how many chunks it produced.
+
+    The defaulted fields are the 0.3.9 provenance fields. A text source keeps the values it always
+    had, so the same Markdown bytes produce the same chunk ids as they did in 0.3.8.
+    """
 
     source_path: str
     source_version_id: str
     bytes: int
     text: str
+    kind: str = "text"
+    unit: str = "paragraph"
+    parser: dict[str, str] = field(default_factory=dict)
+    coverage: dict[str, object] = field(default_factory=dict)
+    warnings: tuple[str, ...] = ()
+    outcome: str = "complete"
+    units: tuple[SourceUnit, ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         return {"source_path": self.source_path, "source_version_id": self.source_version_id, "bytes": self.bytes}
@@ -99,8 +134,38 @@ def _split_text(text: str, chunk_chars: int, overlap_chars: int) -> list[tuple[i
     return result
 
 
+def _binary_source_record(normalized: str, source_path: Path) -> SourceRecord:
+    """Read one PDF or DOCX through the shared extraction and carry its provenance forward.
+
+    The hash recorded here is the hash of the source bytes, taken before the document was parsed,
+    and `documents.extract_source` re-checks it after the last batch: a source that changed while it
+    was being read never becomes a record.
+    """
+    from .documents import DocumentError, extract_source
+
+    try:
+        extracted = extract_source(source_path)
+    except DocumentError as exc:
+        # The reader's own code travels unchanged: PDF_ENCRYPTED stays PDF_ENCRYPTED.
+        raise FullPrototypeError(str(exc)) from exc
+    units = tuple(SourceUnit(unit.index, unit.kind, unit.text) for unit in extracted.units)
+    return SourceRecord(
+        source_path=normalized,
+        source_version_id=extracted.sha256,
+        bytes=source_path.stat().st_size,
+        text="\n\n".join(unit.text for unit in units),
+        kind=extracted.kind,
+        unit=str(extracted.coverage.get("unit", "page")),
+        parser=dict(extracted.parser),
+        coverage=dict(extracted.coverage),
+        warnings=tuple(extracted.warnings),
+        outcome=extracted.outcome,
+        units=units,
+    )
+
+
 def scan_sources(root: Path, relative_paths: list[str]) -> list[SourceRecord]:
-    """Validate and hash every selected Markdown/text source, including one that yields no chunks.
+    """Validate and hash every selected source — Markdown/text or PDF/DOCX — including one that yields no chunks.
 
     Paths must resolve under ``root``. Source files are read but never changed. Returned
     source references are normalized relative POSIX paths. This inventory is what lets an
@@ -132,22 +197,32 @@ def scan_sources(root: Path, relative_paths: list[str]) -> list[SourceRecord]:
             source_path.relative_to(root_path)
         except ValueError as exc:
             raise FullPrototypeError("SOURCE_OUTSIDE_ROOT: selected path resolves outside the corpus root.") from exc
-        if source_path.suffix.lower() not in {".md", ".markdown", ".txt"}:
-            raise FullPrototypeError("UNSUPPORTED_FORMAT: prototype accepts UTF-8 Markdown and text only.")
+        suffix = source_path.suffix.lower()
+        if suffix not in TEXT_SUFFIXES | BINARY_SUFFIXES:
+            raise FullPrototypeError("UNSUPPORTED_FORMAT: index_corpus accepts UTF-8 Markdown, text, PDF or DOCX only.")
         if not source_path.is_file():
             raise FullPrototypeError("SOURCE_NOT_FOUND: selected file is missing or is not a file.")
+        size = source_path.stat().st_size
+        per_file_limit = MAX_SOURCE_BYTES if suffix in TEXT_SUFFIXES else MAX_BINARY_SOURCE_BYTES
         remaining_total = MAX_TOTAL_BYTES - total_bytes
-        if source_path.stat().st_size > MAX_SOURCE_BYTES:
-            raise FullPrototypeError(f"SOURCE_TOO_LARGE: per-file limit is {MAX_SOURCE_BYTES} bytes.")
+        if size > per_file_limit:
+            if suffix in TEXT_SUFFIXES:
+                raise FullPrototypeError(f"SOURCE_TOO_LARGE: per-file limit is {MAX_SOURCE_BYTES} bytes.")
+            raise FullPrototypeError(f"SOURCE_TOO_LARGE: per-file limit for a {suffix} source is {MAX_BINARY_SOURCE_BYTES} bytes.")
         if remaining_total < 1:
             raise FullPrototypeError(f"CORPUS_TOO_LARGE: total limit is {MAX_TOTAL_BYTES} bytes.")
+        if size > remaining_total:
+            raise FullPrototypeError(f"CORPUS_TOO_LARGE: total limit is {MAX_TOTAL_BYTES} bytes.")
+        total_bytes += size
+        if suffix in BINARY_SUFFIXES:
+            records.append(_binary_source_record(normalized, source_path))
+            continue
         with source_path.open("rb") as stream:
             raw = stream.read(min(MAX_SOURCE_BYTES, remaining_total) + 1)
         if len(raw) > MAX_SOURCE_BYTES:
             raise FullPrototypeError(f"SOURCE_TOO_LARGE: per-file limit is {MAX_SOURCE_BYTES} bytes.")
         if len(raw) > remaining_total:
             raise FullPrototypeError(f"CORPUS_TOO_LARGE: total limit is {MAX_TOTAL_BYTES} bytes.")
-        total_bytes += len(raw)
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError as exc:
@@ -156,15 +231,45 @@ def scan_sources(root: Path, relative_paths: list[str]) -> list[SourceRecord]:
     return records
 
 
+def _chunker_for(record: SourceRecord) -> str:
+    if record.kind == "pdf":
+        return PDF_CHUNKER_ID
+    if record.kind == "docx":
+        return DOCX_CHUNKER_ID
+    return CHUNKER_ID
+
+
 def chunks_for_source(record: SourceRecord, *, chunk_chars: int = 1200, overlap_chars: int = 120) -> list[EvidenceChunk]:
-    """Chunk one validated source. Chunk identity is per source occurrence, content identity is separate."""
+    """Chunk one validated source. Chunk identity is per source occurrence, content identity is separate.
+
+    A text source is chunked exactly as in 0.3.8 — same chunker id, same locators, same ids. A PDF
+    or DOCX is chunked **within** each unit: a chunk never spans a page or a table row, so the page
+    number or item index in its locator is true for every character of the chunk.
+    """
     if not 100 <= chunk_chars <= MAX_CHUNK_CHARS or not 0 <= overlap_chars < chunk_chars:
         raise FullPrototypeError("CHUNK_SETTINGS: chunk_chars must be 100..4000 and overlap smaller than the chunk.")
+    chunker_fingerprint = f"{_chunker_for(record)}:{chunk_chars}:{overlap_chars}"
+    if record.units:
+        windows: list[tuple[SourceUnit, str, int, int]] = []
+        for unit in record.units:
+            if not unit.text.strip():
+                continue
+            for _inner, chunk_text, char_start, char_end in _split_text(unit.text, chunk_chars, overlap_chars):
+                windows.append((unit, chunk_text, char_start, char_end))
+    else:
+        windows = []
+        for paragraph_index, chunk_text, char_start, char_end in _split_text(record.text, chunk_chars, overlap_chars):
+            windows.append((SourceUnit(paragraph_index, "paragraph", record.text), chunk_text, char_start, char_end))
+
     chunks: list[EvidenceChunk] = []
-    chunker_fingerprint = f"{CHUNKER_ID}:{chunk_chars}:{overlap_chars}"
-    for paragraph_index, chunk_text, char_start, char_end in _split_text(record.text, chunk_chars, overlap_chars):
+    for unit, chunk_text, char_start, char_end in windows:
         text_hash = _sha256(chunk_text.encode("utf-8"))
-        locator = f"paragraph={paragraph_index};chars={char_start}-{char_end}"
+        if record.kind == "pdf":
+            locator = f"page={unit.index};chars={char_start}-{char_end}"
+        elif record.kind == "docx":
+            locator = f"item={unit.index};kind={unit.kind};chars={char_start}-{char_end}"
+        else:
+            locator = f"paragraph={unit.index};chars={char_start}-{char_end}"
         content_id = _canonical_id((record.source_version_id, chunker_fingerprint, locator, text_hash))
         # The path is part of the occurrence identity so identical content at two paths stays two
         # traceable occurrences; `content_id` keeps the content-only identity for deduplication.
@@ -179,6 +284,10 @@ def chunks_for_source(record: SourceRecord, *, chunk_chars: int = 1200, overlap_
                 text=chunk_text,
                 text_sha256=text_hash,
                 chunker_id=chunker_fingerprint,
+                unit_kind=unit.kind,
+                unit_index=unit.index,
+                char_start=char_start,
+                char_end=char_end,
             )
         )
     return chunks
