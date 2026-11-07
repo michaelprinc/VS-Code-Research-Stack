@@ -1,0 +1,15 @@
+{
+  "builtFrom": "git archive v0.3.10 \u2014 commit 9920f2bb6bf0d07983a580ce65db2de622ccdbe5, tree e440e16efe02de35f754d974a0e5a6847e970135",
+  "generatorsRunInTagTree": [
+    "scripts/build_guide_index.py",
+    "scripts/build_worker_bundle.py"
+  ],
+  "artifact": "research-stack-toolkit-0.3.10.vsix",
+  "sha256": "c24e24157899c198e429e7d5af4d97cb575d893afc6dd929ee266444d97b20f2",
+  "packageBytes": 426351,
+  "unpackedBytes": 1276822,
+  "members": 104,
+  "sourceFilesMatch": true,
+  "identicalToWorkingTreeBuild": true,
+  "result": "passed"
+}

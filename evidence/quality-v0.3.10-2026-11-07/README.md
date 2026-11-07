@@ -39,7 +39,8 @@ and both harnesses inject a recorded reply.
 | Is the extension already published? | Node `https` probes of the public gallery | `extensionquery` `TotalCount: 0`; `/vscode/…/latest` 404; `/publishers/michaelprinc` 404; `…/vspackage` 404 `ExtensionAssetNotFoundException` | `marketplace-probe.json` |
 | Publication requirements, source-checked | docs + vsce source + local read-only packaging probes | 296-line report with quotes and page dates | `marketplace-publish-research.md` |
 | The artifact is reproducible | `npm run package` twice, `sha256sum` both | identical: `c24e2415…b20f2` | `package.txt` |
-| The artifact is buildable from the tag | `git archive v0.3.10` into a disposable tree, run `scripts/build_worker_bundle.py` there, then `verify(artifact, source_root=<tag tree>/extension)` | `"result": "passed"`, `sourceFilesMatch: true`, 104 members | `vsix-audit-from-tag.json` (produced from the tagged tree, in the commit that follows the tag) |
+| The artifact is buildable from the tag | `git archive v0.3.10` into a disposable tree, run `scripts/build_guide_index.py` and `scripts/build_worker_bundle.py` there, then `node scripts/package.js` and `scripts/verify_vsix.py` with `source_root` = the tag tree | `"result": "passed"`, `sourceFilesMatch: true`, 104 members, and **byte-identical** to the working-tree build (`identicalToWorkingTreeBuild: true`) | `vsix-audit-from-tag.json` (produced from the tagged tree, in the commit that follows the tag) |
+| The digest an operator should check after downloading | `sha256sum dist/research-stack-toolkit-0.3.10.vsix` | `c24e24157899c198e429e7d5af4d97cb575d893afc6dd929ee266444d97b20f2`, 426 351 bytes | `vsix.sha256.txt` |
 
 ## The artifact
 
