@@ -388,7 +388,7 @@ test("discovery sees this release's managed folder and rejects names the toolkit
   const versions = discovered.runtimes.map((item) => item.version).sort();
   // `worker-0.3.6.1` and `worker-0.3` are not runtimes: vsce validates the extension version with
   // semver.valid, which takes at most three numbers, so no release can ever name such a folder.
-  assert.deepEqual(versions, ["0.3.6", "0.3.7", WORKER_VERSION].filter((item, index, all) => all.indexOf(item) === index),
+  assert.deepEqual(versions, ["0.3.6", "0.3.7", WORKER_VERSION].filter((item, index, all) => all.indexOf(item) === index).sort(),
     "shaped runtimes are discovered and malformed folder names are skipped");
   const current = discovered.runtimes.find((item) => item.version === WORKER_VERSION);
   assert.equal(current.thisRelease, true);

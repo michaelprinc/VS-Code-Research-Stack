@@ -8,7 +8,7 @@ Use **Set up package components** to install locked Python 3.12 dependencies int
 
 ## First task and readiness
 
-Checks prefer `.research-toolkit/managed/worker-0.3.9/.venv`, then the legacy worker environment. A root `.venv` is inspected only in a Research Stack source project. Unrelated environments are not reported as missing toolkit dependencies. The row shows the executing Python version and path.
+Checks prefer `.research-toolkit/managed/worker-0.3.10/.venv`, then the legacy worker environment. A root `.venv` is inspected only in a Research Stack source project. Unrelated environments are not reported as missing toolkit dependencies. The row shows the executing Python version and path.
 
 ## Troubleshooting and limits
 

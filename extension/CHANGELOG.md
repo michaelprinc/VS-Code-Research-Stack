@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.3.10 — 7 November 2026 · The Toolkit can say a newer version exists, and a problem report leaves nothing personal behind
+
+Every release of this Toolkit since 0.3.0 reached people as a `.vsix` file. VS Code updates an extension installed from the Marketplace by itself; it does **not** update one installed from a file — that install is pinned to the version you put there. So the people who most need an update notice are the people VS Code stays silent for, and a person who cannot read a panel has no way to tell the maintainer what broke without pasting their own file paths into an email. 0.3.10 closes both gaps. Everything below is proven by the automated suites on this Linux development host; nothing in this release was run on a Windows host or in a live VS Code session.
+
+**Update channel (`extension/updates.js`, `researchToolkit.checkForUpdates`, `researchToolkit.updateExtension`)**
+
+- `GET https://marketplace.visualstudio.com/_apis/public/gallery/vscode/<publisher>/<name>/latest` is the only request the Toolkit makes online. The URL carries the publisher id and extension name that are already public in the manifest — no workspace path, no file name, no identity, no diagnostics. 8 000 ms timeout, 64 KB response cap, one request call site, one redirect hop.
+- One check per extension-host session and at most one per 24 hours (`CHECK_COOLDOWN_MS`), scheduled when the control panel reports it is ready — never at activation, because `check:payload` and a cold start must not make a network call nobody asked for. **Check for a newer Toolkit version** forces one immediately.
+- `researchStack.checkForUpdates` (boolean, default on, application scope) switches the request off entirely. With it off, this extension contacts no online service at all. The setting description says so in plain words, and the payload audit asserts that it does.
+- The verdict is one of `up-to-date`, `update-available`, `ahead-of-channel`, `editor-too-old`, `not-published`, `checked-recently`, `check-failed`, `invalid-response`, `invalid-identity`, `disabled`. A failed check is a sentence in the panel, never an exception and never a toolkit failure: `updatePlan` returns `action: "retry"` and the toolkit keeps working. `editor-too-old` compares the published `Microsoft.VisualStudio.Code.Engine` range with `vscode.version`, so a build your editor cannot host is not offered as an update.
+- **Update from the Marketplace** calls `workbench.extensions.installExtension` with the gallery id `michaelprinc.research-stack-toolkit@<version>` and a justification the editor shows. It installs the signed Marketplace build rather than a self-downloaded VSIX, which is also what returns a file-installed extension to normal automatic updating. If the editor refuses, the Toolkit opens the Marketplace page and says that it did.
+- Version parsing is strict `major.minor.patch`, because vsce rejects a four-part version and the Marketplace rejects a prerelease tag; `0.3.10-beta` and `0.3.10.1` are refused rather than quietly compared.
+
+**Problem reports (`extension/reports.js`, `researchToolkit.reportProblem`)**
+
+- The report is built from what the toolkit already records: VS Code, platform, OS release, architecture, Node version, install kind, package preference, tools preset, workspace label, the recorded setup verdict, the last 40 lines of the setup log, up to 12 failures seen in this window (a bounded ring, never written to disk), and a note you type.
+- Redaction runs before you see anything: absolute paths, home directories (Windows, POSIX, WSL `\\wsl$`, UNC), workspace folder names and token-shaped strings become `<path>`, `<home>`, `<workspace>`, `<redacted>` and `<redacted-token>` — inside your own note and inside log lines too. The report ends with a count of each, so the removal is visible rather than implied. A public URL is deliberately kept: a failed download report without its address is not a report.
+- A Windows path may contain spaces, so its end cannot always be known. Where a separator names the end, the error after it stays in the report (`<home> — network unreachable`); where it cannot, the rest of the line goes with the path. Over-redacting is the deliberate default, and it is written into the module.
+- The file is written into the extension's own storage folder, opened, and copied to the clipboard. Only after that does a modal ask whether to open a draft in your own mail program. Nothing is uploaded, no message is sent by the extension, and the maintainer address is a constant in the module rather than a setting an attacker can repoint.
+- The `mailto:` draft is short by design (1 400 byte body, 1 800 byte URI) and reports `fits: false` instead of emitting a URI a mail client would truncate silently — Electron documents `shell.openExternal` as max 2 081 characters on Windows, and `openExternal` returns `true` even when the operating system failed, so the file and the clipboard are prepared before the link is ever offered. Body line breaks travel as `%0D%0A` per RFC 6068.
+
+**Publishing surface**
+
+- `icon: media/toolkit.png` — a 256×256 PNG generated from the reviewed `media/toolkit.svg` by `extension/scripts/make_icon.js` (`--verify` re-renders and compares), single IDAT, no `tIME` chunk, so the same bytes come out of every build. The Marketplace rejects an SVG icon outright and rejects a declared icon that is not in the package; the activity-bar container icon stays SVG.
+- `bugs.url` and `bugs.email` now name the repository issue tracker and `princ.michael@gmail.com`, so the Marketplace page, the manifest and the report command point at the same place. `homepage` names the repository.
+- Three contributed commands (33 in total), one setting, and the panel's new **Updates & problem reports** section with the verdict written in words an operator can act on.
+
+**Gates moved deliberately, not quietly**
+
+- `scripts/verify_vsix.py` refused *any* packaged JavaScript that opened a socket. It now names `extension/updates.js` as the single reviewed network member and re-checks on the shipped bytes that it imports its transport exactly once, has exactly one request call site, keeps its timeout, response cap and cooldown constants, reaches no other transport, and points only at `marketplace.visualstudio.com`. A reviewed member that stops carrying the capability is also a failure — the allowlist cannot be left behind by a refactor.
+- `extension/test/module-boundaries.test.js` asserts the same facts against the source tree and counts which modules open a socket, so the exception cannot grow.
+- `extension/media/toolkit.png` joins the audited member set; the payload audit asserts the declared icon is present in the installed payload and that the installed manifest names the maintainer.
+
+**Tests**: 390 Node tests (35 new: 14 update-channel, 16 report-building, 5 end-to-end through the shipped command surface), 258 Python tests. The VSIX is 104 members, 426 351 bytes.
+
 ## 0.3.9 — 6 November 2026 · PDF and DOCX enter the index, and the index states what it actually read
 
 Two observations recorded against 0.3.8 started this release. Selecting a PDF for indexing returned **`UNSUPPORTED_FORMAT: prototype accepts UTF-8 Markdown and text only.`** (`src/research_stack/full.py`, recorded in [specs/phase-9-document-ingestion/spec.md](../specs/phase-9-document-ingestion/spec.md)), and a source edited after it had been indexed kept its stored chunks and stayed citable as though it were current. A document could be read and a document could be indexed, but the two were not the same pipeline. 0.3.9 joins them and makes the index say what it actually read. Everything below is proven by the automated suites on this Linux development host; nothing in this release was run on a Windows host or in a live VS Code session.

@@ -88,6 +88,9 @@ async function main() {
       "extension.js", "ui.js", "diagnostics.js", "runner.js", "hosttools.js", "preflight.js",
       "setuplog.js", "steps.js", "status.js", "lockfile.js", "runtime.js", "installer.js", "probe.py",
       "functional_check.py", "components.json", "presets.json", "bundles.js",
+      // 0.3.10: the published-version check and the problem-report builder. Both are staged explicitly,
+      // like every other shipped module, so nothing reaches the artifact that this list did not name.
+      "updates.js", "reports.js",
     ]) {
       fs.copyFileSync(path.join(projectRoot, file), path.join(stageRoot, file));
     }

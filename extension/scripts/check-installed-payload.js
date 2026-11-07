@@ -117,6 +117,10 @@ async function main() {
     report.version = version;
     assert.equal(manifestPackage.contributes.mcpServerDefinitionProviders[0].id, "researchToolkit.local");
     assert.ok(manifestPackage.contributes.configuration.properties["researchStack.toolsPreset"], "tools preset setting ships in the manifest");
+    assert.ok(manifestPackage.contributes.configuration.properties["researchStack.checkForUpdates"], "the version-check switch ships in the manifest, so the operator can turn off the only online request the Toolkit makes");
+    assert.equal(manifestPackage.icon, "media/toolkit.png", "the Marketplace tile icon is declared in the installed manifest");
+    assert.ok(fs.existsSync(path.join(packageRoot, manifestPackage.icon)), "the declared icon is actually present in the installed payload");
+    assert.equal(manifestPackage.bugs.email, "princ.michael@gmail.com", "the installed manifest names the maintainer a problem report is addressed to");
 
     const { manifest } = await bundle({ extensionUri: { fsPath: packageRoot } });
     assert.equal(manifest.workerVersion, version, "bundled worker matches the extension version");
@@ -132,9 +136,27 @@ async function main() {
       subscriptions: [], extensionUri: { fsPath: packageRoot, toString: () => packageRoot },
       extension: { packageJSON: manifestPackage },
     };
-    const api = extension.activateWith(vscode, context);
+    // 0.3.10: the installed payload's version check runs against a recorded reply, never a live request.
+    const updateRequests = [];
+    const api = extension.activateWith(vscode, context, {
+      updateTransport: async (url) => { updateRequests.push(url); return { status: 404, body: "" }; },
+    });
     report.commands = registered.size;
     assert.deepEqual(await api.mcpProvider.provideMcpServerDefinitions(), [], "no servers before a setup receipt");
+
+    // 0.3.10: the update channel in the installed payload, measured before any panel interaction so that
+    // every request counted here belongs to these two calls and to nothing else.
+    values.set("checkForUpdates", false);
+    const refused = await registered.get("researchToolkit.checkForUpdates")();
+    assert.equal(refused.state, "disabled", "the installed payload refuses a version check when the setting is off");
+    assert.equal(updateRequests.length, 0, "and refusing it reached no transport at all");
+    values.set("checkForUpdates", true);
+    const verdict = await registered.get("researchToolkit.checkForUpdates")();
+    assert.equal(verdict.state, "not-published", "a 404 from the Marketplace is a stated verdict in the installed payload, not an exception");
+    assert.equal(updateRequests.length, 1, "one request per check");
+    assert.equal(updateRequests[0], "https://marketplace.visualstudio.com/_apis/public/gallery/vscode/michaelprinc/research-stack-toolkit/latest", "to the reviewed URL, and to no other host");
+    assert.equal(verdict.page, "https://marketplace.visualstudio.com/items?itemName=michaelprinc.research-stack-toolkit", "the panel link ships with the verdict");
+    assert.equal(verdict.installedVersion, version, "the verdict names the version this payload is");
 
     const worker = path.join(workspace, WORKER_FOLDER);
     for (const relative of Object.keys(manifest.files)) {
@@ -238,16 +260,35 @@ async function main() {
     assert.match(state.installation.line, /component setup|Installation/, state.installation.line);
     assert.equal(state.installation.toolkitVersion, version, "the installation card is labelled with the packaged release");
     report.commands = registered.size;
-    assert.equal(registered.size, 30, "every declared command is registered (25 through 0.3.8 plus the five 0.3.9 corpus, freshness and bundle commands)");
+    assert.equal(registered.size, 33, "every declared command is registered (25 through 0.3.8, the five 0.3.9 corpus, freshness and bundle commands, and the three 0.3.10 update and problem-report commands)");
     for (const command of ["researchToolkit.retryFailedSteps", "researchToolkit.clearSetupLock", "researchToolkit.openSetupLog", "researchToolkit.copyInstallationDiagnostics",
-      "researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness", "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus"]) {
+      "researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness", "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus",
+      "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension"]) {
       assert.equal(typeof registered.get(command), "function", `${command} ships registered`);
     }
-    for (const setting of ["researchStack.uvPath", "researchStack.setupTimeoutSeconds"]) {
+    for (const setting of ["researchStack.uvPath", "researchStack.setupTimeoutSeconds", "researchStack.checkForUpdates"]) {
       assert.ok(manifestPackage.contributes.configuration.properties[setting], `${setting} ships in the manifest`);
     }
     assert.equal(manifestPackage.contributes.configuration.properties["researchStack.setupTimeoutSeconds"].default, 900);
     assert.equal(manifestPackage.contributes.configuration.properties["researchStack.uvPath"].scope, "application");
+    const updateSetting = manifestPackage.contributes.configuration.properties["researchStack.checkForUpdates"];
+    assert.equal(updateSetting.default, true, "the version check is on by default, so a Toolkit installed from a file can still find its update channel");
+    assert.equal(updateSetting.scope, "application", "the version check is a machine-wide preference, not a per-workspace one");
+    assert.ok(updateSetting.description.includes("no online service"), "the setting states in plain words what switching it off does");
+    for (const module of ["updates.js", "reports.js"]) {
+      assert.ok(fs.existsSync(path.join(packageRoot, module)), `${module} ships in the installed payload`);
+    }
+    // 0.3.10: opening the panel scheduled one further check — the only network request the installed
+    // payload makes — and the panel carries the verdict rather than a spinner.
+    assert.equal(updateRequests.length, 2, "the two explicit checks plus the panel's scheduled check, and no more");
+    assert.deepEqual(updateRequests, new Array(updateRequests.length).fill("https://marketplace.visualstudio.com/_apis/public/gallery/vscode/michaelprinc/research-stack-toolkit/latest"), "every request went to the reviewed URL, and no other host was reached");
+    assert.equal(state.update.state, "not-published", "the panel shows the verdict the check produced");
+    assert.equal(state.update.installedVersion, version, "the panel names the version this payload is");
+    for (const action of ["report", "checkUpdates", "updateNow"]) {
+      assert.match(panel.webview.html, new RegExp(`data-action="${action}"`), `packaged panel offers ${action}`);
+    }
+    assert.ok(panel.webview.html.includes('id="update-state"'), "packaged panel renders the update verdict line");
+    assert.ok(panel.webview.html.includes("The Toolkit sends nothing by itself."), "packaged panel states that a problem report is sent by the operator, not by the Toolkit");
     const diagnosis = await registered.get("researchToolkit.diagnoseToolLimit")();
     assert.match(diagnosis, /Client ceiling: 128 tools/);
     assert.match(diagnosis, /Toolkit contribution now: 11 toolkit tools from 3 managed MCP server\(s\)/, "the Full default preset spans all three servers");

@@ -481,6 +481,37 @@
       busy = message.busy;
       savedPackage = message.selectedPackage;
       document.getElementById("version").textContent = `v${message.version}`;
+      // 0.3.10: the version-check verdict, in words an operator can act on.
+      const updateElement = document.getElementById("update-state");
+      const update = message.update;
+      if (updateElement) {
+        const VERDICTS = {
+          disabled: "Version check: switched off in the Toolkit settings.",
+          "update-available": () => `Version check: ${update.publishedVersion} is published and this window has ${update.installedVersion}. Press Update from the Marketplace, then reload the window.`,
+          "up-to-date": () => `Version check: ${update.installedVersion} is the newest published Toolkit.`,
+          "not-published": "Version check: no published Toolkit was found. This copy came from a file, so VS Code will not update it by itself.",
+          "editor-too-old": () => `Version check: ${update.publishedVersion} needs VS Code ${update.requiredEngine} or newer. Update VS Code first.`,
+          "ahead-of-channel": () => `Version check: this copy (${update.installedVersion}) is newer than the published one (${update.publishedVersion}).`,
+          "checked-recently": () => `Version check: already run on ${update.checkedAtText || "an earlier day"}. Press Check for a newer Toolkit version to ask again.`,
+        };
+        const verdict = VERDICTS[update ? update.state : "none"];
+        const said = typeof verdict === "function" ? verdict()
+          : verdict || `Version check: did not complete (${update ? update.state : "not run"}). The Toolkit is working; only the check failed.`;
+        // A verdict kept from an earlier check is shown, but labelled as kept: an old answer must not
+        // arrive looking fresh just because the cooldown refused to ask again.
+        updateElement.textContent = update && update.cached
+          ? `${said} Kept from the check on ${update.checkedAtText || "an earlier day"}.`
+          : said;
+      }
+      const updateButton = document.querySelector('[data-action="updateNow"]');
+      if (updateButton) {
+        if (update && update.state === "update-available") {
+          updateButton.dataset.unavailable = "false";
+          updateButton.title = `Ask VS Code to install ${update.publishedVersion} from the Marketplace. It keeps the Marketplace signature and returns the Toolkit to normal automatic updating.`;
+        } else {
+          markUnavailable(updateButton, "There is no published Toolkit update to take right now. Run the version check first.");
+        }
+      }
       document.getElementById("workspace").textContent = message.workspace;
       document.getElementById("trust").textContent = message.trusted ? "Trusted workspace" : "Restricted mode · preference controls available";
       document.getElementById("saved-package").textContent = `Saved: ${message.packages.find((item) => item.id === savedPackage).label}`;

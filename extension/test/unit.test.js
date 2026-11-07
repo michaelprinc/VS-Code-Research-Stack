@@ -23,9 +23,9 @@ test("manifest exposes GUI and package commands with matching contributions and 
   assert.equal(manifest.devDependencies, undefined);
   assert.equal(manifest.scripts, undefined);
   assert.equal(manifest.private, undefined);
-  const shippedAllowlist = ["README.md", "bundles", "bundles.js", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "lockfile.js", "media", "package.json", "preflight.js", "presets.json", "probe.py", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "worker"].sort();
+  const shippedAllowlist = ["README.md", "bundles", "bundles.js", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "lockfile.js", "media", "package.json", "preflight.js", "presets.json", "probe.py", "reports.js", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "updates.js", "worker"].sort();
   assert.deepEqual([...manifest.files].sort(), shippedAllowlist,
-    "the shipped allowlist names every module the controller requires, including the 0.3.6 setup modules, the 0.3.7 lock reader and the 0.3.9 bundle installer");
+    "the shipped allowlist names every module the controller requires, including the 0.3.6 setup modules, the 0.3.7 lock reader, the 0.3.9 bundle installer and the 0.3.10 update and report modules");
   assert.deepEqual(manifest.contributes.configuration.properties["researchStack.toolsPreset"].enum, ["package-default", "read-and-cite", "find-in-notes", "verify-citations", "zotero-handoff", "research-core", "research-workflow", "research-lab", "research-lab-max", "corpus-lab"]);
   assert.equal(manifest.contributes.configuration.properties["researchStack.toolsPreset"].default, "package-default");
   assert.equal(manifest.contributes.configuration.properties["researchStack.toolsPreset"].scope, "application-overridable", "a preset can be overridden per workspace folder");
@@ -50,16 +50,17 @@ test("the settings contributions describe the shipped presets and commands witho
   }
   const categories = new Set(manifest.contributes.commands.map((item) => item.category));
   assert.deepEqual([...categories], ["Research Toolkit"], "the new commands appear in the same Command Palette group as the rest");
-  assert.equal(manifest.contributes.commands.length, 30);
+  assert.equal(manifest.contributes.commands.length, 33, "30 through 0.3.9 plus the three 0.3.10 update and problem-report commands");
   for (const command of ["researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness",
-    "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus"]) {
+    "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus",
+    "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension"]) {
     assert.ok(manifest.contributes.commands.some((item) => item.command === command), `${command} is contributed, not just registered`);
   }
 });
 
 test("activation registers both disposable commands and reports the profile preference", async () => {
   const harness = makeHarness();
-  assert.equal(harness.registered.size, 30);
+  assert.equal(harness.registered.size, 33, "every contributed command is registered, including the 0.3.10 update and report commands");
   for (const command of ["researchToolkit.retryFailedSteps", "researchToolkit.clearSetupLock", "researchToolkit.openSetupLog", "researchToolkit.copyInstallationDiagnostics"]) {
     assert.equal(typeof harness.registered.get(command), "function", `${command} is registered so the panel can offer it`);
   }
@@ -81,7 +82,7 @@ test("activation registers both disposable commands and reports the profile pref
   assert.equal(harness.values.get("selectedPackage"), "basic");
   assert.equal(harness.output.shown, true);
   for (const subscription of harness.context.subscriptions) subscription.dispose();
-  assert.equal(harness.disposed.length, 31, "every registered command and the status item are disposed with the extension");
+  assert.equal(harness.disposed.length, 34, "every registered command and the status item are disposed with the extension");
 });
 
 test("GUI saves packages/options, reuses its panel, and syncs external settings with sidebar/status", async () => {
@@ -137,17 +138,24 @@ test("GUI actions use a fixed command allowlist and startup opening is opt-in", 
   const panel = harness.panels[0];
   for (const action of ["copy", "readiness", "help", "settings", "refresh"]) await panel.receive({ type: "action", action });
   assert.match(harness.events.clipboard, /Full \(full\)/);
-  assert.ok(harness.invoked.some((item) => item.id === "markdown.showPreview" && item.args[0] === "extension/guides/index.md"));
+  assert.ok(harness.invoked.some((item) => item.id === "markdown.showPreview" && item.args[0].fsPath === "extension/guides/index.md"), "the guide is handed to VS Code as a Uri, not as a string");
   assert.ok(harness.invoked.some((item) => item.id === "workbench.action.openSettings"));
 });
 
 test("webview limits scripts and local resources and uses a fresh nonce", () => {
   const harness = makeHarness();
   const panel = harness.api.openControlPanel();
-  assert.deepEqual(panel.options.localResourceRoots, ["extension/media"]);
+  assert.deepEqual(panel.options.localResourceRoots.map((uri) => uri.fsPath), ["extension/media"]);
   assert.match(panel.webview.html, /default-src 'none'/);
   assert.match(panel.webview.html, /script-src 'nonce-[A-Za-z0-9+/=]+'/);
   assert.doesNotMatch(panel.webview.html, /unsafe-inline|onclick=|https?:\/\//);
+  // 0.3.10: the panel offers the update and report controls, and states what the online request is.
+  for (const action of ["report", "checkUpdates", "updateNow"]) {
+    assert.ok(panel.webview.html.includes(`data-action="${action}"`), `the panel offers ${action}`);
+  }
+  assert.ok(panel.webview.html.includes('id="update-state"'), "and a place to state the verdict");
+  assert.ok(panel.webview.html.includes("The Toolkit sends nothing by itself"), "with the disclosure in the panel, not only in a setting");
+  assert.ok(panel.webview.html.includes("Updates &amp; problem reports"));
   panel.dispose();
   const fresh = harness.api.openControlPanel();
   assert.notEqual(panel.webview.html, fresh.webview.html);
@@ -188,3 +196,116 @@ test("a panel result names the request it answers", async () => {
   assert.match(failure.error, /action/i);
   panel.dispose();
 });
+
+test("the problem report writes a file the operator reads, copies it, and only then offers the mail draft", async () => {
+  const os = require("node:os");
+  const storage = fs.mkdtempSync(path.join(os.tmpdir(), "research-report-"));
+  try {
+    const harness = makeHarness({ storageDir: storage, reportNote: "The reading check stopped after I moved the folder." });
+    const result = await harness.registered.get("researchToolkit.reportProblem")();
+    assert.equal(harness.events.writtenFiles.length, 1, "exactly one file is written");
+    const written = harness.events.writtenFiles[0];
+    assert.ok(written.startsWith(storage), `the report went to the extension's own storage folder, not to the workspace: ${written}`);
+    assert.match(path.basename(written), /^research-stack-report-r-\d{8}T\d{6}Z\.txt$/);
+    assert.equal(harness.events.shownDocument, written, "the file the operator was shown is the file that was written");
+    const onDisk = fs.readFileSync(written, "utf8");
+    assert.equal(harness.events.clipboard, onDisk, "the clipboard holds exactly what the operator was shown");
+    assert.ok(onDisk.includes("RESEARCH STACK TOOLKIT — PROBLEM REPORT"));
+    assert.ok(onDisk.includes("princ.michael@gmail.com"), "the report says who it is for");
+    assert.ok(onDisk.includes("The reading check stopped after I moved the folder."), "the operator's own words are in it");
+    assert.ok(onDisk.includes("no setup has run in this workspace yet"), "and so is the recorded setup verdict");
+    assert.ok(!onDisk.includes("Research <draft>"), "the workspace folder name is not");
+    assert.ok(onDisk.includes("Workspace: <workspace>"));
+    assert.ok(onDisk.includes("WHAT WAS REMOVED FROM THIS REPORT"));
+    assert.equal(result.bytes, Buffer.byteLength(onDisk, "utf8"), "the reported size is the real size");
+    assert.equal(result.path, written);
+    assert.equal(result.mailtoFits, true);
+    const mail = harness.events.external;
+    assert.ok(String(mail).startsWith("mailto:princ.michael@gmail.com?"), "the draft is handed to the operator's own mail program");
+    assert.ok(Buffer.byteLength(String(mail), "utf8") <= 1800, "and it is short enough for a mail client to accept whole");
+    assert.ok(String(mail).includes("%0D%0A"), "with line breaks that survive the URI");
+    const modal = harness.events.messages.find((item) => (item.buttons || []).includes("Open my mail program"));
+    assert.ok(modal, "the offer is a question the operator has to answer");
+    assert.equal(modal.options.modal, true, "and it is a modal, not a notification that can be clicked past");
+    assert.ok(modal.options.detail.includes("Nothing is sent by the Toolkit"), "the modal says what it will and will not do");
+    assert.ok(modal.options.detail.includes("Removed from the report before you saw it"), "and counts what it took out");
+  } finally {
+    fs.rmSync(storage, { recursive: true, force: true });
+  }
+});
+
+test("cancelling the note writes nothing, copies nothing and opens nothing", async () => {
+  const os = require("node:os");
+  const storage = fs.mkdtempSync(path.join(os.tmpdir(), "research-report-"));
+  try {
+    const harness = makeHarness({ storageDir: storage, reportCancel: true });
+    await assert.rejects(() => harness.registered.get("researchToolkit.reportProblem")(), /Report cancelled/);
+    assert.deepEqual(harness.events.writtenFiles, [], "no file");
+    assert.equal(harness.events.clipboard, undefined, "no clipboard write");
+    assert.equal(harness.events.external, undefined, "no mail program asked to open");
+  } finally {
+    fs.rmSync(storage, { recursive: true, force: true });
+  }
+});
+
+test("refusing the mail draft keeps the report and sends nothing", async () => {
+  const os = require("node:os");
+  const storage = fs.mkdtempSync(path.join(os.tmpdir(), "research-report-"));
+  try {
+    const harness = makeHarness({ storageDir: storage, reportNote: "uv sync timed out", confirmPrompt: false });
+    const result = await harness.registered.get("researchToolkit.reportProblem")();
+    assert.equal(harness.events.external, undefined, "no mail program was asked to open");
+    assert.equal(harness.events.writtenFiles.length, 1, "the operator still has the report file");
+    assert.ok(harness.events.clipboard.includes("WHAT WAS REMOVED FROM THIS REPORT"));
+    assert.equal(result.mailtoFits, true);
+  } finally {
+    fs.rmSync(storage, { recursive: true, force: true });
+  }
+});
+
+test("the version check is refused when the setting is off, and a published build becomes a stated update", async () => {
+  const off = makeHarness({ initial: { checkForUpdates: false } });
+  const refused = await off.registered.get("researchToolkit.checkForUpdates")();
+  assert.equal(refused.state, "disabled");
+  assert.equal(off.events.updateChecks.length, 0, "a switched-off check reaches no transport at all");
+
+  const on = makeHarness({ updateReply: { status: 200, body: JSON.stringify({
+    versions: [{ version: "0.3.11", lastUpdated: "2026-11-07T10:00:00Z", properties: [{ name: "Microsoft.VisualStudio.Code.Engine", value: "^1.140.0" }] }],
+  }) } });
+  const verdict = await on.registered.get("researchToolkit.checkForUpdates")();
+  assert.equal(verdict.state, "update-available");
+  assert.equal(verdict.publishedVersion, "0.3.11");
+  assert.equal(verdict.installedVersion, require("../package.json").version);
+  assert.equal(on.events.updateChecks.length, 1, "one request");
+  assert.equal(on.events.updateChecks[0], "https://marketplace.visualstudio.com/_apis/public/gallery/vscode/michaelprinc/research-stack-toolkit/latest");
+  const offer = on.events.messages.find((item) => item.buttons.includes("Update from the Marketplace"));
+  assert.ok(offer, "the operator is told an update exists, with the version in the sentence");
+
+  const panel = on.api.openControlPanel();
+  await panel.receive({ type: "ready" });
+  // The scheduled check is deliberately not awaited by the panel: a slow Marketplace must not hold the
+  // first paint. The test looks again the way an operator does.
+  let state = null;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    state = panel.messages.filter((item) => item.type === "state").at(-1) || null;
+    if (state && state.update && state.update.cached) break;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(on.events.updateChecks.length, 1, "opening the panel again does not ask the Marketplace a second time on the same day");
+  assert.ok(state && state.update, "the panel carries an update verdict");
+  assert.equal(state.update.state, "update-available", "the panel keeps the verdict it already has instead of erasing it");
+  assert.equal(state.update.cached, true, "and labels it as kept from the earlier check");
+  assert.ok(state.update.checkedAtText, "with the stamp of when it was actually asked");
+  panel.dispose();
+});
+
+test("a Marketplace that has not published this extension is reported as such, not as a failure", async () => {
+  const harness = makeHarness({});
+  const verdict = await harness.registered.get("researchToolkit.checkForUpdates")();
+  assert.equal(verdict.state, "not-published");
+  assert.equal(verdict.action, "install-from-marketplace");
+  assert.equal(harness.events.updateChecks.length, 1);
+  const said = harness.events.messages.find((item) => /No published version/.test(item.text));
+  assert.ok(said, "the panel wording says what was found");
+});
+

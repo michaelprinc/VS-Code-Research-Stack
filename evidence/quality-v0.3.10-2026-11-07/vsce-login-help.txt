@@ -1,0 +1,6 @@
+Usage: vsce login [options] <publisher>
+
+Adds a publisher to the list of known publishers
+
+Options:
+  -h, --help  display help for command

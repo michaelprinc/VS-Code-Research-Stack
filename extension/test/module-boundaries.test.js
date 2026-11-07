@@ -27,8 +27,14 @@ const REVIEWED = {
   // 0.3.9: the skill-bundle catalog reader and staged installer. It reaches no other extension
   // module, no process and no socket — it is paths, hashes and `fs` only.
   "bundles.js": [],
+  // 0.3.10: the published-version check. It is the one reviewed module in the package allowed to open a
+  // socket; the bounds on that socket are asserted below and again in `scripts/verify_vsix.py`.
+  "updates.js": [],
+  // 0.3.10: the problem-report builder. Text, redaction and a `mailto:` string only — no process, no
+  // socket, no file write. The write and the open belong to the controller, where the operator consents.
+  "reports.js": [],
   "ui.js": [],
-  "extension.js": ["ui.js", "diagnostics.js", "runtime.js", "installer.js", "setuplog.js", "status.js", "preflight.js", "steps.js", "hosttools.js", "runner.js", "bundles.js"],
+  "extension.js": ["ui.js", "diagnostics.js", "runtime.js", "installer.js", "setuplog.js", "status.js", "preflight.js", "steps.js", "hosttools.js", "runner.js", "bundles.js", "updates.js", "reports.js"],
 };
 const DATA_FILES = ["components.json", "presets.json", "package.json", "vsix-manifest.json"];
 
@@ -98,11 +104,27 @@ test("exactly one module reaches an external tool, and it is the reviewed runner
   assert.ok(/"taskkill\.exe"/.test(source) && /function taskkillArguments\(pid\)/.test(source), "the Windows tree is taken by taskkill /T /F");
   assert.ok(/sink\.total >= MAX_BUFFER_BYTES/.test(source), "the capture limit is enforced by the boundary itself");
   // No other shipped module may reach a process, a socket or dynamic code at all.
+  // 0.3.10 moves exactly one edge — the published-version check — out of that blanket rule. The exception
+  // is named here, bounded here and counted here, so it cannot grow; `scripts/verify_vsix.py` checks the
+  // same fact against the packaged bytes rather than the source tree.
+  const REVIEWED_NETWORK_MODULE = "updates.js";
   for (const file of shippedModules().filter((name) => name !== "runner.js")) {
     const { source: other } = localRequires(file);
-    assert.ok(!/child_process|require\("node:(http|https|net|dgram|tls|worker_threads)"\)|\bFunction\(|\beval\(/.test(other),
-      `${file} must not reach a process, a socket or dynamic code`);
+    assert.ok(!/child_process|\bFunction\(|\beval\(/.test(other), `${file} must not reach a process or dynamic code`);
+    if (file !== REVIEWED_NETWORK_MODULE) {
+      assert.ok(!/require\("node:(http|https|net|dgram|tls|worker_threads)"\)/.test(other), `${file} must not reach a socket`);
+    }
   }
+  const socketUsers = shippedModules().filter((name) => /require\("node:(http|https|net|dgram|tls)"\)/.test(localRequires(name).source));
+  assert.deepEqual(socketUsers, [REVIEWED_NETWORK_MODULE], "exactly one shipped module may open a socket, and it is the reviewed version check");
+  const { source: updater } = localRequires(REVIEWED_NETWORK_MODULE);
+  assert.equal((updater.match(/require\("node:https"\)/g) || []).length, 1, "the version check imports its transport module once");
+  assert.equal((updater.match(/https\.get\(/g) || []).length, 1, "one request call site, so a retry loop cannot appear quietly");
+  for (const bound of ["const REQUEST_TIMEOUT_MS = 8000;", "const MAX_RESPONSE_BYTES = 64 * 1024;", "const CHECK_COOLDOWN_MS = 24 * 60 * 60 * 1000;"]) {
+    assert.ok(updater.includes(bound), `updates.js must keep its own bound ${bound}`);
+  }
+  assert.ok(!/child_process|require\("node:(fs|net|dgram|tls|worker_threads)"\)|\bFunction\(|\beval\(/.test(updater), "the version check opens one bounded HTTPS GET and nothing else");
+  assert.ok(/marketplace\.visualstudio\.com/.test(updater), "the only host the Toolkit may ask is the Marketplace it is published on");
 });
 
 test("no controller module implements an install step or a uv command itself", () => {

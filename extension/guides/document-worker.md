@@ -4,7 +4,7 @@ Serve document reads and report creation through local MCP.
 
 ## Setup
 
-In a trusted local workspace, choose **Set up package components**. The VSIX includes reviewed worker source and dependency locks; uv installs Python 3.12 and dependencies into `.research-toolkit/managed/worker-0.3.9/.venv`. The environment is separate from your project's packages. Your source documents and MCP configuration are preserved. The step is reported as installed only after `.venv/bin/python` (Linux/macOS) or `.venv/Scripts/python.exe` (Windows) and the managed `src/research_stack/mcp_server.py` are re-checked on disk.
+In a trusted local workspace, choose **Set up package components**. The VSIX includes reviewed worker source and dependency locks; uv installs Python 3.12 and dependencies into `.research-toolkit/managed/worker-0.3.10/.venv`. The environment is separate from your project's packages. Your source documents and MCP configuration are preserved. The step is reported as installed only after `.venv/bin/python` (Linux/macOS) or `.venv/Scripts/python.exe` (Windows) and the managed `src/research_stack/mcp_server.py` are re-checked on disk.
 
 ## First task and readiness
 

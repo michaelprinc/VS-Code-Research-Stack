@@ -22,6 +22,13 @@ EXPECTED = {
     # 0.3.9: the bundle installer module. `extension/extension.js` requires './bundles', so a package
     # that ships the bundle payload without the module that reads it activates and then fails to load.
     "extension/bundles.js",
+    # 0.3.10: the published-version check and the problem-report builder. `extension/extension.js`
+    # requires both, so a package that omits either activates and then fails to load.
+    "extension/updates.js",
+    "extension/reports.js",
+    # 0.3.10: the Marketplace tile icon. vsce rejects an SVG icon outright and rejects a declared icon
+    # that is not in the package, so the PNG is an audited member rather than a stray file.
+    "extension/media/toolkit.png",
     "extension/media/controls.js",
     "extension/media/controls.css",
     "extension/media/toolkit.svg",
@@ -125,6 +132,25 @@ FORBIDDEN_ENTRY = re.compile(
     rb"(?<![.\w])(?:exec|execFile|spawn)(?:Sync)?\s*\()|require\s*\(\s*['\"](?:node:)?"
     rb"(?:http|https|net|tls|child_process)['\"]",
     re.I,
+)
+
+# 0.3.10: the published-version check is the one reviewed outbound-network edge in the packaged
+# extension, and it is reviewed as a named member plus the bounds it must keep — not as a blanket
+# permission. It cannot move to another file, grow a second request site, drop its timeout or byte cap,
+# or point at a host other than the Marketplace the extension is published on. The source-tree half of
+# this review is `extension/test/module-boundaries.test.js`; this half measures the shipped bytes.
+REVIEWED_JS_NETWORK_MEMBERS = frozenset({"extension/updates.js"})
+REVIEWED_JS_NETWORK_IMPORT = b'const https = require("node:https");'
+REVIEWED_JS_NETWORK_BOUNDS = (
+    b'const MARKETPLACE_HOST = "marketplace.visualstudio.com";',
+    b"const REQUEST_TIMEOUT_MS = 8000;",
+    b"const MAX_RESPONSE_BYTES = 64 * 1024;",
+    b"const CHECK_COOLDOWN_MS = 24 * 60 * 60 * 1000;",
+    b"function httpsGet(",
+)
+REVIEWED_JS_NETWORK_EXTRA_TRANSPORT = re.compile(
+    rb"\bXMLHttpRequest\b|\bWebSocket\b|\bfetch\s*\(|require\s*\(\s*['\"](?:node:)?"
+    rb"(?:net|tls|dgram|child_process|fs|worker_threads)['\"]|\bFunction\(|\beval\(",
 )
 
 # --- Python half of the review (added after the independent 0.3.6 audit) ---
@@ -283,6 +309,29 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
                         .replace(b"childProcess.spawn(", b"reviewedCall(")
                         .replace(b"childProcess.execFile(", b"reviewedCall(")
                     )
+                if member in REVIEWED_JS_NETWORK_MEMBERS:
+                    # The reviewed network edge, measured rather than assumed: one import, one request
+                    # call site, the bounds that make it one small GET, and nothing else.
+                    if script.count(REVIEWED_JS_NETWORK_IMPORT) != 1:
+                        raise ValueError(
+                            f"reviewed network member {member} must import its transport exactly once "
+                            f"({script.count(REVIEWED_JS_NETWORK_IMPORT)} found)"
+                        )
+                    for required in REVIEWED_JS_NETWORK_BOUNDS:
+                        if required not in script:
+                            raise ValueError(f"reviewed network member {member} no longer keeps {required.decode()!r}")
+                    if script.count(b"https.get(") != 1:
+                        raise ValueError(
+                            f"reviewed network member {member} must keep exactly one request call site "
+                            f"({script.count(b'https.get(')} found)"
+                        )
+                    extra = REVIEWED_JS_NETWORK_EXTRA_TRANSPORT.search(script)
+                    if extra:
+                        raise ValueError(
+                            f"reviewed network member {member} reaches beyond the one bounded Marketplace GET: "
+                            f"{extra.group().decode(errors='replace')}"
+                        )
+                    script = script.replace(REVIEWED_JS_NETWORK_IMPORT, b"")
                 if FORBIDDEN_ENTRY.search(script):
                     raise ValueError(f"extension introduces unreviewed network/process capabilities: {member}")
             elif member.endswith(".py"):
@@ -311,11 +360,18 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
                         }
                     )
         # Measured, not assumed: which packaged members actually carry outbound-network capability.
+        # 0.3.10: one member is reviewed and named above; anything else that reaches the network is a defect.
         outbound_js_members = sorted(
             member for member in names if member.endswith(".js") and NETWORK_PRIMITIVE.search(archive.read(member))
         )
-        if outbound_js_members:
-            raise ValueError(f"packaged JavaScript introduces network capability: {outbound_js_members}")
+        unreviewed_js_network_members = [member for member in outbound_js_members if member not in REVIEWED_JS_NETWORK_MEMBERS]
+        if unreviewed_js_network_members:
+            raise ValueError(f"packaged JavaScript introduces network capability: {unreviewed_js_network_members}")
+        if [member for member in REVIEWED_JS_NETWORK_MEMBERS if member not in outbound_js_members]:
+            raise ValueError(
+                f"the reviewed network member is no longer the member this audit reviews: "
+                f"{sorted(REVIEWED_JS_NETWORK_MEMBERS)} carries no outbound capability"
+            )
         outbound_network_members = sorted(
             member for member in names
             if member.endswith(".py") and OUTBOUND_PYTHON.search(archive.read(member))
@@ -477,9 +533,11 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
         )
     )
     reviewed_network_boundary = (
-        "Measured over every packaged member. Packaged JavaScript: no member matched fetch, "
-        "XMLHttpRequest, WebSocket, require(node:http|https|net|tls), urllib.request, socket or "
-        "http.client. Packaged Python outbound network: "
+        "Measured over every packaged member. Packaged JavaScript outbound capability: "
+        + (", ".join(outbound_js_members) if outbound_js_members else "none")
+        + " — reviewed as one bounded HTTPS GET to marketplace.visualstudio.com with a timeout, a byte "
+        "cap and a 24 hour cooldown; no other packaged JavaScript matched fetch, XMLHttpRequest, WebSocket, "
+        "require(node:http|https|net|tls), urllib.request, socket or http.client. Packaged Python outbound network: "
         + (", ".join(outbound_network_members) if outbound_network_members else "none")
         + ". "
         + (

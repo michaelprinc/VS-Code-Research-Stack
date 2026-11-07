@@ -1,8 +1,12 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const os = require("node:os");
 const path = require("node:path");
 const TOOLKIT_VERSION = require("./package.json").version;
+const PUBLISHER_ID = require("./package.json").publisher;
+const EXTENSION_NAME = require("./package.json").name;
+const EXTENSION_ID = `${PUBLISHER_ID}.${EXTENSION_NAME}`;
 const DEFAULT_PACKAGE = "recommended";
 const DEFAULT_PRESET = "package-default";
 const STATE_KEY = "researchStack.selectedPackage";
@@ -19,6 +23,11 @@ const { clearStaleLock, inspectLock, setupWindowMs } = require("./preflight");
 const { clearHostToolCache } = require("./hosttools");
 const { PYTHON_FLAGS, asRunProcess } = require("./runner");
 const bundles = require("./bundles");
+// 0.3.10: the published-version check and the problem-report builder. `updates.js` is the one reviewed
+// module in the package that may reach the network; `scripts/verify_vsix.py` names it on the shipped
+// bytes and `test/module-boundaries.test.js` counts which modules do in the source tree.
+const updates = require("./updates");
+const reportBuilder = require("./reports");
 const componentCatalog = require("./components.json");
 const presetCatalog = require("./presets.json");
 const COMPONENTS_BY_ID = new Map(componentCatalog.components.map((item) => [item.id, item]));
@@ -149,6 +158,12 @@ function validateContext(vscode, context) {
 function activateWith(vscode, context, diagnosticServices) {
   validateContext(vscode, context);
 
+  // 0.3.10: the transport the version check uses. The shipped value is `updates.httpsGet`, the one
+  // bounded HTTPS GET the packaging audit reviews. A host harness may replace it so the update logic is
+  // driven with a recorded reply instead of a live request — the tests never reach the Marketplace, and
+  // the shipped path is still the one the audit measured.
+  const updateTransport = (diagnosticServices && diagnosticServices.updateTransport) || updates.httpsGet;
+
   const output = vscode.window.createOutputChannel("Research Stack");
   context.subscriptions.push(output);
   const changed = new vscode.EventEmitter();
@@ -170,6 +185,11 @@ function activateWith(vscode, context, diagnosticServices) {
   let appliedPresetSignature;
   let installationStatus = null;
   let installationLock = null;
+  // 0.3.10: what the last published-version check said, and what failed in this session. Both are
+  // session state — neither is written to disk, and neither is sent anywhere by itself.
+  let recentErrors = [];
+  let updateCheck = null;
+  let lastReport = null;
 
   /** Setup settings: where uv may be found and how long a downloading step may take. */
   function setupSettings() {
@@ -335,6 +355,17 @@ function activateWith(vscode, context, diagnosticServices) {
       diagnosticsWorkspace,
       inventory,
       readingResult, progressMessage, busy: Boolean(operation || checking),
+      // 0.3.10: what the last published-version check said, and where the last problem report went.
+      update: updateCheck ? {
+        state: updateCheck.state,
+        installedVersion: updateCheck.installedVersion || TOOLKIT_VERSION,
+        publishedVersion: updateCheck.publishedVersion || null,
+        requiredEngine: updateCheck.requiredEngine || null,
+        checkedAtText: updateCheck.checkedAtText || null,
+        held: Boolean(updateCheck.held),
+        cached: Boolean(updateCheck.cached),
+      } : null,
+      report: lastReport,
       readiness: readinessSummary(packageId),
     };
   }
@@ -367,7 +398,23 @@ function activateWith(vscode, context, diagnosticServices) {
     return write.then(() => refresh());
   }
 
-  const register = (id, callback) => context.subscriptions.push(vscode.commands.registerCommand(id, callback));
+  /**
+   * A command that fails is recorded in a bounded in-session ring, so a later `Report a problem` can show
+   * what actually went wrong instead of asking the operator to remember it. The error is rethrown
+   * unchanged: recording a failure must not change what the operator sees when one happens.
+   */
+  const register = (id, callback) => context.subscriptions.push(vscode.commands.registerCommand(id, async (...args) => {
+    try {
+      return await callback(...args);
+    } catch (error) {
+      recentErrors = reportBuilder.errorRing({
+        entries: recentErrors,
+        kind: id.startsWith("researchToolkit.") ? id.slice("researchToolkit.".length) : id,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }));
   register("researchToolkit.openSettings", () => vscode.commands.executeCommand("workbench.action.openSettings", "@ext:michaelprinc.research-stack-toolkit"));
   register("researchToolkit.openHelp", () => vscode.commands.executeCommand("markdown.showPreview", vscode.Uri.joinPath(context.extensionUri, "guides", "index.md")));
   async function chooseComponent(requestedId) {
@@ -848,6 +895,206 @@ function activateWith(vscode, context, diagnosticServices) {
     return text;
   });
 
+  /* ------------------------------------------------------------------------ 0.3.10: update channel */
+
+  const UPDATE_STATE_KEY = "researchToolkit.updateCheck";
+
+  function storedUpdateCheck() {
+    const stored = context.globalState && typeof context.globalState.get === "function"
+      ? context.globalState.get(UPDATE_STATE_KEY) : undefined;
+    return stored && typeof stored === "object" ? stored : null;
+  }
+
+  function updateSettings() {
+    return { checkForUpdates: vscode.workspace.getConfiguration("researchStack").get("checkForUpdates", true) !== false };
+  }
+
+  /**
+   * Ask the Marketplace once, show what it said, and store when it was asked.
+   * The request carries nothing about this machine: the URL is the publisher id and the extension name,
+   * both already public. A failed check is reported as a failed check, never as a toolkit failure.
+   */
+  async function runUpdateCheck({ force = false, notify = false } = {}) {
+    const settings = updateSettings();
+    const previous = storedUpdateCheck();
+    if (!settings.checkForUpdates) {
+      const verdict = { state: "disabled", installedVersion: TOOLKIT_VERSION, action: "none", page: updates.marketplacePage(PUBLISHER_ID, EXTENSION_NAME) };
+      updateCheck = verdict;
+      refresh();
+      if (notify) await vscode.window.showInformationMessage("Update checks are switched off in the Toolkit settings. Turn on “Check for a newer Toolkit version” to use this.");
+      // Returned as a local object, not by re-reading `updateCheck`: a check the panel started earlier can
+      // finish during the await above and replace the shared verdict. The caller gets the answer this call produced.
+      return verdict;
+    }
+    if (!updates.shouldCheck({ enabled: true, lastCheckedAt: previous && previous.checkedAt, force })) {
+      // The last verdict, kept and labelled as kept. Repeating "checked-recently" instead would hide the
+      // one thing the operator asked for; hiding the stamp would present an old answer as a fresh one.
+      const verdict = {
+        ...(previous || {}),
+        state: (previous && previous.state) || "checked-recently",
+        installedVersion: TOOLKIT_VERSION,
+        cached: true,
+        held: true,
+        page: updates.marketplacePage(PUBLISHER_ID, EXTENSION_NAME),
+      };
+      updateCheck = verdict;
+      refresh();
+      if (notify) await vscode.window.showInformationMessage(`The Toolkit already checked for a newer version today. Last check: ${previous.checkedAtText || "today"}.`);
+      return verdict;
+    }
+    const published = await updates.checkPublishedVersion({ publisher: PUBLISHER_ID, name: EXTENSION_NAME, fetchImpl: updateTransport });
+    const plan = updates.updatePlan({
+      installedVersion: TOOLKIT_VERSION,
+      publishedVersion: published.version,
+      publishedEngine: published.engine,
+      vscodeVersion: vscode.version,
+      checkState: published.state === "ok" ? undefined : published.state,
+    });
+    const verdict = {
+      ...plan,
+      checkedAt: Date.now(),
+      checkedAtText: new Date().toISOString(),
+      page: updates.marketplacePage(PUBLISHER_ID, EXTENSION_NAME),
+      publishedEngine: published.engine || null,
+    };
+    updateCheck = verdict;
+    void Promise.resolve(context.globalState && typeof context.globalState.update === "function"
+      ? context.globalState.update(UPDATE_STATE_KEY, { checkedAt: verdict.checkedAt, checkedAtText: verdict.checkedAtText, state: verdict.state, publishedVersion: verdict.publishedVersion || null })
+      : undefined).catch(() => {});
+    refresh();
+    if (notify) {
+      if (plan.state === "update-available") {
+        const choice = await vscode.window.showInformationMessage(
+          `Research Stack Toolkit ${plan.publishedVersion} is published; this window has ${TOOLKIT_VERSION}.`,
+          "Update from the Marketplace", "Open the Marketplace page", "Later");
+        if (choice === "Update from the Marketplace") await vscode.commands.executeCommand("researchToolkit.updateExtension");
+        else if (choice === "Open the Marketplace page") await vscode.env.openExternal(vscode.Uri.parse(verdict.page));
+      } else if (plan.state === "not-published") {
+        await vscode.window.showInformationMessage("No published version of this Toolkit was found, so there is nothing to update to. This copy is the one you installed from a file.");
+      } else if (plan.state === "editor-too-old") {
+        await vscode.window.showInformationMessage(`Toolkit ${plan.publishedVersion} needs VS Code ${plan.requiredEngine} or newer. Update VS Code first.`);
+      } else if (plan.state === "up-to-date") {
+        await vscode.window.showInformationMessage(`This is the newest published Toolkit (${TOOLKIT_VERSION}).`);
+      } else {
+        await vscode.window.showWarningMessage(`The update check did not complete: ${plan.state}. The Toolkit itself is working — only the check failed.`);
+      }
+    }
+    return verdict;
+  }
+
+  register("researchToolkit.checkForUpdates", () => runUpdateCheck({ force: true, notify: true }));
+
+  /**
+   * Hand the update to VS Code's own extension installer, addressed to the Marketplace id rather than to a
+   * downloaded file. That matters: a gallery install carries the Marketplace signature and returns the
+   * extension to normal automatic updating, while installing a VSIX the toolkit fetched itself would pin
+   * the extension at one version and leave it unsigned.
+   */
+  register("researchToolkit.updateExtension", async () => {
+    const page = updates.marketplacePage(PUBLISHER_ID, EXTENSION_NAME);
+    const target = updateCheck && updateCheck.publishedVersion ? `${EXTENSION_ID}@${updateCheck.publishedVersion}` : EXTENSION_ID;
+    try {
+      await vscode.commands.executeCommand("workbench.extensions.installExtension", target, {
+        justification: { reason: `Update Research Stack Toolkit to ${updateCheck && updateCheck.publishedVersion ? updateCheck.publishedVersion : "the published version"}.`, action: true },
+      });
+    } catch (error) {
+      // The command is workbench-internal, not part of the extension API, so it is a convenience and not a
+      // guarantee. If it is unavailable the operator still gets the page they can install from.
+      await vscode.env.openExternal(vscode.Uri.parse(page));
+      throw new Error(`VS Code could not start the update (${error instanceof Error ? error.message : "unknown reason"}). The Marketplace page was opened instead — press Install there.`);
+    }
+    const choice = await vscode.window.showInformationMessage(`Toolkit ${updateCheck && updateCheck.publishedVersion ? updateCheck.publishedVersion : "the published version"} is being installed. Reload this window to run it.`, "Reload window");
+    if (choice === "Reload window") await vscode.commands.executeCommand("workbench.action.reloadWindow");
+    return target;
+  });
+
+  /* ------------------------------------------------------------------- 0.3.10: problem reports */
+
+  /**
+   * Build a problem report, show it, and only then offer to open the operator's mail program.
+   * The order is deliberate: the file is written and the text is on the clipboard before anything is
+   * opened, because `env.openExternal` resolves successfully on the desktop even when the operating
+   * system could not open anything. A fallback prepared afterwards is a fallback that never happens.
+   */
+  register("researchToolkit.reportProblem", async () => {
+    const folder = folderSelected();
+    await loadInstallationStatus();
+    const log = folder && folder.uri.scheme === "file"
+      ? await setuplog.readLog(folder.uri.fsPath, reportBuilder.MAX_LOG_LINES).catch(() => ({ files: [], lines: [] }))
+      : { files: [], lines: [] };
+    const setupText = statusModel.diagnosticsText(installationStatus, log);
+    const headline = installationView().line || (recentErrors.length ? recentErrors[recentErrors.length - 1].message : "a problem in the Toolkit");
+
+    const note = await vscode.window.showInputBox({
+      title: "What went wrong? (optional)",
+      prompt: "Say in your own words what you were doing. This text goes into the report.",
+      placeHolder: "For example: I clicked Index sources and it stopped after a minute.",
+      ignoreFocusLost: true,
+    });
+    if (note === undefined) throw new Error("Report cancelled. Nothing was written and nothing was opened.");
+
+    const report = reportBuilder.buildReport({
+      toolkitVersion: TOOLKIT_VERSION,
+      workerVersion: WORKER_VERSION,
+      vscodeVersion: vscode.version,
+      platform: process.platform,
+      osRelease: (() => { try { return os.release(); } catch { return null; } })(),
+      architecture: process.arch,
+      nodeVersion: process.versions.node,
+      install: context.extension && context.extension.extensionPath ? "local folder (path not included)" : "not reported",
+      package: selectedPackage(vscode),
+      toolsPreset: PRESETS_BY_ID.get(selectedPresetId(vscode)).label,
+      workspaceLabel: folder ? folder.name : null,
+      setupStatusText: setupText,
+      setupLogLines: (log.lines || []).map(reportBuilder.formatLogEntry),
+      errors: recentErrors,
+      note,
+      updateState: updateCheck ? `${updateCheck.state}${updateCheck.publishedVersion ? ` (published ${updateCheck.publishedVersion})` : ""}` : null,
+      workspaceNames: (vscode.workspace.workspaceFolders || []).map((item) => item.name),
+    });
+
+    const storageRoot = context.storageUri || context.globalStorageUri || context.logUri;
+    let savedFile = null;
+    if (storageRoot && vscode.workspace.fs && typeof vscode.workspace.fs.writeFile === "function") {
+      const reportsDirectory = vscode.Uri.joinPath(storageRoot, "reports");
+      await vscode.workspace.fs.createDirectory(reportsDirectory).catch(() => {});
+      savedFile = vscode.Uri.joinPath(reportsDirectory, report.fileName);
+      await vscode.workspace.fs.writeFile(savedFile, Buffer.from(report.text, "utf8"));
+    }
+    await vscode.env.clipboard.writeText(report.text);
+    lastReport = { id: report.id, path: savedFile ? savedFile.fsPath : null, bytes: report.bytes, redactions: report.counts };
+    if (savedFile) {
+      const document = await vscode.workspace.openTextDocument(savedFile);
+      await vscode.window.showTextDocument(document, { preview: true });
+    }
+
+    const draft = reportBuilder.emailDraft({
+      id: report.id,
+      toolkitVersion: TOOLKIT_VERSION,
+      headline,
+      note,
+      reportFilePath: savedFile ? report.fileName : "not written — the full report is on your clipboard",
+    });
+    const mail = reportBuilder.mailtoUri({ subject: draft.subject, body: draft.body });
+    const choice = await vscode.window.showInformationMessage(
+      `Report ${report.id} is on your clipboard${savedFile ? ` and saved as ${report.fileName}` : ""}. Open your mail program with the address already filled in?`,
+      {
+        modal: true,
+        detail: `Address: ${reportBuilder.MAINTAINER_EMAIL}\nSubject: ${draft.subject}\n\nNothing is sent by the Toolkit. Your mail program opens a draft and only you can press Send. The full report (${report.bytes} bytes) is on your clipboard and in the file you can attach.\nRemoved from the report before you saw it: ${report.counts.absolutePaths} path(s), ${report.counts.homePaths} home folder(s), ${report.counts.workspaceNames} workspace name(s), ${report.counts.secrets} token-shaped string(s).`,
+      },
+      "Open my mail program",
+      "Stop here",
+    );
+    if (choice === "Open my mail program") {
+      const opened = await vscode.env.openExternal(vscode.Uri.parse(mail.uri));
+      await vscode.window.showInformationMessage(opened
+        ? "Your mail program was asked to open a draft. Check the address and press Send there."
+        : `No mail program opened. The report is already on your clipboard and saved as ${report.fileName} — paste or attach it in Gmail, Outlook or any mail program addressed to ${reportBuilder.MAINTAINER_EMAIL}.`);
+    }
+    refresh();
+    return { id: report.id, path: lastReport.path, bytes: report.bytes, mailtoFits: mail.fits };
+  });
+
   async function handleMessage(message) {
     if (!message || typeof message !== "object" || Array.isArray(message)) return;
     if (message.type === "ready") {
@@ -855,6 +1102,9 @@ function activateWith(vscode, context, diagnosticServices) {
       // The first paint should already report whether each recorded step still has the files it produced.
       await loadPlanArtifacts();
       refresh();
+      // 0.3.10: the update check runs when the operator is looking at the panel, not at activation. A
+      // check nobody is reading is a request nobody can explain, and the cooldown keeps it to one a day.
+      void runUpdateCheck({ force: false, notify: false }).catch(() => {});
       return;
     }
     const actions = {
@@ -866,6 +1116,7 @@ function activateWith(vscode, context, diagnosticServices) {
       retry: "researchToolkit.retryFailedSteps", clearLock: "researchToolkit.clearSetupLock", setupLog: "researchToolkit.openSetupLog", copySetup: "researchToolkit.copyInstallationDiagnostics",
       indexCorpus: "researchToolkit.indexSelectedSources", verifySources: "researchToolkit.verifySourceFreshness",
       installBundle: "researchToolkit.installTopicBundle", repairBundle: "researchToolkit.repairTopicBundle", bundleStatus: "researchToolkit.showBundleStatus",
+      report: "researchToolkit.reportProblem", checkUpdates: "researchToolkit.checkForUpdates", updateNow: "researchToolkit.updateExtension",
     };
     try {
       if (message.type === "setPackage") {

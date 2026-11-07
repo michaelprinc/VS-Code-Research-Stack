@@ -223,3 +223,38 @@ Report: [docs/research/windows-testing-on-linux-2026-11/](../docs/research/windo
     file but a wrong instruction sitting in a reviewed tree. Compare the tree with the allowlist at build time
     (`scripts/build_worker_bundle.py::assert_overlay_tree_is_reviewed`), and when a release changes what a
     reviewed document says, change the document or remove it.
+57. **A capability gate that scans bytes also scans prose.** Adding the update channel made `scripts/verify_vsix.py`
+    report `packaged JavaScript introduces network capability: ['extension/extension.js']` because a *comment* contained
+    the word "socket". The fix was to reword the comment, not to widen the gate. And a gate that only forbids is a gate
+    that passes when the reviewed code is deleted: `verify_vsix.py` now also fails when `extension/updates.js` loses the
+    host, the timeout, the byte cap, the cooldown or its `httpsGet`.
+58. **Returning a shared variable after an `await` returns somebody else's answer.** `runUpdateCheck` assigned
+    `updateCheck`, awaited a message box, then `return updateCheck`. A panel-scheduled check that finished during that
+    await overwrote the variable, so the command returned `not-published` while the setting said `disabled`. Build a
+    local verdict and return that; the shared variable is for the panel, not for the caller.
+59. **An assertion about a counter must run before anything else can move it.** The payload check's update assertions
+    sat after the GUI section, which had already scheduled a check; the request count no longer described the calls
+    being asserted. Move the measurement to a point where the only activity is the one under test.
+60. **Run `--help` on the version you pinned instead of reading the documentation.** `--oidc` is in
+    `@vscode/vsce` 4.1.0's `publish --help` and absent from the pinned 4.0.0's; `create-publisher` is gone from both,
+    and `--githubPat` has never existed. A runbook written from docs alone would have used a flag that errors out.
+61. **When two official sources disagree, record both with their dates and plan to the conservative one.** VS Code docs
+    (2026-11-04) say global PATs retire 2026-12-01; the DevOps blog (2026-10-23) strikes that through to 2027-01-27, and
+    the Learn page contains both sentences. The runbook plans to the earlier date and cites the postponement.
+62. **A prompt that auto-answers in CI is a silent policy change.** vsce asks `y/N` for a missing LICENSE and a missing
+    `repository`, but answers `y` itself when stdout is not a TTY — so an unlicensed package publishes from a pipeline
+    without anyone deciding it. Pass `--skip-license` explicitly and let the flag be the decision.
+63. **`pytest -q` on top of `addopts = "-q"` is `-qq`, and `-qq` prints no summary.** The suite passed and the receipt
+    looked empty. Evidence commands pass `-o addopts=""`.
+64. **A harness that flattens a host API is a test lie.** `Uri.joinPath` returning a bare string made `savedFile.fsPath`
+    undefined in the packaged flow, and dropping the `options` argument of `showInformationMessage` made a modal consent
+    dialog untestable. When a harness is the only host a test can see, its fidelity is part of the assertion.
+65. **Redaction patterns fail in both directions, and only one direction is obvious.** A URL scheme was eaten as a
+    Windows path (`https://` → `http<path>`), the Marketplace API path was eaten as a token blob, and `\\wsl$` plus UNC
+    paths were not matched at all. Test the strings that must survive, not only the ones that must not.
+66. **A byte budget that leaves the footer and the user's own text outside it is not a budget.** The report cap was
+    exceeded because the cap was applied to the log tail only. Take the fixed parts out of the budget first, then
+    truncate the variable part with a function that backs off rather than splitting a UTF-8 character.
+67. **A successful `vsce package` is not a publishable package.** The 30-keyword limit, the prerelease refusal and the
+    PNG icon rule are enforced by the Marketplace or by `publish`, not by `package`. Verify against the server (the
+    `extensionquery` probe, `vsce show`) and against `publish --help`, not against a green package step.

@@ -1,12 +1,24 @@
-# Research Stack Toolkit 0.3.9 — Index PDF and DOCX Sources, Keep Them Honest, and Install Topic Skill Bundles
+# Research Stack Toolkit 0.3.10 — Know When a Newer Release Exists, and Report a Problem Without Sending Your Notes
 
-Install the components each package actually needs from the VS Code control panel, read **one plain-language verdict for the last component setup** — what completed, what failed, and what to do next — verify real MCP reading, see actual component versions and readiness, and choose a **tools preset shaped by the goal you are working on** so your assistant is offered fewer, better-matched tools. This release adds direct PDF and DOCX ingestion into the workspace research store, a recorded freshness check for every indexed source, the store's 2→3 migration with tested backup and staged restore, and a reviewed topic skill-bundle install flow.
+Install the components each package actually needs from the VS Code control panel, read **one plain-language verdict for the last component setup** — what completed, what failed, and what to do next — verify real MCP reading, see actual component versions and readiness, and choose a **tools preset shaped by the goal you are working on** so your assistant is offered fewer, better-matched tools. This release adds the two things a locally installed extension was missing: an **update channel** that tells you a newer Toolkit is published and can install it through the Marketplace, and a **problem report** that writes your diagnostics to a file you can read, redacts the personal facts from it, and hands you a draft to send to the maintainer in your own mail program.
 
 Start with the [onboarding walkthrough](guides/onboarding.md) or [guide hub](guides/index.md). The hub is assembled from **29 individual component guides**, each with setup, a first task, readiness interpretation, troubleshooting and a maintained official documentation link.
 
-## What 0.3.9 adds
+## What 0.3.10 adds
 
 Everything below is covered by the automated suites on this Linux development host. Nothing in this release has been run on a Windows host or in a live VS Code session, and no statement below depends on one.
+
+**The Toolkit can tell you a newer version exists.** VS Code updates an extension installed from the Marketplace by itself. It does **not** update an extension installed from a local `.vsix` file — VS Code marks that install as pinned and leaves it where you put it — and every release of this Toolkit since 0.3.0 reached people as a `.vsix` file. **Check for a newer Toolkit version** asks the Marketplace one question and answers it in the panel: up to date, an update is available, this copy is newer than the published one, your VS Code is too old for the published build, nothing is published yet, or the check did not complete. **Update from the Marketplace** then asks VS Code to install the published build through the Marketplace — the same signed path any extension update takes — which also returns the Toolkit to normal automatic updating. If the editor refuses, the Toolkit opens the Marketplace page and says so.
+
+**One request, disclosed and switchable.** The check is a single HTTPS GET to `marketplace.visualstudio.com`, at most once a day, never at startup, with an 8-second timeout and a 64 KB response cap. The URL contains the publisher id and the extension name, both already public in the manifest: no workspace path, no file name, no user identity, no diagnostics. `researchStack.checkForUpdates` (on by default) switches it off, and with it off this extension contacts no online service at all. It is the only packaged JavaScript in the release that can open a socket, and the packaging audit names it, counts its request sites and re-checks its timeout, byte cap and cooldown on the shipped bytes.
+
+**A problem report you read before anyone else does.** **Report a problem to the maintainer** collects the environment (VS Code, platform, Node, install kind), the package and preset, the recorded setup verdict, the last 40 lines of the setup log, up to 12 failures seen in this window and a note you type, and writes it as a plain-text file in the extension's own storage folder. Absolute paths, home directories, workspace folder names and token-shaped strings are replaced with `<path>`, `<home>`, `<workspace>` and `<redacted>` — including inside your own note and inside the log lines — and the report ends with a count of what it removed. The file is opened and copied to your clipboard. Only after that, and only after you confirm in a modal, does the Toolkit hand a short draft to your own mail program addressed to `princ.michael@gmail.com`. Nothing is uploaded, no message is sent by the extension, and the full report reaches the maintainer as the file or the paste you already have.
+
+**A Marketplace tile icon.** The manifest now declares `media/toolkit.png` (256×256 PNG, generated from the reviewed `media/toolkit.svg` by `scripts/make_icon.js` and byte-reproducible). The Marketplace rejects an SVG icon outright, so the activity-bar icon stays SVG and the tile gets a PNG. The manifest also declares `bugs.url` and `bugs.email`, so the Marketplace page and **Report a Problem** point at the same place.
+
+## What 0.3.9 adds
+
+Everything below is covered by the automated suites on this Linux development host. Nothing in that release has been run on a Windows host or in a live VS Code session, and no statement below depends on one.
 
 **PDF and DOCX sources can be indexed directly.** `index_corpus` accepts explicitly selected workspace PDF and DOCX files beside Markdown and text. A PDF chunk carries the page number it came from and its character offsets inside that page's extracted text; a DOCX chunk carries its ordered paragraph or table-row item. A chunk never crosses a page or an item. The Markdown/text chunker `paragraph-window-v1` is unchanged, so chunk ids and locators written by an earlier release still resolve; PDF and DOCX get their own chunker identities (`pdf-page-window-v1`, `docx-item-window-v1`).
 
@@ -46,7 +58,7 @@ If you installed 0.3.6 and **Set up package components** ended with **"Installat
 
 ## Install and open
 
-1. Run **Extensions: Install from VSIX...** in VS Code and choose `research-stack-toolkit-0.3.9.vsix`.
+1. Run **Extensions: Install from VSIX...** in VS Code and choose `research-stack-toolkit-0.3.10.vsix`.
 2. Click the **Research Toolkit** beaker icon in the Activity Bar, then **Open Control Panel**. You can also click the **Research: …** status-bar item or run **Research Toolkit: Open Control Panel** from the Command Palette.
 3. Select the research folder under **Workspace to inspect**, then click **Check components**. Search the list to find a component and inspect its installation, actual version, readiness, evidence and **next action**.
 4. In **Component setup for this package**, review the steps this package offers and click **Set up package components**. Setup starts with a preflight — workspace trust, a local desktop workspace, the host tools the plan needs, the managed paths and the setup lock — and nothing is written or downloaded until that preflight passes. Each step is recorded in the workspace receipt, so a later run resumes instead of repeating finished work.
@@ -59,7 +71,7 @@ Your existing 0.2.0/0.3.0 package and interface preferences are retained. Prefer
 
 ## Component setup, step by step
 
-The install plan is declarative: `components.json` (schemaVersion 2) states, for every component, who installs it, which step provides it, how it is verified and what you should do next. The extension runs only the steps your package needs, in order, and records each one in `.research-toolkit/managed/worker-0.3.9/installation.json`.
+The install plan is declarative: `components.json` (schemaVersion 2) states, for every component, who installs it, which step provides it, how it is verified and what you should do next. The extension runs only the steps your package needs, in order, and records each one in `.research-toolkit/managed/worker-0.3.10/installation.json`.
 
 | Package | Steps offered | What they install |
 |---|---|---|

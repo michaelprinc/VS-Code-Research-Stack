@@ -1,0 +1,43 @@
+Usage: vsce publish [options] [version]
+
+Publishes an extension
+
+Options:
+  -p, --pat <token>                      Personal Access Token (defaults to VSCE_PAT environment variable)
+  --azure-credential                     Use Microsoft Entra ID for authentication
+  --oidc                                 Use OpenID Connect trusted publishing for authentication
+  -t, --target <targets...>              Target architectures. Valid targets: win32-x64, win32-arm64, linux-x64, linux-arm64, linux-armhf, darwin-x64, darwin-arm64, alpine-x64, alpine-arm64, web
+  --ignore-other-target-folders          Ignore other target folders. Valid only when --target <target> is provided.
+  --readme-path <path>                   Path to README file (defaults to README.md)
+  --changelog-path <path>                Path to CHANGELOG file (defaults to CHANGELOG.md)
+  -m, --message <commit message>         Commit message used when calling `npm version`.
+  --no-git-tag-version                   Do not create a version commit and tag when calling `npm version`. Valid only when [version] is provided.
+  --no-update-package-json               Do not update `package.json`. Valid only when [version] is provided.
+  -i, --packagePath <paths...>           Publish the provided VSIX packages.
+  --manifestPath <paths...>              Manifest files to publish alongside the VSIX packages.
+  --signaturePath <paths...>             Signature files to publish alongside the VSIX packages.
+  --sigzipPath <paths...>                Signature archives to publish alongside the VSIX packages.
+  --sign-tool <path>                     Path to the VSIX signing tool. Will be invoked with two arguments: `SIGNTOOL <path/to/extension.signature.manifest> <path/to/extension.signature.p7s>`. This will be ignored if --sigzipPath is provided.
+  --githubBranch <branch>                The GitHub branch used to infer relative links in README.md. Can be overridden by --baseContentUrl and --baseImagesUrl.
+  --gitlabBranch <branch>                The GitLab branch used to infer relative links in README.md. Can be overridden by --baseContentUrl and --baseImagesUrl.
+  --baseContentUrl <url>                 Prepend all relative links in README.md with the specified URL.
+  --baseImagesUrl <url>                  Prepend all relative image links in README.md with the specified URL.
+  --yarn                                 Use yarn instead of npm (default inferred from presence of yarn.lock or .yarnrc)
+  --no-yarn                              Use npm instead of yarn (default inferred from absence of yarn.lock or .yarnrc)
+  --no-verify                            Allow all proposed APIs (deprecated: use --allow-all-proposed-apis instead)
+  --allow-proposed-apis <apis...>        Allow specific proposed APIs
+  --allow-all-proposed-apis              Allow all proposed APIs
+  --allow-package-secrets <secret_type>  Allow packaging a specific type of secret. The type of the secrets can be found in the error message ([SECRET_TYPE]).
+  --allow-package-all-secrets            Allow to package all kinds of secrets
+  --allow-package-env-file               Allow packaging .env files
+  --ignoreFile <path>                    Indicate alternative .vscodeignore
+  --dependencies                         Enable dependency detection via npm or yarn
+  --no-dependencies                      Disable dependency detection via npm or yarn
+  --pre-release                          Mark this package as a pre-release
+  --allow-star-activation                Allow using * in activation events
+  --allow-missing-repository             Allow missing a repository URL in package.json
+  --allow-unused-files-pattern           Allow include patterns for the files field in package.json that does not match any file
+  --skip-duplicate                       Fail silently if version already exists on the marketplace
+  --skip-license                         Allow publishing without license file
+  --follow-symlinks                      Recurse into symlinked directories instead of treating them as files
+  -h, --help                             display help for command

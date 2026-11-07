@@ -2,7 +2,7 @@
   "name": "research-stack-toolkit",
   "displayName": "Research Stack Toolkit (Phase 4 Preview)",
   "description": "Set up package components, verify real MCP reading and research tools, and keep components updated.",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "publisher": "michaelprinc",
   "repository": {
     "type": "git",
@@ -14,6 +14,17 @@
   "categories": [
     "Other",
     "Education"
+  ],
+  "keywords": [
+    "research",
+    "literature review",
+    "citation",
+    "evidence",
+    "document indexing",
+    "theology",
+    "notebooks",
+    "MCP",
+    "study notes"
   ],
   "extensionKind": [
     "ui"
@@ -100,6 +111,12 @@
           "maximum": 3600,
           "scope": "application",
           "description": "How long a component step may run before it is reported as timed out. The first run can download a managed Python 3.12 and the locked packages."
+        },
+        "researchStack.checkForUpdates": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Ask the VS Code Marketplace once a day whether a newer Research Stack Toolkit is published. The request carries only the publisher and extension name already in the public manifest — no workspace, file or user information. Turn it off to make the Toolkit contact no online service at all; component setup and every other control work the same way without it."
         }
       }
     },
@@ -266,6 +283,24 @@
         "command": "researchToolkit.copyInstallationDiagnostics",
         "title": "Copy Installation Diagnostics",
         "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.reportProblem",
+        "title": "Report a Problem to the Maintainer",
+        "category": "Research Toolkit",
+        "icon": "$(mail)"
+      },
+      {
+        "command": "researchToolkit.checkForUpdates",
+        "title": "Check for a Newer Toolkit Version",
+        "category": "Research Toolkit",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "researchToolkit.updateExtension",
+        "title": "Update the Toolkit from the Marketplace",
+        "category": "Research Toolkit",
+        "icon": "$(cloud-upload)"
       }
     ],
     "viewsContainers": {
@@ -337,7 +372,15 @@
     "status.js",
     "steps.js",
     "ui.js",
-    "worker"
+    "worker",
+    "updates.js",
+    "reports.js"
   ],
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "icon": "media/toolkit.png",
+  "bugs": {
+    "url": "https://github.com/michaelprinc/VS-Code-Research-Stack/issues",
+    "email": "princ.michael@gmail.com"
+  },
+  "homepage": "https://github.com/michaelprinc/VS-Code-Research-Stack"
 }

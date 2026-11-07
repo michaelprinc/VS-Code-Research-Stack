@@ -129,7 +129,7 @@ test("component guide/docs actions accept only registry IDs and fixed upstream U
   const harness = makeHarness();
   const panel = harness.api.openControlPanel();
   await panel.receive({ type: "guide", id: "pypdf" });
-  assert.ok(harness.invoked.some((entry) => entry.id === "markdown.showPreview" && entry.args[0] === "extension/guides/pypdf.md"));
+  assert.ok(harness.invoked.some((entry) => entry.id === "markdown.showPreview" && entry.args[0].fsPath === "extension/guides/pypdf.md"));
   await panel.receive({ type: "docs", id: "pypdf" });
   assert.equal(harness.events.external, "https://pypdf.readthedocs.io/en/stable/user/extract-text.html");
   for (const id of ["../../credentials", "https://evil.test", "institutional-provider-adapters"]) {

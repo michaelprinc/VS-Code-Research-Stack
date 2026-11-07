@@ -1,0 +1,26 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.16, pytest-8.4.2, pluggy-1.6.0
+rootdir: /data/dsh/home/Aplikovaná umělá inteligence pro sestry karmelitky/Research-Stack/toolkit
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 258 items
+
+tests/test_configuration.py ...                                          [  1%]
+tests/test_documents.py ...........                                      [  5%]
+tests/test_freshness.py .............                                    [ 10%]
+tests/test_full.py .....                                                 [ 12%]
+tests/test_functional_check.py .....                                     [ 14%]
+tests/test_ingestion.py ..............                                   [ 19%]
+tests/test_lab_server.py .........                                       [ 23%]
+tests/test_lock_consistency.py ......................................... [ 39%]
+........................................                                 [ 54%]
+tests/test_migration.py .......                                          [ 57%]
+tests/test_presets.py ............                                       [ 62%]
+tests/test_records.py ...........................                        [ 72%]
+tests/test_release_identity.py ..........                                [ 76%]
+tests/test_research.py ..................                                [ 83%]
+tests/test_stdio.py ..............                                       [ 88%]
+tests/test_vsix.py .......................                               [ 97%]
+tests/test_workspace.py ......                                           [100%]
+
+======================= 258 passed in 133.33s (0:02:13) ========================
