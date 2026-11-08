@@ -32,6 +32,10 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: extension
       - run: python scripts/build_bundle_catalog.py --check
+      - name: Generate reviewed worker and guides
+        run: |
+          python scripts/build_guide_index.py
+          python scripts/build_worker_bundle.py
       - run: npm test
         working-directory: extension
       - run: uv run --locked pytest tests/ -o addopts=''
