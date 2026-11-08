@@ -361,17 +361,17 @@
         "recommended",
         "full"
       ],
-      "summary": "Use optional Academic Graph metadata search.",
+      "summary": "Search Academic Graph metadata with no account, after you confirm the API licence once.",
       "guide": "guides/semantic-scholar-academic-graph.md",
       "officialUrl": "https://api.semanticscholar.org/api-docs/",
-      "reviewedAt": "2026-10-11",
+      "reviewedAt": "2026-11-08",
       "install": {
         "mode": "external",
         "step": null,
-        "verify": "none",
+        "verify": "integration",
         "toolkitVersion": null
       },
-      "nextAction": "No install step: check provider reachability from the metadata tools."
+      "nextAction": "Open Integrations & Accounts, read the API licence and activate the service once. An API key stays optional."
     },
     {
       "id": "zotero-local-api",
@@ -382,17 +382,17 @@
         "recommended",
         "full"
       ],
-      "summary": "Read bibliography metadata and prepare reviewed manual RIS import.",
+      "summary": "Read your local Zotero library over its loopback API and prepare a reviewed manual RIS import.",
       "guide": "guides/zotero-local-api.md",
       "officialUrl": "https://www.zotero.org/support/dev/web_api/v3/local_api",
-      "reviewedAt": "2026-10-11",
+      "reviewedAt": "2026-11-08",
       "install": {
         "mode": "external",
         "step": null,
-        "verify": "none",
+        "verify": "integration",
         "toolkitVersion": null
       },
-      "nextAction": "Start Zotero with its localhost API enabled, then re-check."
+      "nextAction": "Open Integrations & Accounts and check Zotero. No account and no key are needed to read; the Toolkit never writes to Zotero."
     },
     {
       "id": "vscode-python-extension",
