@@ -88,7 +88,7 @@ async function run() {
   await vscode.commands.executeCommand("researchToolkit.openComponentGuide", "pypdf");
   assert.equal(api.state().showStatusBar, stage === "mutate");
   assert.equal(api.state().openControlPanelOnStartup, stage === "persist");
-  assert.match(status, /Research Stack Phase 4 preview/);
+  assert.ok(status.includes(`Research Stack Toolkit ${TOOLKIT_VERSION} preview`));
   assert.match(status, /G1 not passed/);
   assert.match(status, /G2 not passed/);
   assert.match(status, /G3 not passed/);

@@ -102,6 +102,9 @@ async function main() {
     // it packs and with the staged template tree the catalog was generated from.
     fs.cpSync(path.join(projectRoot, "bundles"), path.join(stageRoot, "bundles"), { recursive: true });
     fs.copyFileSync(path.join(projectRoot, "README.md"), path.join(stageRoot, "README.md"));
+    fs.copyFileSync(path.join(projectRoot, "LICENSE.txt"), path.join(stageRoot, "LICENSE.txt"));
+    fs.copyFileSync(path.join(projectRoot, "MARKETPLACE-CHANGELOG.md"), path.join(stageRoot, "CHANGELOG.md"));
+    for (const file of ["SUPPORT.md", "SECURITY.md"]) fs.copyFileSync(path.join(projectRoot, file), path.join(stageRoot, file));
     normalizeStagedLineEndings(stageRoot);
     normalizeStagedModes(stageRoot);
     // Line endings are only half of a reproducible artifact. vsce writes the copy time of each staged
@@ -116,7 +119,6 @@ async function main() {
       packagePath: outputPath,
       dependencies: false,
       rewriteRelativeLinks: false,
-      skipLicense: true,
     });
     const stats = fs.statSync(outputPath);
     process.stdout.write(JSON.stringify({

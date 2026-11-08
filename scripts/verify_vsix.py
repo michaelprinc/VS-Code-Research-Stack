@@ -17,6 +17,10 @@ EXPECTED = {
     "[Content_Types].xml",
     "extension.vsixmanifest",
     "extension/readme.md",
+    "extension/LICENSE.txt",
+    "extension/changelog.md",
+    "extension/SUPPORT.md",
+    "extension/SECURITY.md",
     "extension/extension.js",
     "extension/ui.js",
     # 0.3.9: the bundle installer module. `extension/extension.js` requires './bundles', so a package
@@ -55,8 +59,8 @@ EXPECTED = {
 _TEXT_SUFFIXES = {".md", ".js", ".cjs", ".mjs", ".json", ".py", ".toml", ".txt", ".svg", ".css", ".html", ".yml", ".yaml"}
 # The ZIP format cannot record a date before 1980-01-01, so the build stamps every entry to it.
 BUILD_EPOCH = (1980, 1, 1, 0, 0, 0)
-# vsce writes these three itself; every other member is copied from the staged tree.
-GENERATED_MEMBERS = frozenset({"[Content_Types].xml", "extension.vsixmanifest", "extension/readme.md"})
+# vsce generates the manifest, content types, readme and changelog assets itself.
+GENERATED_MEMBERS = frozenset({"[Content_Types].xml", "extension.vsixmanifest", "extension/readme.md", "extension/changelog.md"})
 
 
 
@@ -385,6 +389,7 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
         expected_source = {member: source_root / member.removeprefix("extension/") for member in EXPECTED if member.startswith("extension/")}
         expected_source["extension/package.json"] = source_root / "vsix-manifest.json"
         expected_source["extension/readme.md"] = source_root / "README.md"
+        expected_source["extension/changelog.md"] = source_root / "MARKETPLACE-CHANGELOG.md"
         for member, source in expected_source.items():
             packaged_bytes = archive.read(member)
             source_bytes = source.read_bytes()

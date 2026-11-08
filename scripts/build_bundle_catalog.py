@@ -46,7 +46,7 @@ BUNDLES: list[dict[str, object]] = [
             "Scholarly theological research: frame the question, search in the languages the field "
             "is published in, keep bibliographic records reviewable, label access status and "
             "confidence, and write a report whose limits are stated. Version 2.0 of the PoC written "
-            "by s. Denisa and Michal, packaged with the adaptations recorded in "
+            "by sestra Denisa and Michael, packaged with the adaptations recorded in "
             "docs/implementation/phase-9-document-ingestion/bundle-notes.md."
         ),
         "skills": ["theological-research"],
@@ -79,12 +79,12 @@ BUNDLES: list[dict[str, object]] = [
             "and writes nothing there. No bundle ever removes a skill, and no bundle removes a skill "
             "owned by another bundle."
         ),
-        "license": LICENSE_UNRESOLVED,
-        "publishable": False,
+        "license": "MIT",
+        "publishable": True,
     },
     # DD9-23: the 0.3.8 workaround skill is brought under this catalog, rewritten for 0.3.9 direct
     # ingestion, so one workspace does not carry two competing instructions for the same job. It is
-    # toolkit-authored, and the toolkit repository is UNLICENSED, so it is packaged but not publishable.
+    # The toolkit-authored bundle is distributed under MIT.
     {
         "id": "document-corpus-bridge",
         "version": "2.0",
@@ -123,8 +123,8 @@ BUNDLES: list[dict[str, object]] = [
             "and writes nothing there. No bundle ever removes a skill, and no bundle removes a skill "
             "owned by another bundle."
         ),
-        "license": "toolkit-authored; the Research Stack Toolkit repository is UNLICENSED — publication requires an explicit licence decision",
-        "publishable": False,
+        "license": "MIT",
+        "publishable": True,
     },
 ]
 
@@ -266,7 +266,7 @@ def main() -> int:
                   "python scripts/build_bundle_catalog.py", file=sys.stderr)
             return 1
     elif existing != payload:
-        CATALOG_PATH.write_text(payload, encoding="utf-8")
+        CATALOG_PATH.write_text(payload, encoding="utf-8", newline="\n")
 
     file_count = sum(len(bundle["files"]) for bundle in catalog["bundles"])
     byte_count = sum(int(item["bytes"]) for bundle in catalog["bundles"] for item in bundle["files"])
