@@ -2,7 +2,7 @@
 name: theological-research
 description: Plans and runs scholarly theological research - literature reviews, rešerše, exegetical, patristic, historical-doctrinal and systematic enquiries - with verified bibliographic records, explicit access labels and honest limits. Use when the user asks for a theological bibliography, literature review, rešerše, source-finding, or a question about biblical studies, Church Fathers, councils, confessions, doctrine or Church history.
 metadata:
-  author: s. Denisa + Michal
+  author: sestra Denisa and Michael
   version: "2.0"
   languages: "cs,en"
 ---

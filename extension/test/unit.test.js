@@ -23,7 +23,7 @@ test("manifest exposes GUI and package commands with matching contributions and 
   assert.equal(manifest.devDependencies, undefined);
   assert.equal(manifest.scripts, undefined);
   assert.equal(manifest.private, undefined);
-  const shippedAllowlist = ["README.md", "bundles", "bundles.js", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "lockfile.js", "media", "package.json", "preflight.js", "presets.json", "probe.py", "reports.js", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "updates.js", "worker"].sort();
+  const shippedAllowlist = ["CHANGELOG.md", "LICENSE.txt", "README.md", "SECURITY.md", "SUPPORT.md", "bundles", "bundles.js", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "lockfile.js", "media", "package.json", "preflight.js", "presets.json", "probe.py", "reports.js", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "updates.js", "worker"].sort();
   assert.deepEqual([...manifest.files].sort(), shippedAllowlist,
     "the shipped allowlist names every module the controller requires, including the 0.3.6 setup modules, the 0.3.7 lock reader, the 0.3.9 bundle installer and the 0.3.10 update and report modules");
   assert.deepEqual(manifest.contributes.configuration.properties["researchStack.toolsPreset"].enum, ["package-default", "read-and-cite", "find-in-notes", "verify-citations", "zotero-handoff", "research-core", "research-workflow", "research-lab", "research-lab-max", "corpus-lab"]);

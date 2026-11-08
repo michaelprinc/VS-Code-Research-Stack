@@ -350,6 +350,7 @@
     }
   },
   "files": [
+    "LICENSE.txt",
     "README.md",
     "bundles",
     "bundles.js",
@@ -374,7 +375,10 @@
     "ui.js",
     "worker",
     "updates.js",
-    "reports.js"
+    "reports.js",
+    "CHANGELOG.md",
+    "SUPPORT.md",
+    "SECURITY.md"
   ],
   "scripts": {
     "test": "node --test test/unit.test.js test/diagnostics.test.js test/guides.test.js test/runtime.test.js test/presets.test.js test/installer.test.js test/bundles.test.js test/runner.test.js test/hosttools.test.js test/preflight.test.js test/setuplog.test.js test/status.test.js test/steps.test.js test/lockfile.test.js test/lockfile-adversarial.test.js test/module-boundaries.test.js test/updates.test.js test/reports.test.js test/gui-status.test.js",
@@ -387,12 +391,13 @@
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "4.0.0"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "icon": "media/toolkit.png",
   "bugs": {
     "url": "https://github.com/michaelprinc/VS-Code-Research-Stack/issues",
     "email": "princ.michael@gmail.com"
   },
-  "homepage": "https://github.com/michaelprinc/VS-Code-Research-Stack"
+  "homepage": "https://github.com/michaelprinc/VS-Code-Research-Stack",
+  "preview": true
 }

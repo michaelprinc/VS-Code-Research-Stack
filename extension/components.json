@@ -361,7 +361,7 @@
         "recommended",
         "full"
       ],
-      "summary": "Search Academic Graph metadata with no account, after you confirm the API licence once.",
+      "summary": "Use optional Academic Graph metadata search.",
       "guide": "guides/semantic-scholar-academic-graph.md",
       "officialUrl": "https://api.semanticscholar.org/api-docs/",
       "reviewedAt": "2026-11-08",
@@ -382,7 +382,7 @@
         "recommended",
         "full"
       ],
-      "summary": "Read your local Zotero library over its loopback API and prepare a reviewed manual RIS import.",
+      "summary": "Read bibliography metadata and prepare reviewed manual RIS import.",
       "guide": "guides/zotero-local-api.md",
       "officialUrl": "https://www.zotero.org/support/dev/web_api/v3/local_api",
       "reviewedAt": "2026-11-08",

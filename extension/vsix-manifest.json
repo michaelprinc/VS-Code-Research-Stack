@@ -350,6 +350,7 @@
     }
   },
   "files": [
+    "LICENSE.txt",
     "README.md",
     "bundles",
     "bundles.js",
@@ -374,13 +375,17 @@
     "ui.js",
     "worker",
     "updates.js",
-    "reports.js"
+    "reports.js",
+    "CHANGELOG.md",
+    "SUPPORT.md",
+    "SECURITY.md"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "icon": "media/toolkit.png",
   "bugs": {
     "url": "https://github.com/michaelprinc/VS-Code-Research-Stack/issues",
     "email": "princ.michael@gmail.com"
   },
-  "homepage": "https://github.com/michaelprinc/VS-Code-Research-Stack"
+  "homepage": "https://github.com/michaelprinc/VS-Code-Research-Stack",
+  "preview": true
 }

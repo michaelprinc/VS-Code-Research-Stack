@@ -125,8 +125,8 @@ test("the shipped catalog is the reviewed catalog for the shipped bundle tree", 
   assert.equal(bundle.id, "theological-research");
   assert.equal(bundle.version, "2.0", "the bundle version is the PoC's own metadata.version");
   assert.deepEqual(bundle.skills, ["theological-research"]);
-  assert.equal(bundle.publishable, false, "an unresolved license cannot be packaged as publishable");
-  assert.match(bundle.license, /^unresolved/);
+  assert.equal(bundle.publishable, true);
+  assert.equal(bundle.license, "MIT");
   assert.ok(bundle.prerequisites.length >= 4, "the prerequisites are stated, not implied");
   assert.ok(bundle.prerequisites.some((line) => /crossref\.org/.test(line) && /openalex\.org/.test(line)), "the two hosts the optional script contacts are named");
   assert.ok(bundle.prerequisites.some((line) => /installer and the control panel never run it/.test(line)), "the install path is stated as never running the network script");
@@ -568,16 +568,16 @@ test("the shipped theological bundle installs into a disposable workspace and re
   const root = await workspace(t);
   const catalog = await readCatalog(CATALOG_PATH);
   const plan = await planInstall({ workspaceRoot: root, catalog, bundleId: "theological-research" });
-  assert.equal(plan.files.length, 11);
+  assert.equal(plan.files.length, 12);
   assert.ok(plan.files.every((file) => file.absolute.startsWith(path.join(root, ".github", "skills", "theological-research", ""))));
 
   const receipt = await installBundle({ workspaceRoot: root, catalog, bundleId: "theological-research" });
-  assert.equal(receipt.filesInstalled, 11);
-  assert.equal(receipt.filesWritten, 11);
+  assert.equal(receipt.filesInstalled, 12);
+  assert.equal(receipt.filesWritten, 12);
   assert.equal(receipt.hostDiscoveryVerified, false);
   assert.equal(receipt.workflowTested, false);
   const installed = await treeOf(path.join(root, ".github", "skills", "theological-research"));
-  assert.equal(installed.size, 11);
+  assert.equal(installed.size, 12);
   for (const entry of catalog.bundles.find((item) => item.id === "theological-research").files) {
     const relative = entry.path.replace(/^theological-research\//, "");
     assert.equal(installed.get(relative), entry.sha256, `${entry.path} is not the reviewed file after install`);
@@ -585,7 +585,7 @@ test("the shipped theological bundle installs into a disposable workspace and re
   const repaired = await repairBundle({ workspaceRoot: root, catalog, bundleId: "theological-research" });
   assert.deepEqual(repaired.repair.drift, []);
   assert.deepEqual(repaired.repair.reinstalled, []);
-  assert.equal(repaired.filesInstalled, 11);
+  assert.equal(repaired.filesInstalled, 12);
 });
 
 test("the document bridge ships as a reviewed bundle and no longer tells the operator PDF and DOCX are unsupported", async (t) => {
@@ -597,11 +597,12 @@ test("the document bridge ships as a reviewed bundle and no longer tells the ope
   const bridge = catalog.bundles.find((item) => item.id === "document-corpus-bridge");
   assert.ok(bridge, "the bridge is a reviewed bundle, not an unwired template");
   assert.deepEqual(bridge.skills, ["document-corpus-bridge"]);
-  assert.equal(bridge.publishable, false, "the toolkit repository is UNLICENSED, so packaging is not publication");
+  assert.equal(bridge.publishable, true);
+  assert.equal(bridge.license, "MIT");
 
   const receipt = await installBundle({ workspaceRoot: root, catalog, bundleId: "document-corpus-bridge" });
-  assert.equal(receipt.filesInstalled, 1);
-  assert.equal(receipt.filesWritten, 1);
+  assert.equal(receipt.filesInstalled, 2);
+  assert.equal(receipt.filesWritten, 2);
   const target = path.join(root, ".github", "skills", "document-corpus-bridge", "SKILL.md");
   const text = await fs.readFile(target, "utf8");
   assert.match(text, /^---\nname: document-corpus-bridge\n/, "the skill keeps its frontmatter identity");

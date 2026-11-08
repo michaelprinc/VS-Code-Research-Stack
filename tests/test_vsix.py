@@ -59,6 +59,8 @@ def _write_vsix(
     extension_root = Path(__file__).resolve().parents[1] / "extension"
     for name in EXPECTED - set(members):
         relative = name.removeprefix("extension/")
+        if name == "extension/changelog.md":
+            relative = "MARKETPLACE-CHANGELOG.md"
         members[name] = (extension_root / relative).read_bytes()
     assert set(members) == EXPECTED
     if stale_worker_lock:
@@ -108,7 +110,7 @@ def _write_vsix(
     (source_root / "media").mkdir(exist_ok=True)
     for member in EXPECTED:
         if member.startswith("extension/") and member not in ("extension/package.json", "extension/readme.md"):
-            destination = source_root / member.removeprefix("extension/")
+            destination = source_root / ("MARKETPLACE-CHANGELOG.md" if member == "extension/changelog.md" else member.removeprefix("extension/"))
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(source_bytes[member])
     return source_root
