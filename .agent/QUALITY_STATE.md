@@ -63,6 +63,15 @@
 > without a tag. Commit `798c41c` carries the whole 0.3.11 tree (phase 11 plus phase 12); the working tree is clean and
 > no tag exists. The phase-12 goal stays open in the harness only because marking it complete needs a direct human
 > turn.
+>
+> **Goal round 1 (9 November 2026) — closing review.** Re-ran the whole chain from the committed tree: 352 Python
+> passed, 468 Node pass / 0 fail / 0 skipped, audit passed at 110 members / 473 110 packed / **1 420 824 unpacked**,
+> payload check passed with 38 commands, artifact digest unchanged from the previous build. Two things the review
+> found and fixed: `spec.md` listed INT-13B.1–.5 and INT-13A.4 with no disposition, so the table read as a claim —
+> §3.1 now states per requirement what was built and why the rest was not, including that **INT-13A.4 as written asks
+> for an unasked re-detect, which 0.3.11's own no-timer rule forbids** (recorded as a requirement defect, not quietly
+> rewritten); and `acceptance.md` RG12-A / RG12-C / RG12-E still carried mid-phase figures, now corrected to the
+> final ones. Commits `32b3b38` and the acceptance correction; tree clean.
 
 
 
