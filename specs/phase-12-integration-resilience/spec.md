@@ -100,6 +100,19 @@ and every platform-specific behaviour that cannot be run here is named as unveri
 | NF12-06 | A failure in one provider does not disable unrelated Toolkit components. | all | P0 |
 | NF12-07 | Every platform-specific behaviour not exercised in this container is documented as unverified. | all | P0 |
 
+### 3.1 Disposition of every requirement, so the table is not read as a claim
+
+A requirement table says what was asked. This says what was built, and why the rest was not.
+
+| Requirement | Built? | Where, or why not |
+|---|---|---|
+| INT-14.1 – .7 | **Yes** | `provider_budget.py`, `research.py`, `integrations.js`, `integrationprobe.js`; 36 budget tests, 15 host tests. |
+| INT-13A.1, .2, .3, .5 | **Yes** | `integrations.py` probe and detection paths, `integrations.js` / `extension.js` guided flow. |
+| **INT-13A.4** | **No — and the requirement is wrong as written** | It asks the Toolkit to re-detect and run a connection test "without being asked to". That means a timer or a scheduled probe, which 0.3.11's own rule forbids ("nothing is probed until you press it") and which a static gate now enforces: no shipped integration module contains `setTimeout(`, `setInterval(` or `setImmediate(`. What ships instead is an operator-asked re-check — **"I have installed Zotero — check it now"** — plus a machine-level record read when the integrations flow opens, so the operator is not asked to install something already found. The requirement should be restated as "re-detects on the operator's request, and never later than the next time the integrations flow is opened". Left here rather than silently rewritten. |
+| **INT-13B.1, .2, .3, .5** | **No — deliberately, and the reason is a published fact** | Zotero publishes no checksum for any installer (only SHA-512 for its own `.mar` update archives), and Linux builds have neither checksum nor signature, so there is no pinned expected digest to verify against (DD12-15). Packaged Python is forbidden every process-execution primitive (DD12-12), so there is no reviewed place in the package to execute anything. A "verified" automatic install would verify nothing. |
+| **INT-13B.4** | **Yes — and it is the P0 half of INT-13B** | Guided installation is offered, and the Toolkit states why automatic installation is not: in the guided-install modal, in `extension/CHANGELOG.md`, and in `extension/readme.md`. The P1 half of INT-13B is not implemented; the P0 half is. |
+| NF12-01 – NF12-07 | **Yes** | Each matched to the gate that fails if it breaks, in [tasks.md](tasks.md) §"Non-functional requirements". |
+
 ## 4. Acceptance conditions the operator named
 
 Each maps to a case in [acceptance.md](acceptance.md).
