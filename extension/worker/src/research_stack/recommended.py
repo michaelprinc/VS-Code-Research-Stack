@@ -11,7 +11,11 @@ from .paths import resolve_under
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OVERLAY_ROOT = PROJECT_ROOT / "templates" / "recommended-overlay"
-WORKER_FILES = ("research.py", "recommended_server.py")
+# Every module this release's worker imports must be listed here: an upgraded Basic workspace gets
+# exactly these files beside whatever its own `init` copied, and a missing one is an ImportError at
+# first tool call. `machinefacts.py` is the 0.3.11 addition — the readiness probe's machine-level fact
+# file — and a Basic workspace created by an earlier release does not hold it.
+WORKER_FILES = ("research.py", "provider_budget.py", "machinefacts.py", "recommended_server.py")
 OVERLAY_FILES = (
     ".research-toolkit/recommended-profile.json",
     "research/README.md",

@@ -28,6 +28,12 @@ const bundles = require("./bundles");
 // bytes and `test/module-boundaries.test.js` counts which modules do in the source tree.
 const updates = require("./updates");
 const reportBuilder = require("./reports");
+// 0.3.11: the integration onboarding. Three pure modules — the state model, the storage adapter over
+// the mementos VS Code hands us, and the worker probe's argv/receipt. None of them can reach a network
+// transport: the readiness probe is a worker verb, so the reviewed network boundary stays where 0.3.10 measured it.
+const integrations = require("./integrations");
+const integrationStore = require("./integrationstore");
+const integrationProbe = require("./integrationprobe");
 const componentCatalog = require("./components.json");
 const presetCatalog = require("./presets.json");
 const COMPONENTS_BY_ID = new Map(componentCatalog.components.map((item) => [item.id, item]));
@@ -190,6 +196,146 @@ function activateWith(vscode, context, diagnosticServices) {
   let recentErrors = [];
   let updateCheck = null;
   let lastReport = null;
+  // 0.3.11: the integration record is global to this VS Code profile, so a second workspace does not
+  // re-run the guide. It is read once at activation and written only after an operator decision.
+  let integrationRegistry = integrationStore.loadRegistry(context.globalState);
+  // INT-15: why the machine installation record was not used, if it was not. Session state only — it is a
+  // sentence for this window, never a fact written to the profile, and it is cleared by the next read.
+  let integrationFactsNote = null;
+
+  async function saveIntegrations(registry) {
+    integrationRegistry = await integrationStore.saveRegistry(context.globalState, registry);
+    changed.fire();
+    return integrationRegistry;
+  }
+  /** The panel sees states and sentences. It never sees a stored key — only whether one exists. */
+  function integrationPanelState() {
+    return {
+      views: integrations.integrationViews(integrationRegistry, { now: new Date().toISOString() }),
+      // Names only: what the operator already configured outside the Toolkit, so it is reported and
+      // preserved rather than silently replaced (DD11-08).
+      environment: integrationStore.environmentFootprint(process.env),
+      cooldownMs: integrationProbe.PROBE_COOLDOWN_MS,
+      lastProbeAt: integrationRegistry.lastProbeAt || null,
+      // INT-15: stated, not swallowed — the reason the machine record was not used, when it was not.
+      factsNote: integrationFactsNote,
+      licenseUrl: integrations.LICENSE_URL,
+      // Both official texts, because they do not say the same thing and the operator would tick the other one.
+      apiLicenseUrl: integrations.API_LICENSE_URL,
+      licenseReference: integrations.LICENSE_REFERENCE,
+    };
+  }
+  function integrationView(provider) {
+    if (!integrations.PROVIDERS.includes(provider)) throw new TypeError("Unknown integration.");
+    return integrations.integrationViews(integrationRegistry, { now: new Date().toISOString() }).find((item) => item.id === provider);
+  }
+  /** A readiness probe needs a worker, a trusted local folder, and the operator having asked for it. */
+  async function runIntegrationProbe(provider) {
+    const folder = folderSelected();
+    if (!vscode.workspace.isTrusted || vscode.env.remoteName || !folder || folder.uri.scheme !== "file") {
+      throw new Error("Integrations are checked only in a trusted local workspace folder. A remote or untrusted workspace gets no local access.");
+    }
+    const cooldown = integrations.probeCooldown({ lastProbeAt: integrationRegistry.lastProbeAt, now: new Date().toISOString(), cooldownMs: integrationProbe.PROBE_COOLDOWN_MS });
+    if (!cooldown.allowed) throw new Error(`The last integration check is ${Math.ceil(cooldown.waitMs / 1000)} s old. Several VS Code windows share one check budget, so wait for it.`);
+    const runtime = await managedRuntime(context, folder);
+    if (!runtime) throw new Error("Set up package components before checking integrations. The check runs in the same locked worker that serves the research tools.");
+    progressMessage = "Checking integrations…"; refresh();
+    const apiKey = integrations.isAuthorized(integrationRegistry, "semantic-scholar") && integrationRegistry.providers["semantic-scholar"].mode === "api-key"
+      ? await integrationStore.readApiKey(context.secrets, "semantic-scholar") : undefined;
+    // A record carried over from an older release can claim a key this profile's secret storage does not hold.
+    // Once the Toolkit has actually looked, the panel stops saying a key is present: the claim is corrected by
+    // the evidence, and only for an integration the operator authorized.
+    if (integrations.isAuthorized(integrationRegistry, "semantic-scholar")
+      && integrationRegistry.providers["semantic-scholar"].credentials.configured !== Boolean(apiKey)) {
+      await saveIntegrations(integrations.setCredentialConfigured(integrationRegistry, "semantic-scholar", Boolean(apiKey), new Date().toISOString()));
+    }
+    const executed = await asRunProcess(diagnosticServices || {})(runtime.python,
+      [...PYTHON_FLAGS, "-m", "research_stack.cli", ...integrationProbe.probeArgv({ providers: provider ? [provider] : integrations.PROVIDERS })],
+      { timeout: integrationProbe.PROBE_TIMEOUT_MS, cwd: folder.uri.fsPath, env: { ...process.env, ...integrationProbe.probeEnvironment({ registry: integrationRegistry, apiKey }) } });
+    if (executed.exitCode !== 0) throw new Error(`The integration check failed: ${String(executed.stderr || "").slice(-300) || "the worker refused without a message."}`);
+    let receipt;
+    try { receipt = JSON.parse(executed.stdout); } catch { throw new Error("The integration check returned unreadable data. Nothing was recorded from it."); }
+    const probed = integrationProbe.interpretReceipt(receipt);
+    const at = new Date().toISOString();
+    let next = integrationRegistry;
+    // The receipt keys providers by the worker's own spelling; the record keys them by the Toolkit's.
+    // Mapping them wrong would silently discard Semantic Scholar's verdict, so the mapping is explicit.
+    for (const id of (provider ? [provider] : integrations.PROVIDERS)) {
+      next = integrations.recordProbe(next, id, probed[id === "semantic-scholar" ? "semanticScholar" : id], at);
+    }
+    // The shared budget is a number in storage (see `recordProbe`); keeping the ISO text here would make the
+    // cooldown unread and every window would probe again.
+    next = { ...next, lastProbeAt: Date.parse(at) };
+    await saveIntegrations(next);
+    const sentences = (provider ? [provider] : integrations.PROVIDERS).map((id) => {
+      const view = integrations.integrationViews(next, { now: at }).find((item) => item.id === id);
+      // The worker's own sentence is the specific one; the model's is the one that names what it means
+      // for the operator (a 429 keeps the authorization, a refused local API is not a missing app).
+      return `${view.label}: ${view.detail}`;
+    });
+    const failures = (provider ? [provider] : integrations.PROVIDERS)
+      .map((id) => integrationProbe.describeProbeFailure(id, probed[id === "semantic-scholar" ? "semanticScholar" : id]))
+      .filter((sentence, index) => sentence && !sentences[index].includes("answered"));
+    output.clear();
+    // The worker's own sentences come from a run that may have been handed the API key, so they are
+    // scrubbed before anything is written to a channel an operator might paste somewhere.
+    output.appendLine(`Integration check ${at}\n${integrationStore.redactSecrets(JSON.stringify(probed, null, 2), [apiKey]).text}\n\n${sentences.join("\n")}${failures.length ? `\n${failures.join("\n")}` : ""}`);
+    output.show(true);
+    return probed;
+  }
+
+  /**
+   * INT-15 (DD12-02): the machine-level installation fact. It is read when the operator opens the integrations
+   * flow, or presses the card's "What did this machine find?" to read it again — never at activation, never on
+   * a timer, and at most once per opening. Nothing here reads a secret or probes a service: the call is the
+   * worker's own `integration-facts` verb through the same bounded `runner.js` path the readiness check uses,
+   * and the credential-shaped names this editor process happens to carry are removed from it before it is
+   * built. A record this release cannot use is refused with the reason stated, kept in `integrationFactsNote`
+   * so the panel and the Quick Pick can say it out loud, and the profile record is left exactly as it was.
+   */
+  async function readIntegrationFacts() {
+    integrationFactsNote = null;
+    try {
+      return await readMachineFacts();
+    } catch (error) {
+      integrationFactsNote = error instanceof Error ? error.message : "The machine installation record could not be read.";
+      throw error;
+    }
+  }
+
+  async function readMachineFacts() {
+    const folder = folderSelected();
+    if (!vscode.workspace.isTrusted || vscode.env.remoteName || !folder || folder.uri.scheme !== "file") {
+      throw new Error("The machine installation record is read only in a trusted local workspace folder. A remote or untrusted workspace gets no local access.");
+    }
+    const runtime = await managedRuntime(context, folder);
+    if (!runtime) throw new Error("Set up package components before reading the machine installation record: the Toolkit reads it through its own locked worker.");
+    const environment = { ...process.env };
+    for (const name of integrationStore.ENVIRONMENT_NAMES) delete environment[name];
+    const executed = await asRunProcess(diagnosticServices || {})(runtime.python,
+      [...PYTHON_FLAGS, "-m", "research_stack.cli", ...integrationProbe.factsArgv()],
+      { timeout: integrationProbe.PROBE_TIMEOUT_MS, cwd: folder.uri.fsPath, env: environment });
+    if (executed.exitCode !== 0) throw new Error(`The Toolkit could not read the machine installation record: ${String(executed.stderr || "").slice(-300) || "the worker refused without a message."} Nothing was changed.`);
+    let parsed;
+    try { parsed = JSON.parse(executed.stdout); } catch { throw new Error("The machine installation record came back unreadable. Nothing was changed."); }
+    const facts = integrationProbe.interpretFacts(parsed);
+    if (!facts) throw new Error(`The Toolkit did not use the machine installation record: ${integrationProbe.factRejectionReason(parsed)}. Nothing was changed.`);
+    const at = new Date().toISOString();
+    let next = integrationRegistry;
+    const read = [];
+    for (const provider of integrationProbe.FACT_PROVIDERS) {
+      if (!facts[provider]) continue;
+      next = integrations.applyMachineFact(next, provider, facts[provider], at);
+      read.push(integrations.NAMES[provider]);
+    }
+    if (!read.length) return "The machine installation record holds no installation fact for this machine yet.";
+    await saveIntegrations(next);
+    const view = integrations.integrationViews(next, { now: at }).find((item) => item.id === "zotero");
+    // The fact did not win: this profile's own check is the more recent evidence, and the operator is told
+    // which of the two the record kept rather than left to compare two timestamps.
+    const stands = next.providers.zotero.installationSource === "profile-check";
+    return `Machine installation record read for ${read.join(", ")}. ${stands ? "This profile's own check is more recent than the machine record, so the check stands." : view.installationProvenance}`;
+  }
 
   /** Setup settings: where uv may be found and how long a downloading step may take. */
   function setupSettings() {
@@ -367,6 +513,7 @@ function activateWith(vscode, context, diagnosticServices) {
       } : null,
       report: lastReport,
       readiness: readinessSummary(packageId),
+      integrations: integrationPanelState(),
     };
   }
 
@@ -705,7 +852,8 @@ function activateWith(vscode, context, diagnosticServices) {
       receipt = runtime.receipt || receipt;
       toolSurface = runtime.receipt?.checks?.toolSurface || toolSurface;
       const preset = selectedPreset();
-      const signature = presetSurfaceSignature(preset, runtime.version);
+      const integrationEnv = await integrationEnvironment();
+      const signature = presetSurfaceSignature(preset, runtime.version, integrationEnv.fingerprint);
       appliedPreset = preset.id;
       appliedPresetSignature = signature;
       // A goal decides which tools are enabled; a server is only offered when that goal uses it.
@@ -716,7 +864,13 @@ function activateWith(vscode, context, diagnosticServices) {
           // stated here too: the protocol carries Czech document text, and a Windows console code page
           // is not UTF-8. The MCP SDK already writes UTF-8 bytes; this is the toolkit's own guarantee.
           const definition = new vscode.McpStdioServerDefinition(`Research Toolkit ${folder.name}: ${server.label}`, runtime.python,
-            [...PYTHON_FLAGS, "-m", server.module], { RESEARCH_STACK_WORKSPACE: folder.uri.fsPath, RESEARCH_STACK_TOOL_PRESET: preset.id }, signature);
+            [...PYTHON_FLAGS, "-m", server.module],
+            {
+              RESEARCH_STACK_WORKSPACE: folder.uri.fsPath, RESEARCH_STACK_TOOL_PRESET: preset.id,
+              // 0.3.11: only the server that actually uses a provider gets the integration state, and
+              // only when the operator authorized it. An unauthorized integration injects nothing.
+              ...(server.module === "research_stack.recommended_server" ? integrationEnv.env : {}),
+            }, signature);
           definition.cwd = folder.uri;
           return definition;
         });
@@ -727,11 +881,37 @@ function activateWith(vscode, context, diagnosticServices) {
     },
   };
   /**
-   * The version a client compares to decide whether a server's tools changed. It covers the
-   * runtime and the goal's tool surface, so switching preset signals a tool refresh.
+   * What the research worker is handed for the integration state the operator chose. A key reaches a
+   * process environment only for an authorized integration that asked for one; the fingerprint folded
+   * into the server signature names the mode and whether a key exists, never the key itself, so
+   * authorizing or revoking refreshes the client's tool surface without re-installing a component.
    */
-  function presetSurfaceSignature(preset, runtimeVersion) {
-    const surface = crypto.createHash("sha256").update(JSON.stringify([...preset.tools].sort())).digest("hex").slice(0, 12);
+  async function integrationEnvironment() {
+    const env = {};
+    const record = integrationRegistry.providers["semantic-scholar"];
+    let keyConfigured = false;
+    if (integrations.isAuthorized(integrationRegistry, "semantic-scholar")) {
+      env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED = "true";
+      if (record.mode === "api-key") {
+        const key = await integrationStore.readApiKey(context.secrets, "semantic-scholar");
+        if (key) { env.SEMANTIC_SCHOLAR_API_KEY = key; keyConfigured = true; }
+      }
+    }
+    const fingerprint = crypto.createHash("sha256").update(JSON.stringify({
+      semanticScholar: integrations.isAuthorized(integrationRegistry, "semantic-scholar") ? record.mode : "off",
+      keyConfigured,
+      zotero: integrationRegistry.providers.zotero.readiness,
+    })).digest("hex").slice(0, 8);
+    return { env, fingerprint };
+  }
+
+  /**
+   * The version a client compares to decide whether a server's tools changed. It covers the
+   * runtime, the goal's tool surface and the integration state, so switching preset or authorizing an
+   * integration signals a tool refresh.
+   */
+  function presetSurfaceSignature(preset, runtimeVersion, integrationFingerprint = "") {
+    const surface = crypto.createHash("sha256").update(JSON.stringify({ tools: [...preset.tools].sort(), integrations: integrationFingerprint })).digest("hex").slice(0, 12);
     return `${runtimeVersion}+${preset.id}:${surface}`;
   }
 
@@ -1095,6 +1275,197 @@ function activateWith(vscode, context, diagnosticServices) {
     return { id: report.id, path: lastReport.path, bytes: report.bytes, mailtoFits: mail.fits };
   });
 
+  // --- 0.3.11: Integrations & Accounts ---------------------------------------------------------
+  // Every path here is an operator decision. The Toolkit records a confirmation it was given; it never
+  // infers one, never confirms a provider's licence on the operator's behalf, and never writes to Zotero.
+  // Which actions exist at all is decided by the state model (`integrationViews().actions`, id and label), so the
+  // card and the Quick Pick cannot offer different things from the same record.
+  register("researchToolkit.manageIntegrations", async () => {
+    // INT-15.2 (DD12-02): opening the integrations flow is the deliberate act that consults the machine
+    // record, so a new profile of the same OS user is not asked again about an installation this machine has
+    // already answered. One read, one worker call, no provider reached, no secret read, no probe — serialized
+    // by the same `exclusive()` the panel uses, so a setup or a check already in flight is not interrupted and
+    // the reason no read happened is said instead of the read being attempted anyway. A record this release
+    // cannot use is refused in the panel and in the row it concerns, never swallowed.
+    await exclusive(() => readIntegrationFacts()).catch(() => null);
+    refresh();
+    const views = integrations.integrationViews(integrationRegistry, { now: new Date().toISOString() });
+    const picked = await vscode.window.showQuickPick(views.map((view) => ({
+      id: view.id, label: view.title, description: view.label, detail: `${view.detail}\nNext: ${view.nextAction}${view.id === "zotero" && integrationFactsNote ? `\n${integrationFactsNote}` : ""}`,
+    })), { title: "Integrations & Accounts — saved once for this VS Code profile", matchOnDescription: true });
+    if (!picked) return undefined;
+    const view = views.find((item) => item.id === picked.id);
+    const action = await vscode.window.showQuickPick(view.actions.map(([id, label]) => ({ id, label })), { title: `${picked.label}: what do you want to do?` });
+    if (!action) return undefined;
+    const openGuide = () => vscode.commands.executeCommand("researchToolkit.openComponentGuide", picked.id === "zotero" ? "zotero-local-api" : "semantic-scholar-academic-graph");
+    if (action.id === "check" || action.id === "installedNow") return runIntegrationProbe(picked.id);
+    if (action.id === "activate") return activateIntegration(picked.id);
+    if (action.id === "guideInstall") return guideZoteroInstall(picked.id);
+    if (action.id === "apiGuide") return openGuide();
+    if (action.id === "machineFact") return exclusive(() => readIntegrationFacts());
+    if (action.id === "requestKey") return requestApiKey(picked.id);
+    if (action.id === "provideKey" || action.id === "replaceKey") return setIntegrationKey(picked.id);
+    if (action.id === "noKey") return continueWithoutKey(picked.id);
+    if (action.id === "removeKey") return clearIntegrationKey(picked.id);
+    if (action.id === "testKey") return testIntegrationKey(picked.id);
+    if (action.id === "deactivate") return deactivateIntegration(picked.id);
+    return resetIntegration(picked.id);
+  });
+
+  /**
+   * INT-13A.2 and DD12-12: the operator installs Zotero themselves, from the official page, in their own session.
+   * There is no reviewed place in this package where the Toolkit could download or run an installer, so it names
+   * the page, shows a numbered guide and re-checks only when the operator asks (NF12-04, DD11-07). Nothing polls.
+   */
+  async function guideZoteroInstall(provider) {
+    if (provider !== "zotero") throw new TypeError("Semantic Scholar is a hosted service with nothing to install on this machine.");
+    if (integrationRegistry.providers.zotero.installation === "detected") {
+      // INT-15 (DD12-02): the refusal names whose fact it is. An installation another window of the same OS
+      // user found must not be reported to this profile as if this profile had verified it.
+      const fromMachine = integrationRegistry.providers.zotero.installationSource === "machine-fact";
+      void vscode.window.showInformationMessage(fromMachine
+        ? "Zotero was found on this machine by another window of the same OS user, so the Toolkit offers no installation for it. This profile has not checked it: check integrations to see whether its local API answers."
+        : "Zotero is already installed on this machine, so the Toolkit offers no installation for it. Check integrations to see whether its local API answers.");
+      return integrationView("zotero");
+    }
+    const choice = await vscode.window.showInformationMessage(
+      "Guided Zotero installation. The Toolkit downloaded nothing and ran nothing: it opened no installer, wrote no file and changed no setting.",
+      { modal: true, detail: `1. Open the official Zotero download page: ${integrations.ZOTERO_DOWNLOAD_URL}\n2. Install Zotero with the installer that page offers for your operating system.\n3. Start Zotero.\n4. Press "I have installed Zotero — check it now". The Toolkit re-checks when you ask; it does not watch for the installation, poll for it or schedule anything.\n\nIt has no reviewed capability to download or run an installer, and it never writes to your Zotero library.` },
+      "Open the official download page", "Open the Toolkit's Zotero guide", "Not now");
+    if (choice === "Open the official download page") {
+      if (!await vscode.env.openExternal(vscode.Uri.parse(integrations.ZOTERO_DOWNLOAD_URL))) throw new Error("Unable to open the official Zotero download page in the host browser.");
+      return undefined;
+    }
+    if (choice === "Open the Toolkit's Zotero guide") return openZoteroGuide();
+    if (choice === "Not now") return declineIntegration(provider);
+    return undefined;
+  }
+  const openZoteroGuide = () => vscode.commands.executeCommand("researchToolkit.openComponentGuide", "zotero-local-api");
+
+  /**
+   * INT-14.1: the key step is a choice, not a box. The provider's own application page opens in the host browser
+   * and the Toolkit never fills it in; the key reaches the operator by email, which the Toolkit never receives,
+   * stores or sees. What the Toolkit records is which choice the operator made.
+   */
+  async function requestApiKey(provider) {
+    if (provider !== "semantic-scholar") throw new TypeError("Zotero local reading needs no key, so there is no key to request.");
+    await saveIntegrations(integrations.recordKeyDecision(integrationRegistry, provider, "guided", new Date().toISOString()));
+    const choice = await vscode.window.showInformationMessage(
+      "A Semantic Scholar API key is optional. The Toolkit asked you for nothing here and stored nothing.",
+      { modal: true, detail: `1. Apply on the provider's own page: it asks for an academic or corporate address, your affiliation and what you will use the key for.\n2. The provider emails the key to you. The Toolkit never receives, stores or sees that email, and never asks for a key in a chat, a workspace file or a log.\n3. Press "I already have a key" and paste it once.\n4. It is stored in VS Code secret storage for this VS Code profile only — never in a workspace file, a setting, a log or a problem report.\n\nWithout a key your requests share one capacity with every other unauthenticated user. A key buys one request per second across all endpoints, not per endpoint.` },
+      "Open the official application page", "Open the Toolkit's Semantic Scholar guide", "Not now");
+    if (choice === "Open the official application page") {
+      if (!await vscode.env.openExternal(vscode.Uri.parse(integrations.API_KEY_APPLICATION_URL))) throw new Error("Unable to open the provider's API key application page in the host browser.");
+      return undefined;
+    }
+    if (choice === "Open the Toolkit's Semantic Scholar guide") return vscode.commands.executeCommand("researchToolkit.openComponentGuide", "semantic-scholar-academic-graph");
+    return integrationView(provider);
+  }
+
+  /** Declining a key is a decision about a key: not a consent, not a key, and not a finished guide. */
+  async function continueWithoutKey(provider) {
+    if (provider !== "semantic-scholar") throw new TypeError("Zotero local reading has no key to decline.");
+    const at = new Date().toISOString();
+    await saveIntegrations(integrations.setMode(integrations.recordKeyDecision(integrationRegistry, provider, "declined", at), provider, "anonymous", at));
+    void vscode.window.showInformationMessage("Continuing without a key. No key was stored, nothing was authorized, and the guide is not marked finished: the key step is recorded as declined, not as done.");
+    return integrationView(provider);
+  }
+
+  /** One check the operator asked for, with the stored key handed only to the worker that needs it. */
+  async function testIntegrationKey(provider) {
+    if (provider !== "semantic-scholar") throw new TypeError("Only Semantic Scholar has a Toolkit-stored key to test.");
+    if (!integrationRegistry.providers[provider].credentials?.configured) throw new Error("No key is stored for this integration, so there is nothing to test.");
+    const probed = await runIntegrationProbe(provider);
+    void vscode.window.showInformationMessage(integrationProbe.describeProbeFailure(provider, probed?.semanticScholar));
+    return integrationView(provider);
+  }
+
+  /** Consent for Semantic Scholar is a button press after the licence is offered, never a default. */
+  async function activateIntegration(provider) {
+    if (!integrations.PROVIDERS.includes(provider)) throw new TypeError("Unknown integration.");
+    // The record says the operator started the guide, so a workspace reopened later shows an unfinished
+    // decision instead of a blank one — and an unfinished decision is still not a consent.
+    await saveIntegrations(integrations.beginOnboarding(integrationRegistry, provider, new Date().toISOString()));
+    if (provider === "zotero") {
+      const view = integrationView(provider);
+      const choice = await vscode.window.showInformationMessage(
+        `Zotero needs no account and no key for a local read. ${view.detail}`,
+        { modal: true, detail: "The Toolkit reads through Zotero's own loopback API and never writes to your library. If Zotero refuses with 403, enable its local API in Zotero's own Settings → Advanced; the Toolkit will not change that setting for you." },
+        "Start checking Zotero", "Open the Zotero guide", "Not now");
+      if (choice === "Open the Zotero guide") return vscode.commands.executeCommand("researchToolkit.openComponentGuide", "zotero-local-api");
+      if (choice === "Not now") return declineIntegration(provider);
+      if (choice !== "Start checking Zotero") return undefined;
+      return runIntegrationProbe("zotero");
+    }
+    const choice = await vscode.window.showWarningMessage(
+      "Activate Semantic Scholar for this VS Code profile?",
+      { modal: true, detail: `Most public endpoints work with no account and no key. Before you activate, read the two agreements that govern this provider — they are not the same text.\n\nAPI Licence: ${integrations.API_LICENSE_URL}\nDataset License Agreement: ${integrations.LICENSE_URL}\n\nThe API Licence covers use in operation with third-party software. The Dataset Agreement limits use to internal, non-commercial research and education and requires the Semantic Scholar name and logo, with a utm_source=api link, on any public display. Pressing Activate records that you reviewed both, at a stated time, in this VS Code profile only. It is not a grant of rights, it does not judge your intended use, and it does not replace any consent the provider itself requires. You can add an API key later without re-running this step.` },
+      "Read the API licence", "Activate without an API key", "Activate and add an API key", "Not now");
+    if (choice === "Read the API licence") {
+      if (!await vscode.env.openExternal(vscode.Uri.parse(integrations.API_LICENSE_URL))) throw new Error("Unable to open the licence in the host browser.");
+      return undefined;
+    }
+    if (choice === "Not now") return declineIntegration(provider);
+    if (choice !== "Activate without an API key" && choice !== "Activate and add an API key") return undefined;
+    const next = integrations.authorizeSemanticScholar(integrationRegistry, { acknowledged: true, at: new Date().toISOString(), mode: choice === "Activate and add an API key" ? "api-key" : "anonymous" });
+    await saveIntegrations(next);
+    void vscode.window.showInformationMessage(`Semantic Scholar activated for this VS Code profile. Your confirmation is recorded against ${integrations.LICENSE_REFERENCE}. Other workspaces in this profile will not ask again.`);
+    if (choice === "Activate and add an API key") return setIntegrationKey("semantic-scholar");
+    return integrationView("semantic-scholar");
+  }
+
+  /** The key goes to VS Code's secret storage. It is never shown back, never logged, never written to a workspace. */
+  async function setIntegrationKey(provider) {
+    if (provider !== "semantic-scholar") throw new Error("Only Semantic Scholar uses a Toolkit-stored key. Zotero local reading needs no key.");
+    if (!integrations.isAuthorized(integrationRegistry, provider)) throw new Error("Activate the integration before adding a key. The Toolkit stores a key only for an integration you have authorized.");
+    const entered = await vscode.window.showInputBox({ title: "Semantic Scholar API key", prompt: "Paste the key the provider emailed you. It is stored in VS Code's secret storage for this profile and is never written into your project, your logs or a report.", password: true, ignoreFocusOut: true, placeHolder: "Paste the key, or leave empty to keep the current one" });
+    if (entered === undefined) return undefined;
+    if (!entered.trim()) return integrationView(provider);
+    const stored = await integrationStore.storeApiKey(context.secrets, provider, entered);
+    const at = new Date().toISOString();
+    await saveIntegrations(integrations.setMode(integrations.setCredentialConfigured(integrations.recordKeyDecision(integrationRegistry, provider, "provided", at), provider, stored.configured, at), provider, "api-key", at));
+    void vscode.window.showInformationMessage("API key stored in VS Code secret storage. It is not copied into your workspace, your settings, the setup log or a problem report.");
+    return integrationView(provider);
+  }
+  async function clearIntegrationKey(provider) {
+    await integrationStore.clearApiKey(context.secrets, provider);
+    const at = new Date().toISOString();
+    await saveIntegrations(integrations.setMode(integrations.setCredentialConfigured(integrations.recordKeyDecision(integrationRegistry, provider, "removed", at), provider, false, at), provider, "anonymous", at));
+    void vscode.window.showInformationMessage("Stored API key removed. The integration stays authorized and works anonymously.");
+    return integrationView(provider);
+  }
+  /** "Not now" is a refusal to decide, not a decision: nothing is authorized and nothing is injected. */
+  async function declineIntegration(provider) {
+    await saveIntegrations(integrations.skipOnboarding(integrationRegistry, provider, new Date().toISOString()));
+    void vscode.window.showInformationMessage(`${provider} is left as it is. Nothing was authorized, nothing was installed and nothing is handed to the research worker. The guide is marked as not finished, so you can resume it from Integrations & Accounts whenever you want.`);
+    return integrationView(provider);
+  }
+  /** Turning off is not deleting: the record stays, so switching back on does not re-run the guide. */
+  async function deactivateIntegration(provider) {
+    const choice = await vscode.window.showWarningMessage(`Turn off ${provider} in this VS Code profile?`,
+      { modal: true, detail: "The Toolkit stops handing this service to the research worker and removes any key it stored for it. Your confirmation record is kept so switching it back on does not ask you to read the guide again. Nothing in your workspace, and nothing you configured outside the Toolkit, is touched." },
+      "Turn off integration", "Keep it on");
+    if (choice !== "Turn off integration") return undefined;
+    await integrationStore.clearApiKey(context.secrets, provider);
+    await saveIntegrations(integrations.setCredentialConfigured(
+      integrations.revokeIntegration(integrationRegistry, provider, new Date().toISOString()), provider, false, new Date().toISOString()));
+    void vscode.window.showInformationMessage(`${provider} is off in this profile. The research worker no longer receives its settings.`);
+    return integrationView(provider);
+  }
+  async function resetIntegration(provider) {
+    const choice = await vscode.window.showWarningMessage(`Reset ${provider} in this VS Code profile?`,
+      { modal: true, detail: "Your stored key for it is removed, its authorization is withdrawn and the Toolkit stops handing it to the research worker. Nothing in your workspace, and nothing you configured outside the Toolkit, is touched." },
+      "Reset integration");
+    if (choice !== "Reset integration") return undefined;
+    await integrationStore.clearApiKey(context.secrets, provider);
+    await saveIntegrations(integrations.resetIntegration(integrationRegistry, provider, new Date().toISOString()));
+    return integrationView(provider);
+  }
+  register("researchToolkit.activateIntegration", (provider) => activateIntegration(provider));
+  register("researchToolkit.setIntegrationApiKey", (provider) => setIntegrationKey(provider));
+  register("researchToolkit.checkIntegrations", () => exclusive(() => runIntegrationProbe(undefined)));
+  register("researchToolkit.resetIntegration", (provider) => resetIntegration(provider));
+
   async function handleMessage(message) {
     if (!message || typeof message !== "object" || Array.isArray(message)) return;
     if (message.type === "ready") {
@@ -1117,7 +1488,9 @@ function activateWith(vscode, context, diagnosticServices) {
       indexCorpus: "researchToolkit.indexSelectedSources", verifySources: "researchToolkit.verifySourceFreshness",
       installBundle: "researchToolkit.installTopicBundle", repairBundle: "researchToolkit.repairTopicBundle", bundleStatus: "researchToolkit.showBundleStatus",
       report: "researchToolkit.reportProblem", checkUpdates: "researchToolkit.checkForUpdates", updateNow: "researchToolkit.updateExtension",
+      integrations: "researchToolkit.manageIntegrations", checkIntegrations: "researchToolkit.checkIntegrations",
     };
+    let resultMessage = "Done.";
     try {
       if (message.type === "setPackage") {
         if (!PACKAGES_BY_ID.has(message.id)) throw new TypeError("Choose a supported package.");
@@ -1154,13 +1527,36 @@ function activateWith(vscode, context, diagnosticServices) {
       } else if (message.type === "guide" || message.type === "docs") {
         if (typeof message.id !== "string" || !COMPONENTS_BY_ID.has(message.id)) throw new TypeError("Unknown component guide.");
         await vscode.commands.executeCommand(message.type === "guide" ? "researchToolkit.openComponentGuide" : "researchToolkit.openComponentDocs", message.id);
+      } else if (message.type === "activateIntegration") {
+        await activateIntegration(message.provider);
+      } else if (message.type === "guideIntegrationInstall") {
+        await guideZoteroInstall(message.provider);
+      } else if (message.type === "requestApiKey") {
+        await requestApiKey(message.provider);
+      } else if (message.type === "continueWithoutKey") {
+        await continueWithoutKey(message.provider);
+      } else if (message.type === "testIntegrationKey") {
+        await testIntegrationKey(message.provider);
+      } else if (message.type === "checkIntegration") {
+        if (!integrations.PROVIDERS.includes(message.provider)) throw new TypeError("Unknown integration.");
+        await exclusive(() => runIntegrationProbe(message.provider));
+      } else if (message.type === "setIntegrationKey") {
+        await setIntegrationKey(message.provider);
+      } else if (message.type === "clearIntegrationKey") {
+        await clearIntegrationKey(message.provider);
+      } else if (message.type === "deactivateIntegration") {
+        await deactivateIntegration(message.provider);
+      } else if (message.type === "resetIntegration") {
+        await resetIntegration(message.provider);
+      } else if (message.type === "readIntegrationFacts") {
+        resultMessage = await exclusive(() => readIntegrationFacts());
       } else if (message.type === "action" && Object.hasOwn(actions, message.action)) {
         await vscode.commands.executeCommand(actions[message.action]);
       } else {
         throw new TypeError("Unsupported control panel action.");
       }
       const echo = message.requestId === undefined ? {} : { requestId: message.requestId };
-      if (panel) await panel.webview.postMessage({ type: "result", ...echo, message: message.type === "action" && message.action === "copy" ? "Readiness copied to clipboard." : "Done." });
+      if (panel) await panel.webview.postMessage({ type: "result", ...echo, message: message.type === "action" && message.action === "copy" ? "Readiness copied to clipboard." : resultMessage });
     } catch (error) {
       refresh();
       const echo = message.requestId === undefined ? {} : { requestId: message.requestId };
@@ -1205,6 +1601,7 @@ function activateWith(vscode, context, diagnosticServices) {
         ["Copy Readiness", "researchToolkit.copyReadiness", "copy"],
         ["Extension Settings", "researchToolkit.openSettings", "settings"],
         ["Component Guides & Onboarding", "researchToolkit.openHelp", "book"],
+        ["Integrations & Accounts", "researchToolkit.manageIntegrations", "plug"],
       ].map(([label, command, icon]) => {
         const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
         item.command = { command, title: label };
@@ -1214,6 +1611,7 @@ function activateWith(vscode, context, diagnosticServices) {
             : command === "researchToolkit.setupLocalComponents" ? `Install this package's component steps (${pending} pending). Existing files and project environments are preserved.`
               : command === "researchToolkit.updateComponents" ? `Refresh component steps recorded by an earlier toolkit release. ${plan.counts.outdated || 0} outdated now.`
                 : command === "researchToolkit.diagnoseToolLimit" ? "Explain the client tool ceiling and what this toolkit contributes to it."
+                  : command === "researchToolkit.manageIntegrations" ? "Zotero and Semantic Scholar: what is installed, what you authorized, and whether either one answers. Saved once for this VS Code profile."
                   : label;
         return item;
       });

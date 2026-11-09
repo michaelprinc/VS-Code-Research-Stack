@@ -1,7 +1,8 @@
 """Bounded, provenance-preserving adapters for scholarly metadata and Zotero reads.
 
-Provider credentials are read only from the process environment. The module has
-no persistent cache and never writes to Zotero or downloads full text.
+Provider credentials are read only from the process environment. Requests are paced by a budget
+shared across Toolkit processes (provider_budget.py), which also caches provider metadata and says
+so when an answer came from that cache. The module never writes to Zotero or downloads full text.
 """
 
 from __future__ import annotations
@@ -20,14 +21,23 @@ from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any
 
+from . import provider_budget
+
 REQUEST_TIMEOUT_SECONDS = 15
 MAX_RESULTS = 25
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
-ZOTERO_LOCAL_API = "http://localhost:23119/api"
+# IPv4 loopback, not `localhost`: Zotero binds IPv4 only, so a `localhost` that resolves to `[::1]` misses.
+ZOTERO_LOCAL_API = "http://127.0.0.1:23119/api"
+# The connector endpoint sits beside /api, not under it, and is not gated on the local-API preference: it is the
+# one request that can tell "Zotero is running" from "the local API is off".
+ZOTERO_CONNECTOR_PING = "http://127.0.0.1:23119/connector/ping"
+ZOTERO_LOOPBACK_ORIGIN = "http://127.0.0.1:23119"
 PROVIDERS = ("openalex", "crossref", "semantic_scholar")
 _THROTTLE_LOCKS = {provider: threading.Lock() for provider in PROVIDERS}
 _LAST_REQUEST_AT: dict[str, float] = {}
 MIN_REQUEST_INTERVAL_SECONDS = 1.0
+# Which environment variable makes a provider call a keyed call, so the keyed budget applies.
+_KEYED_ENVIRONMENT = {"openalex": "OPENALEX_API_KEY", "crossref": "CROSSREF_PLUS_API_TOKEN", "semantic_scholar": "SEMANTIC_SCHOLAR_API_KEY"}
 
 
 class ResearchError(RuntimeError):
@@ -157,7 +167,9 @@ def _request_json(url: str, headers: dict[str, str] | None = None) -> tuple[dict
             message = "Provider has no matching record. This does not prove the work or identifier is invalid."
         elif exc.code == 429:
             code = "PROVIDER_RATE_LIMITED"
-            message = "Provider rate limit reached; wait for the indicated retry window."
+            # The Toolkit's own bounded backoff is the mechanism; a wait the provider actually named is carried
+            # with the error, and no provider is assumed to name one (Semantic Scholar documents none).
+            message = "Provider rate limit reached; the Toolkit's own bounded backoff applies, with any wait the provider named carried through."
         elif exc.code >= 500:
             code = "PROVIDER_UNAVAILABLE"
             message = f"Provider returned HTTP {exc.code}; no result count was inferred."
@@ -171,18 +183,30 @@ def _request_json(url: str, headers: dict[str, str] | None = None) -> tuple[dict
         raise ResearchError("PROVIDER_SCHEMA_UNEXPECTED", "Provider returned malformed JSON.") from exc
 
 
-def _provider_request(provider: str, url: str, headers: dict[str, str] | None = None) -> tuple[dict[str, Any] | list[Any], dict[str, str]]:
+def _provider_request(provider: str, url: str, headers: dict[str, str] | None = None,
+                      cache_key: str | None = None) -> tuple[dict[str, Any] | list[Any], dict[str, str], dict[str, Any]]:
     # Serialize each provider and use a conservative one-request-per-second
-    # process-local pacing floor until account-specific limits are proven.
+    # process-local pacing floor until account-specific limits are proven. The floor is only the fast
+    # path: the shared per-user budget in provider_budget.py is authoritative, because the provider
+    # limits the caller and several Toolkit processes are one caller to it (INT-15.5).
     lock = _THROTTLE_LOCKS[provider]
     with lock:
         elapsed = time.monotonic() - _LAST_REQUEST_AT.get(provider, 0.0)
         if elapsed < MIN_REQUEST_INTERVAL_SECONDS:
             time.sleep(MIN_REQUEST_INTERVAL_SECONDS - elapsed)
+        budget = provider_budget.ProviderBudget(provider, keyed=bool(os.environ.get(_KEYED_ENVIRONMENT.get(provider, ""))))
         try:
-            return _request_json(url, headers)
+            outcome = budget.run(_request_json, url, headers=headers, cache_key=cache_key)
         finally:
             _LAST_REQUEST_AT[provider] = time.monotonic()
+    if outcome["deferred"]:
+        carried = outcome.get("error") or {}
+        if carried.get("code"):
+            raise ResearchError(carried["code"], carried["message"], retry_after=carried.get("retryAfter"))
+        raise ResearchError("PROVIDER_BUDGET_DEFERRED",
+                            "Another Toolkit process is already waiting out this provider's rate limit; the Toolkit will not ask again before the shared budget opens.",
+                            retry_after=str(max(1, -(-outcome["waitMs"] // 1000))))
+    return outcome["payload"], outcome["headers"], outcome
 
 
 def _query_hash(provider: str, query: str) -> str:
@@ -274,7 +298,8 @@ def _request_for(provider: str, query: str, limit: int) -> tuple[str, dict[str, 
 
 def _search_one(provider: str, query: str, limit: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     url, headers = _request_for(provider, query, limit)
-    payload, response_headers = _provider_request(provider, url, headers)
+    query_hash = _query_hash(provider, query)
+    payload, response_headers, budget = _provider_request(provider, url, headers, cache_key=query_hash)
     if provider == "openalex":
         rows = payload.get("results") if isinstance(payload, dict) else None
         meta = payload.get("meta", {}) if isinstance(payload, dict) else {}
@@ -286,8 +311,7 @@ def _search_one(provider: str, query: str, limit: int) -> tuple[list[dict[str, A
         meta = {"totalResults": payload.get("total") if isinstance(payload, dict) else None}
     if not isinstance(rows, list):
         raise ResearchError("PROVIDER_SCHEMA_UNEXPECTED", f"{provider} response did not contain a result list.")
-    fetched_at = datetime.now(UTC).isoformat()
-    query_hash = _query_hash(provider, query)
+    fetched_at = budget.get("retrievedAt") or datetime.now(UTC).isoformat()
     normalized: list[dict[str, Any]] = []
     skipped_rows = 0
     for row in rows[:limit]:
@@ -307,7 +331,8 @@ def _search_one(provider: str, query: str, limit: int) -> tuple[list[dict[str, A
             continue
         normalized.append(record)
     outcome = {"provider": provider, "state": "ok", "reportedCount": meta.get("count", meta.get("totalResults")),
-               "returned": len(normalized), "skippedRows": skipped_rows,
+               "returned": len(normalized), "skippedRows": skipped_rows, "fromCache": bool(budget.get("fromCache")),
+               "providerAttempts": budget.get("attempts"),
                "rateLimit": response_headers.get("x-rate-limit-limit"), "rateLimitInterval": response_headers.get("x-rate-limit-interval")}
     if skipped_rows:
         outcome["warnings"] = [f"PROVIDER_ROW_SKIPPED: {skipped_rows} malformed row(s) from {provider} were isolated; the remaining rows are returned."]
@@ -404,6 +429,8 @@ def search_literature(provider: str, query: str, limit: int = 10) -> dict[str, A
         warnings.append("No provider answered. This is an outage or a configuration problem, not an empty result set.")
     if result_state == "empty":
         warnings.append("Every provider answered and returned no matching record.")
+    if any(outcome.get("fromCache") for outcome in outcomes):
+        warnings.append("At least one provider answer was served from the Toolkit's bounded cache; the provider was not asked again for that query.")
     for outcome in outcomes:
         if outcome.get("skippedRows"):
             warnings.extend(outcome.get("warnings", []))
@@ -417,7 +444,7 @@ def validate_citation(doi_value: str) -> dict[str, Any]:
         return {"status": "unresolved", "input": doi_value, "reason": "Input is not a syntactically valid DOI. This does not establish whether a work exists."}
     url = f"https://api.crossref.org/works/{urllib.parse.quote(doi, safe='/') }"
     try:
-        payload, _ = _provider_request("crossref", url, _crossref_headers())
+        payload, _headers, budget = _provider_request("crossref", url, _crossref_headers(), cache_key=_query_hash("crossref-doi", doi))
     except ResearchError as exc:
         if exc.code == "PROVIDER_NOT_FOUND":
             return {"status": "unresolved", "doi": doi, "reason": "Crossref has no matching record. This is not proof that the DOI or work is invalid; it may be registered elsewhere or metadata may be incomplete."}
@@ -425,31 +452,61 @@ def validate_citation(doi_value: str) -> dict[str, Any]:
     work = payload.get("message") if isinstance(payload, dict) else None
     if not isinstance(work, dict):
         raise ResearchError("PROVIDER_SCHEMA_UNEXPECTED", "Crossref DOI response has no work object.")
-    fetched_at = datetime.now(UTC).isoformat()
-    return {"status": "record-found", "doi": doi, "record": _normalize("crossref", work, fetched_at, _query_hash("crossref-doi", doi)), "interpretation": "Crossref metadata record found; this does not verify scientific claims or guarantee all bibliographic fields are correct."}
+    fetched_at = budget.get("retrievedAt") or datetime.now(UTC).isoformat()
+    return {"status": "record-found", "doi": doi, "fromCache": bool(budget.get("fromCache")), "record": _normalize("crossref", work, fetched_at, _query_hash("crossref-doi", doi)), "interpretation": "Crossref metadata record found; this does not verify scientific claims or guarantee all bibliographic fields are correct."}
 
 
-def _zotero_request(path: str) -> tuple[dict[str, Any] | list[Any], dict[str, str]]:
-    url = f"{ZOTERO_LOCAL_API}/{path.lstrip('/')}"
+def _zotero_request(path: str, *, expect_json: bool = True) -> tuple[Any, dict[str, str]]:
+    """One bounded request to the fixed loopback Zotero port, JSON or plain text.
+
+    A bare path is read under `/api`; a full URL is honoured only when it already names the reviewed loopback
+    port, which is how the connector ping — a sibling of `/api`, not a child of it — reuses this one client.
+    `Zotero-Allowed-Request` keeps the request from being dropped: Zotero 10 drops requests that look like
+    browser requests without any response unless it is sent. The IPv4 loopback URL gives urllib a `Host` of
+    `127.0.0.1:23119`, one of the three Zotero accepts.
+    """
+    url = path if path.startswith(ZOTERO_LOOPBACK_ORIGIN) else f"{ZOTERO_LOCAL_API}/{path.lstrip('/')}"
     # Bypass proxy settings for this fixed loopback-only address.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirectHandler())
-    request = urllib.request.Request(url, headers={"Accept": "application/json", "Zotero-API-Version": "3"})
+    request = urllib.request.Request(url, headers={"Accept": "application/json", "Zotero-API-Version": "3", "Zotero-Allowed-Request": "1"})
     try:
         with opener.open(request, timeout=2) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
             if len(raw) > MAX_RESPONSE_BYTES:
                 raise ResearchError("ZOTERO_RESPONSE_TOO_LARGE", "Zotero response exceeded the 4 MiB safety limit.")
+            headers = {key.lower(): value for key, value in response.headers.items()}
+            if not expect_json:
+                return raw.decode("utf-8", "replace"), headers
             payload = json.loads(raw.decode("utf-8"))
             if not isinstance(payload, (dict, list)):
                 raise ResearchError("ZOTERO_SCHEMA_UNEXPECTED", "Zotero local API returned an unexpected response.")
-            return payload, {key.lower(): value for key, value in response.headers.items()}
+            return payload, headers
     except urllib.error.HTTPError as exc:
         code = "ZOTERO_API_DISABLED" if exc.code == 403 else "ZOTERO_NOT_READY" if exc.code == 503 else "ZOTERO_NOT_FOUND" if exc.code == 404 else "ZOTERO_REQUEST_FAILED"
         raise ResearchError(code, "Zotero local API request failed. Confirm Zotero is running and local API access is enabled.") from exc
-    except (TimeoutError, urllib.error.URLError) as exc:
-        raise ResearchError("ZOTERO_NOT_AVAILABLE", "Zotero local API is unavailable at localhost:23119; no library files were opened.") from exc
+    except urllib.error.URLError as exc:
+        # A refused connection and a request that got no answer are different facts, and the probe says so.
+        if isinstance(exc.reason, ConnectionRefusedError):
+            raise ResearchError("ZOTERO_NOT_AVAILABLE", "Nothing answered at 127.0.0.1:23119; no library files were opened.") from exc
+        raise ResearchError("ZOTERO_NO_ANSWER", "The request to 127.0.0.1:23119 produced no usable answer within 2 seconds.") from exc
+    except TimeoutError as exc:
+        raise ResearchError("ZOTERO_NO_ANSWER", "The request to 127.0.0.1:23119 produced no usable answer within 2 seconds.") from exc
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ResearchError("ZOTERO_SCHEMA_UNEXPECTED", "Zotero local API returned malformed JSON.") from exc
+
+
+def zotero_connector_ping() -> bool:
+    """Did Zotero's connector endpoint answer? It is not gated on the local-API preference.
+
+    Fallback evidence for a local API request that failed, never an extra request when one answered: the same
+    loopback-only, proxy-bypassing, no-redirect client and the same 2 second timeout, reached by path. An HTTP
+    answer of any status counts as an answer; a refused connection or a request with no answer does not.
+    """
+    try:
+        _zotero_request(ZOTERO_CONNECTOR_PING, expect_json=False)
+        return True
+    except ResearchError as exc:
+        return exc.code not in ("ZOTERO_NOT_AVAILABLE", "ZOTERO_NO_ANSWER")
 
 
 def list_zotero_collections() -> dict[str, Any]:

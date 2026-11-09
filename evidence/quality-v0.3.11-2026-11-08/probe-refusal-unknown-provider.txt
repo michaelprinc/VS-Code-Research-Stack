@@ -1,0 +1,1 @@
+{"error": "Unknown provider(s) bogus; accepted providers: zotero, semantic_scholar."}

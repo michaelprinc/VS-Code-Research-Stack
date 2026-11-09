@@ -23,9 +23,9 @@ test("manifest exposes GUI and package commands with matching contributions and 
   assert.equal(manifest.devDependencies, undefined);
   assert.equal(manifest.scripts, undefined);
   assert.equal(manifest.private, undefined);
-  const shippedAllowlist = ["README.md", "bundles", "bundles.js", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "lockfile.js", "media", "package.json", "preflight.js", "presets.json", "probe.py", "reports.js", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "updates.js", "worker"].sort();
+  const shippedAllowlist = ["README.md", "bundles", "bundles.js", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "integrationprobe.js", "integrations.js", "integrationstore.js", "lockfile.js", "media", "package.json", "preflight.js", "presets.json", "probe.py", "reports.js", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "updates.js", "worker"].sort();
   assert.deepEqual([...manifest.files].sort(), shippedAllowlist,
-    "the shipped allowlist names every module the controller requires, including the 0.3.6 setup modules, the 0.3.7 lock reader, the 0.3.9 bundle installer and the 0.3.10 update and report modules");
+    "the shipped allowlist names every module the controller requires, including the 0.3.6 setup modules, the 0.3.7 lock reader, the 0.3.9 bundle installer, the 0.3.10 update and report modules and the 0.3.11 integration modules");
   assert.deepEqual(manifest.contributes.configuration.properties["researchStack.toolsPreset"].enum, ["package-default", "read-and-cite", "find-in-notes", "verify-citations", "zotero-handoff", "research-core", "research-workflow", "research-lab", "research-lab-max", "corpus-lab"]);
   assert.equal(manifest.contributes.configuration.properties["researchStack.toolsPreset"].default, "package-default");
   assert.equal(manifest.contributes.configuration.properties["researchStack.toolsPreset"].scope, "application-overridable", "a preset can be overridden per workspace folder");
@@ -50,17 +50,22 @@ test("the settings contributions describe the shipped presets and commands witho
   }
   const categories = new Set(manifest.contributes.commands.map((item) => item.category));
   assert.deepEqual([...categories], ["Research Toolkit"], "the new commands appear in the same Command Palette group as the rest");
-  assert.equal(manifest.contributes.commands.length, 33, "30 through 0.3.9 plus the three 0.3.10 update and problem-report commands");
+  assert.equal(manifest.contributes.commands.length, 38, "30 through 0.3.9, the three 0.3.10 update and problem-report commands, and the five 0.3.11 integration commands");
   for (const command of ["researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness",
     "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus",
-    "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension"]) {
+    "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension",
+    "researchToolkit.manageIntegrations", "researchToolkit.checkIntegrations", "researchToolkit.activateIntegration",
+    "researchToolkit.setIntegrationApiKey", "researchToolkit.resetIntegration"]) {
     assert.ok(manifest.contributes.commands.some((item) => item.command === command), `${command} is contributed, not just registered`);
   }
 });
 
 test("activation registers both disposable commands and reports the profile preference", async () => {
   const harness = makeHarness();
-  assert.equal(harness.registered.size, 33, "every contributed command is registered, including the 0.3.10 update and report commands");
+  assert.equal(harness.registered.size, 38, "every contributed command is registered, including the 0.3.10 update and report commands and the 0.3.11 integration commands");
+  for (const integrationCommand of ["researchToolkit.manageIntegrations", "researchToolkit.checkIntegrations", "researchToolkit.activateIntegration", "researchToolkit.setIntegrationApiKey", "researchToolkit.resetIntegration"]) {
+    assert.equal(typeof harness.registered.get(integrationCommand), "function", `${integrationCommand} is registered so the panel and the command palette can offer it`);
+  }
   for (const command of ["researchToolkit.retryFailedSteps", "researchToolkit.clearSetupLock", "researchToolkit.openSetupLog", "researchToolkit.copyInstallationDiagnostics"]) {
     assert.equal(typeof harness.registered.get(command), "function", `${command} is registered so the panel can offer it`);
   }
@@ -82,7 +87,7 @@ test("activation registers both disposable commands and reports the profile pref
   assert.equal(harness.values.get("selectedPackage"), "basic");
   assert.equal(harness.output.shown, true);
   for (const subscription of harness.context.subscriptions) subscription.dispose();
-  assert.equal(harness.disposed.length, 34, "every registered command and the status item are disposed with the extension");
+  assert.equal(harness.disposed.length, 39, "every registered command and the status item are disposed with the extension");
 });
 
 test("GUI saves packages/options, reuses its panel, and syncs external settings with sidebar/status", async () => {
@@ -270,11 +275,11 @@ test("the version check is refused when the setting is off, and a published buil
   assert.equal(off.events.updateChecks.length, 0, "a switched-off check reaches no transport at all");
 
   const on = makeHarness({ updateReply: { status: 200, body: JSON.stringify({
-    versions: [{ version: "0.3.11", lastUpdated: "2026-11-07T10:00:00Z", properties: [{ name: "Microsoft.VisualStudio.Code.Engine", value: "^1.140.0" }] }],
+    versions: [{ version: "0.3.12", lastUpdated: "2026-11-07T10:00:00Z", properties: [{ name: "Microsoft.VisualStudio.Code.Engine", value: "^1.140.0" }] }],
   }) } });
   const verdict = await on.registered.get("researchToolkit.checkForUpdates")();
   assert.equal(verdict.state, "update-available");
-  assert.equal(verdict.publishedVersion, "0.3.11");
+  assert.equal(verdict.publishedVersion, "0.3.12");
   assert.equal(verdict.installedVersion, require("../package.json").version);
   assert.equal(on.events.updateChecks.length, 1, "one request");
   assert.equal(on.events.updateChecks[0], "https://marketplace.visualstudio.com/_apis/public/gallery/vscode/michaelprinc/research-stack-toolkit/latest");

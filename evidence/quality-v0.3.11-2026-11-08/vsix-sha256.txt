@@ -1,0 +1,1 @@
+aed24d76db0dda0bb52199c29d1ba067fcebf364152e7a41c52d97c73f5a48fe  dist/research-stack-toolkit-0.3.11.vsix

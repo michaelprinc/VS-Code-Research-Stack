@@ -91,6 +91,9 @@ async function main() {
       // 0.3.10: the published-version check and the problem-report builder. Both are staged explicitly,
       // like every other shipped module, so nothing reaches the artifact that this list did not name.
       "updates.js", "reports.js",
+      // 0.3.11: the integration onboarding. Staged explicitly like every other shipped module, so
+      // nothing reaches the artifact that this list did not name.
+      "integrations.js", "integrationstore.js", "integrationprobe.js",
     ]) {
       fs.copyFileSync(path.join(projectRoot, file), path.join(stageRoot, file));
     }

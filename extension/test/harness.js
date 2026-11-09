@@ -4,14 +4,19 @@ const extension = require("../extension");
 const fs = require("node:fs");
 const path = require("node:path");
 
-function makeHarness({ pickedId = "full", cancel = false, failUpdate = false, initial = {}, folders, trusted = true, diagnosticServices, confirmSetup = true, confirmPrompt = true, documentPath, reportNote = "", reportCancel = false, storageDir = null, updateReply = { status: 404, body: "" } } = {}) {
+function makeHarness({ pickedId = "full", cancel = false, failUpdate = false, initial = {}, initialGlobalState = {}, folders, trusted = true, diagnosticServices, confirmSetup = true, confirmPrompt = true, documentPath, reportNote = "", reportCancel = false, storageDir = null, updateReply = { status: 404, body: "" }, pickButton = null, quickPicks = null } = {}) {
   const registered = new Map();
   const disposed = [];
   const values = new Map(Object.entries(initial));
   const workspaceValues = new Map();
   const folderValues = new Map();
-  const globalState = new Map();
-  const events = { messages: [], writtenFiles: [], createdDirectories: [], updateChecks: [] };
+  const globalState = new Map(Object.entries(initialGlobalState));
+  // 0.3.11: `context.secrets` is the editor's SecretStorage. Every call is recorded, so a test can say exactly what
+  // was stored, under which key, and that nothing outside that key was touched.
+  const secretStore = new Map();
+  const events = { messages: [], writtenFiles: [], createdDirectories: [], updateChecks: [], secrets: [], quickPicks: [] };
+  // 0.3.11: the answers the operator gives to the integration Quick Picks, consumed in the order asked.
+  const quickAnswers = Array.isArray(quickPicks) ? [...quickPicks] : [];
   const panels = [];
   const invoked = [];
   const statusBar = { show() { this.visible = true; }, hide() { this.visible = false; }, dispose() {} };
@@ -106,12 +111,16 @@ function makeHarness({ pickedId = "full", cancel = false, failUpdate = false, in
         // too, so a test can assert that a consent really was a modal and read what it told the operator.
         const buttons = items.filter((item) => typeof item === "string");
         events.messages.push({ kind: "information", text, buttons, options: items.find((item) => item && typeof item === "object") });
+        // 0.3.11: a consent dialog has several buttons and which one the operator pressed is the whole
+        // question. `pickButton` answers a named one; otherwise the first button stands for "yes".
+        if (pickButton && buttons.includes(pickButton)) return pickButton;
         if (buttons.length) return confirmSetup && confirmPrompt ? buttons[0] : undefined;
         return confirmSetup ? "Set up package components" : undefined;
       },
       async showWarningMessage(text, ...items) {
         const buttons = items.filter((item) => typeof item === "string");
         events.messages.push({ kind: "warning", text, buttons, options: items.find((item) => item && typeof item === "object") });
+        if (pickButton && buttons.includes(pickButton)) return pickButton;
         return confirmPrompt ? buttons[0] : undefined;
       },
       // 0.3.10: the problem report asks for a note first. Escape is `undefined`, and the controller must
@@ -140,6 +149,7 @@ function makeHarness({ pickedId = "full", cancel = false, failUpdate = false, in
       createOutputChannel(name) { assert.equal(name, "Research Stack"); return output; },
       async showQuickPick(items, options) {
         events.quickPick = { title: options.title, items };
+        events.quickPicks.push({ title: options.title, items });
         if (options.title === "Choose a tools preset for your goal") {
           const packageId = values.get("selectedPackage") || "recommended";
           const offered = extension.presetsForPackage(packageId).map((item) => item.id);
@@ -148,10 +158,19 @@ function makeHarness({ pickedId = "full", cancel = false, failUpdate = false, in
           assert.match(items.at(-1).description, /Default for this package/);
           return cancel ? undefined : items.find((item) => item.id === pickedId);
         }
-        assert.equal(options.title, "Select a Research Stack package");
-        assert.equal(items.length, 3);
-        assert.equal(items.find((item) => item.id === "recommended").description, "Currently selected");
-        return cancel ? undefined : items.find((item) => item.id === pickedId);
+        if (options.title === "Select a Research Stack package") {
+          assert.equal(items.length, 3);
+          assert.equal(items.find((item) => item.id === "recommended").description, "Currently selected");
+          return cancel ? undefined : items.find((item) => item.id === pickedId);
+        }
+        // 0.3.11: the two integration Quick Picks — which service, then which action. `quickPicks` stands for
+        // what the operator chose, in order; a null entry stands for Escape. An action the controller did not
+        // offer cannot be chosen, because the lookup is over the items the controller actually passed in.
+        if (options.title === "Integrations & Accounts — saved once for this VS Code profile" || /: what do you want to do\?$/.test(options.title)) {
+          const wanted = quickAnswers.shift();
+          return wanted === null || wanted === undefined ? undefined : items.find((item) => item.label === wanted);
+        }
+        throw new Error(`the harness has no Quick Pick answer for "${options.title}"`);
       },
     },
     commands: {
@@ -168,6 +187,13 @@ function makeHarness({ pickedId = "full", cancel = false, failUpdate = false, in
   const context = {
     subscriptions: [],
     globalState: { get: (key) => globalState.get(key), async update(key, value) { globalState.set(key, value); return true; } },
+    // 0.3.11: SecretStorage with the editor's own shape. The value is recorded because the test has to be able to
+    // prove which key a credential landed under — and that it never landed in `globalState`.
+    secrets: {
+      async get(key) { const value = secretStore.get(key); events.secrets.push({ op: "get", key, value }); return value; },
+      async store(key, value) { secretStore.set(key, value); events.secrets.push({ op: "store", key, value }); },
+      async delete(key) { secretStore.delete(key); events.secrets.push({ op: "delete", key, value: undefined }); },
+    },
     extensionUri: { fsPath: path.resolve(__dirname, ".."), toString() { return "extension"; } }, extension: { packageJSON: { version: require("../package.json").version } },
     // 0.3.10: the report file goes to the extension's own storage folder, exactly as in the editor.
     storageUri: storageDir ? { scheme: "file", fsPath: storageDir, path: storageDir, toString() { return storageDir; } } : undefined,
@@ -177,7 +203,7 @@ function makeHarness({ pickedId = "full", cancel = false, failUpdate = false, in
   // can assert how many requests were made — including the case where the answer is none.
   const services = { ...(diagnosticServices || {}), updateTransport: async (url) => { events.updateChecks.push(url); return updateReply; } };
   const api = extension.activateWith(vscode, context, services);
-  return { registered, context, disposed, output, values, workspaceValues, folderValues, globalState, events, panels, statusBar, provider, invoked, api, vscode };
+  return { registered, context, disposed, output, values, workspaceValues, folderValues, globalState, secrets: secretStore, events, panels, statusBar, provider, invoked, api, vscode };
 }
 
 module.exports = { makeHarness };

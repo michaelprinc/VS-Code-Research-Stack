@@ -13,6 +13,8 @@ from pathlib import Path
 from . import __version__
 from .bundle import export_bundle
 from .documents import DocumentError, extract_document
+from .integrations import probe_integrations
+from .machinefacts import read_facts
 from .recommended import add_recommended_workspace
 from .stdio import ensure_utf8_stdio
 from .workspace import initialize_workspace, init_lab_workspace
@@ -96,6 +98,9 @@ def main(argv: list[str] | None = None) -> int:
     bundle = commands.add_parser("export-bundle", help="prepare a manual NotebookLM import folder")
     bundle.add_argument("output", type=Path)
     bundle.add_argument("sources", type=Path, nargs="+")
+    probe = commands.add_parser("probe-integrations", help="read-only Zotero / Semantic Scholar readiness probe")
+    probe.add_argument("--providers", default="zotero,semantic_scholar")
+    commands.add_parser("integration-facts", help="read the machine-level integration facts file: no probe, no request, no Zotero contact")
     args = parser.parse_args(argv)
     try:
         if args.command == "inspect":
@@ -112,6 +117,10 @@ def main(argv: list[str] | None = None) -> int:
             result = verify_sources_cli(args.workspace, args.sources)
         elif args.command == "export-bundle":
             result = export_bundle(args.output, args.sources)
+        elif args.command == "probe-integrations":
+            result = probe_integrations(args.providers)
+        elif args.command == "integration-facts":
+            result = read_facts()
         else:
             result = extract_document(args.document, start=args.start, count=args.count).as_dict()
         # `ensure_ascii=True` is the second layer: the receipt this extension parses is pure

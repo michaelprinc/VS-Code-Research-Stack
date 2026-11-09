@@ -1,0 +1,16 @@
+{
+  "probe": "integrations",
+  "providers": [
+    "zotero"
+  ],
+  "zotero": {
+    "outcome": "not-installed",
+    "code": "ZOTERO_NOT_AVAILABLE",
+    "installed": false,
+    "serverId": null,
+    "detail": "Nothing answered at localhost:23119 and no installation was detected. No library file was opened, nothing was written, no configuration changed."
+  },
+  "warnings": [
+    "The probe is read-only: it writes nothing and reports no credential value."
+  ]
+}

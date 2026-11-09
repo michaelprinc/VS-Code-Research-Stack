@@ -147,6 +147,20 @@ and `components.json` gains the onboarding affordance through `nextAction` and a
 `install.verify` value rather than a new component. The new modules are measured against the ceiling
 by the audit, not assumed to fit.
 
+Measured after implementation, member by member against `dist/research-stack-toolkit-0.3.10.vsix`:
+the payload grew by **66 827 bytes to 1 343 649** across 104 → 108 members, which does not fit the old
+ceiling. `extension/extension.js` +20 069; the three new JS modules +24 578 (`integrations.js` 15 513,
+`integrationprobe.js` 4 889, `integrationstore.js` 4 176); the worker's `integrations.py` +5 998 with
+`cli.py` +339 and `bundle.json` +110; the panel +9 217 (`controls.js` 4 224, `controls.css` 4 023,
+`ui.js` 970); packaged documentation +3 951 (`readme.md` 3 126, `worker/README.md` 825); the two guides
++1 382; `package.json` +923 and `components.json` +189.
+
+The ceiling is this release's own preview guard, not a platform limit, and `scripts/verify_vsix.py`
+names its remedy in its own comment — move payload out, or re-measure. The ceiling was re-measured to
+**1 376 256** with that attribution recorded in the file, leaving 32 607 bytes of headroom for the next
+release. The audit reports `unpackedBytes` on every run, so the next release sees the number rather
+than inheriting an assumption.
+
 ## DD11-11 — The state machine.
 
 ```

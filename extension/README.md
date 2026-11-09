@@ -1,8 +1,28 @@
-# Research Stack Toolkit 0.3.10 — Know When a Newer Release Exists, and Report a Problem Without Sending Your Notes
+# Research Stack Toolkit 0.3.11 — Set Up Zotero and Semantic Scholar Once, and Stop Being Asked Again
 
-Install the components each package actually needs from the VS Code control panel, read **one plain-language verdict for the last component setup** — what completed, what failed, and what to do next — verify real MCP reading, see actual component versions and readiness, and choose a **tools preset shaped by the goal you are working on** so your assistant is offered fewer, better-matched tools. This release adds the two things a locally installed extension was missing: an **update channel** that tells you a newer Toolkit is published and can install it through the Marketplace, and a **problem report** that writes your diagnostics to a file you can read, redacts the personal facts from it, and hands you a draft to send to the maintainer in your own mail program.
+Install the components each package actually needs from the VS Code control panel, read **one plain-language verdict for the last component setup** — what completed, what failed, and what to do next — verify real MCP reading, see actual component versions and readiness, and choose a **tools preset shaped by the goal you are working on** so your assistant is offered fewer, better-matched tools. This release adds **Integrations & Accounts**: one place that detects Zotero and Semantic Scholar, asks only for the decision each service actually needs, and remembers it for every workspace in your VS Code profile.
 
 Start with the [onboarding walkthrough](guides/onboarding.md) or [guide hub](guides/index.md). The hub is assembled from **29 individual component guides**, each with setup, a first task, readiness interpretation, troubleshooting and a maintained official documentation link.
+
+## What 0.3.11 adds
+
+Everything below is covered by the automated suites on this Linux development host. No live Zotero installation, no real Semantic Scholar key and no Windows host is reachable here, so nothing below claims one; the cases that need them are listed as open in `specs/phase-11-integration-onboarding/acceptance.md`.
+
+**One onboarding, not one per project.** Zotero and Semantic Scholar were already named as components, with `install.verify: "none"` — the Toolkit knew they existed and nothing else. **Integrations & Accounts** in the control panel now detects them, records your decision once in the VS Code profile, and shows the same state in every other workspace. Opening a second research project does not restart a guide you already finished.
+
+**Three separate facts, never one "installed" flag.** *Installation* (is it there), *authorization* (did you agree) and *readiness* (does it answer right now) are stored and worded separately. Zotero configured last month and not running today reads **"Configured — Zotero is not answering"**, not "not installed", and the guide does not restart. A Semantic Scholar **429** reads as a temporary capacity limit and leaves your authorization and your key exactly where they were.
+
+**No account, no key, where none is needed.** Zotero local reading uses Zotero's own loopback API and needs no Toolkit account and no Toolkit key. Semantic Scholar works anonymously once you have read its API licence and pressed Activate. An API key is optional and can be added later from the same panel without re-running the guide.
+
+**Consent is yours, and it is dated.** The Toolkit never confirms a provider's licence for you. Activating Semantic Scholar records that *you* reviewed it, against a named licence reference and a timestamp, and the panel says plainly that this record is not a grant of rights and does not replace any consent the provider itself requires. A Toolkit version bump never re-asks; withdrawing your consent does.
+
+**A key stays in VS Code's secret storage.** `context.secrets` holds it. It is never written into `.mcp.json`, `settings.json`, a workspace file, the setup log, the diagnostics text you copy, or a problem report, and it is never sent back to the panel — the panel only shows whether one exists. It reaches a worker process only for the one server that uses it, and only for an integration you authorized. Authorizing or revoking refreshes the tools the assistant is offered without re-installing a component.
+
+**Nothing is probed until you ask.** Activation performs no probe and no request. A readiness check runs when you press it, through the same locked worker that serves the research tools, in a trusted local workspace only — a remote or untrusted workspace gets no local access. Several VS Code windows share one check budget, so they do not each fire a provider request. The Toolkit never writes to Zotero: RIS files for a manual import are still what it prepares.
+
+**Your existing configuration is reported, not replaced.** If your environment already carries `SEMANTIC_SCHOLAR_API_KEY`, `SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED`, `OPENALEX_API_KEY`, `CROSSREF_MAILTO` or `CROSSREF_PLUS_API_TOKEN`, the panel names the variables it found — never their values — and leaves them alone.
+
+**The Toolkit now keeps a small amount of state outside your project, and this page says exactly what is in it.** The research worker writes a request budget, a small response cache and an installation fact into one folder in your OS user's application-data location, so that several Toolkit processes and several VS Code windows stop stampeding the same service. They hold request timing and a classification of what was found — never a key, never a token, never a URL, never a path to your files. See **What the Toolkit writes, and where**.
 
 ## What 0.3.10 adds
 
@@ -58,7 +78,7 @@ If you installed 0.3.6 and **Set up package components** ended with **"Installat
 
 ## Install and open
 
-1. Run **Extensions: Install from VSIX...** in VS Code and choose `research-stack-toolkit-0.3.10.vsix`.
+1. Run **Extensions: Install from VSIX...** in VS Code and choose `research-stack-toolkit-0.3.11.vsix`.
 2. Click the **Research Toolkit** beaker icon in the Activity Bar, then **Open Control Panel**. You can also click the **Research: …** status-bar item or run **Research Toolkit: Open Control Panel** from the Command Palette.
 3. Select the research folder under **Workspace to inspect**, then click **Check components**. Search the list to find a component and inspect its installation, actual version, readiness, evidence and **next action**.
 4. In **Component setup for this package**, review the steps this package offers and click **Set up package components**. Setup starts with a preflight — workspace trust, a local desktop workspace, the host tools the plan needs, the managed paths and the setup lock — and nothing is written or downloaded until that preflight passes. Each step is recorded in the workspace receipt, so a later run resumes instead of repeating finished work.
@@ -71,7 +91,7 @@ Your existing 0.2.0/0.3.0 package and interface preferences are retained. Prefer
 
 ## Component setup, step by step
 
-The install plan is declarative: `components.json` (schemaVersion 2) states, for every component, who installs it, which step provides it, how it is verified and what you should do next. The extension runs only the steps your package needs, in order, and records each one in `.research-toolkit/managed/worker-0.3.10/installation.json`.
+The install plan is declarative: `components.json` (schemaVersion 2) states, for every component, who installs it, which step provides it, how it is verified and what you should do next. The extension runs only the steps your package needs, in order, and records each one in `.research-toolkit/managed/worker-0.3.11/installation.json`.
 
 | Package | Steps offered | What they install |
 |---|---|---|
@@ -93,6 +113,31 @@ The install plan is declarative: `components.json` (schemaVersion 2) states, for
 * Two steps reach the network, and only those two: the **isolated document worker** step syncs its locked Python 3.12 environment, and the optional **notebook analysis environment** step syncs the reviewed `notebooks/analysis` project (`uv sync --locked`). Only the two locked sync steps have a fallback, and only for a recognised lock mismatch: one `uv sync --frozen` run that installs exactly what the lock pins, recorded in the step evidence and the setup log as a fallback rather than as a clean install. It runs only when the toolkit's own check of the same pair says the pair is current — a build whose pair really disagrees is refused instead. The toolkit never runs `uv lock` in a managed runtime and never runs a plain unlocked `uv sync`. No other step downloads anything, and no step starts a kernel. Both honour `researchStack.setupTimeoutSeconds` (default 900 s, allowed 60–3600 s), because a first run can fetch a managed Python 3.12 and the locked packages. Setup runs with a reviewed uv environment: pinned Python 3.12, copy link mode, no progress spinners, no user config file, and a workspace-contained project environment; the `UV_*` variables that would change what the reviewed command means are removed before those values are applied. The MCP reading check that closes the worker step honours the same bound instead of a fixed 90 s. The notebook step first classifies what is already in `notebooks/analysis` — reviewed project, compatible existing project, or neither — refuses a linked environment, and records that `ipykernel` and `matplotlib` import in the environment it created.
 * Setup evidence stays in the workspace: `.research-toolkit/logs/last-setup.json` is the status record the panel reads when it reopens, and `.research-toolkit/logs/setup-<timestamp>.jsonl` is the append-only attempt log. The bootstrap workspace's `.gitignore` ignores `.research-toolkit/logs/` alongside the existing derived-data rules. **Open Setup Log** opens the newest log file, and **Copy Installation Diagnostics** copies the verdict, the host tools, the preflight results, the per-step attempts and the log file path to the clipboard.
 * **Roll back managed runtime** lists the managed runtimes this workspace holds, re-verifies the candidate with the real reading check, and only then points the workspace back at it. The runtime an earlier release installed stays on disk.
+
+## What the Toolkit writes, and where
+
+Everything the Toolkit writes into your **project** is under `.research-toolkit/` and is described above: the managed runtimes, the corpus index, the research record store, the export bundles, and the setup logs.
+
+0.3.11 adds a second location, because some facts are not about a project. The research worker keeps a small amount of state in **one folder in your OS user's application-data location**, under the name `research-stack-toolkit/`:
+
+* **Windows** — `%LOCALAPPDATA%\research-stack-toolkit\`
+* **macOS** — `~/Library/Application Support/research-stack-toolkit/`
+* **Linux** — `$XDG_DATA_HOME/research-stack-toolkit/`, or `~/.local/share/research-stack-toolkit/` when that variable is unset
+* If no per-user directory can be resolved, the Toolkit falls back to the session temp directory and **says so** — the state then is not shared between workspaces, and the diagnostic names the fallback rather than hiding it.
+
+What is in that folder, and what each file may contain:
+
+| File | What it holds | What it never holds |
+|---|---|---|
+| `budget-<provider>.json` | Four numbers: where the current request window started, how many permits were used, when the next request may start, and until when the provider is being waited out. A short-lived lock file with the same name plus `.lock` guards the write and is taken over after 30 seconds if a process died holding it. | Anything about your documents, your identity, your key, or your paths. |
+| `cache-<provider>.json` | Provider metadata for answers already fetched, so the same question is not asked twice. Bounded at **16 entries of at most 32 768 bytes each** (about 0.5 MB worst case) and reused for at most 15 minutes. | A key, a token, a URL, a workspace path, or a path to any file of yours. |
+| `integration-facts.json` | Whether Zotero was found on this machine, how the Toolkit classified what it found, the platform, and the time it looked. Capped at **8 192 bytes**; a write that would exceed the cap is **refused**, not truncated. | A secret, a key-shaped or token-shaped string, a workspace path, or a path to your Zotero library. A value shaped like one of those is refused and the refusal names the rule it broke — without repeating the value. Semantic Scholar never appears in this file: it is a hosted service with nothing on your machine to find. |
+
+Why these three live outside your project: they are shared. The budget is what stops two Toolkit processes, or four VS Code windows, from stampeding the same provider, and a limit that resets when a window closes is not a limit. The installation fact is what stops a second VS Code profile on the same machine from asking you to install something that is already there.
+
+**What is deliberately not in that folder: your API key.** It stays in VS Code's secret storage (`context.secrets`) for the one profile that stored it, and a second profile inherits the installation fact and **nothing else** — not your consent, not your access mode, not your key. Putting a key in a plain file to make it convenient across profiles would undo the rule that keeps it out of every log and report this Toolkit writes.
+
+Deleting the folder is safe and is the whole of the Toolkit's machine-level state: the next check rebuilds it, and you will be asked to confirm consent again in each profile because consent is stored in the profile, not here. Removing the Toolkit's per-profile state is done from the panel with **Reset**, which withdraws your confirmation and says so before it does it.
 
 ## Controls
 

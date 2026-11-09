@@ -1,0 +1,24 @@
+{
+  "probe": "integrations",
+  "providers": [
+    "zotero",
+    "semantic_scholar"
+  ],
+  "zotero": {
+    "outcome": "not-installed",
+    "code": "ZOTERO_NOT_AVAILABLE",
+    "installed": false,
+    "serverId": null,
+    "detail": "Nothing answered at localhost:23119 and no installation was detected. No library file was opened, nothing was written, no configuration changed."
+  },
+  "semanticScholar": {
+    "outcome": "auth-required",
+    "code": "PROVIDER_TERMS_NOT_ACKNOWLEDGED",
+    "detail": "No request was sent; the missing step is the operator's acknowledgement of the Semantic Scholar API licence. At most one bounded metadata request (fixed query, limit 1); no full text downloaded.",
+    "credentialConfigured": false,
+    "licenseAcknowledged": false
+  },
+  "warnings": [
+    "The probe is read-only: it writes nothing and reports no credential value."
+  ]
+}

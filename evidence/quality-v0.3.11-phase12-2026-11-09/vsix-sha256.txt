@@ -1,0 +1,1 @@
+9230704d8cdd49700e83627b67fd16bbb7f70824ee5405100ff0d289806bd584  dist/research-stack-toolkit-0.3.11.vsix

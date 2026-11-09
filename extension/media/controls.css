@@ -74,7 +74,7 @@ input[type="search"] { width: 100%; margin-bottom: 12px; }
 #setup-summary { font-size: 13px; }
 .recent { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; font-size: 12px; color: var(--vscode-descriptionForeground); }
 button.chip { padding: 4px 10px; font-size: 12px; }
-@media (max-width: 700px) { main { padding: 24px 18px; } .packages, .columns, .presets, .estimate, .steps { grid-template-columns: 1fr; } .columns { gap: 0; } }
+@media (max-width: 700px) { main { padding: 24px 18px; } .packages, .columns, .presets, .estimate, .steps, .integrations { grid-template-columns: 1fr; } .columns { gap: 0; } }
  #reading-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; padding: 12px; border: 1px solid var(--vscode-panel-border); }
 
 /* 0.3.6 installation status card */
@@ -106,3 +106,47 @@ button.chip { padding: 4px 10px; font-size: 12px; }
 .install-status .step-error summary { color: var(--vscode-descriptionForeground, #999); font-size: 0.8rem; cursor: pointer; overflow-wrap: anywhere; }
 .install-status .step-error summary:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .install-status .step-error pre { margin: 4px 0 0; padding: 6px 8px; border: 1px solid var(--vscode-panel-border, #555); border-radius: 4px; font-size: 0.78rem; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+
+/* 0.3.11 Integrations & Accounts cards */
+/* 1. The readiness verdict is carried by the card, not by an icon or a colour. Four shapes, one per verdict: a 3 px
+      solid green rule (settled), a 3 px dashed amber rule (a pause: wait, then check again), a 3 px solid red rule
+      (the service did not answer), and no accent at all (nothing has been measured in this workspace). An operator
+      who cannot tell the accent colours apart - colour-blind, a low-contrast theme, a grey printout - still sees
+      which cards carry a rule, which rule is dashed, and reads four different state sentences. Colour is the
+      redundant channel, never the only one.
+   2. The amber verdict is kept off the state sentence: --vscode-editorWarning-foreground is #bf8803 on the light
+      theme, 3.12:1 on white, below the 4.5:1 this file holds 13 px text to. On a 3 px rule it only has to clear 3:1.
+      The red sentence stays, because --vscode-errorForeground measures 6.79:1 on #1e1e1e and 7.50:1 on #ffffff.
+   3. The four classes are the readiness values integrations.js declares: "ready", "degraded", "unavailable",
+      "unchecked". A probe outcome is not a readiness value: not-installed, not-running, api-disabled, unreachable
+      and an auth-required service with no stored key all land on "unavailable"; rate-limited, and an auth-required
+      Semantic Scholar that already has a key, land on "degraded". Styling the outcomes as if they were readiness
+      states would draw six cards for the two services and make one state look like six different problems.
+   4. The accent colours are the ones this file already uses for the same verdicts in the setup steps and the preset
+      note, so a green rule, an amber rule and a red rule mean the same thing everywhere in the panel. */
+.integrations { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px; }
+/* Same card shape as a preset or a setup step. A card that has a verdict gets a 3 px left edge; the readiness class
+   below sets what that rule looks like, so the verdicts differ in the rule and not in the size of the card. */
+.integration-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 14px; border: 1px solid var(--vscode-panel-border); border-left-width: 3px; border-radius: 6px; overflow-wrap: anywhere; }
+.integration-card h3 { margin: 0; font-size: 14px; }
+.integration-card p { margin: 0; }
+/* The timestamps sit at the bottom so cards in one row end level; the buttons stay under them. */
+.integration-card small { margin-top: auto; }
+.integration-card .actions { margin-top: 2px; }
+/* The state sentence is the line an operator reads first, so it keeps the foreground colour and the weight. */
+.integration-state { color: var(--vscode-foreground); font-weight: 600; }
+/* Setup / authorization / readiness / guide / mode / stored key is one dense technical line: smaller and quieter
+   than the sentence above it, and it wraps at the separators instead of cutting a value in half. */
+.integration-dimensions { color: var(--vscode-descriptionForeground); font-size: 11px; overflow-wrap: break-word; }
+/* What the check actually saw, kept below the Toolkit's own sentence and in the same quiet register as the
+   dimensions line: evidence and interpretation must not share a line or a colour. */
+.integration-observed { color: var(--vscode-descriptionForeground); font-size: 11px; overflow-wrap: anywhere; }
+/* The next action is what the operator does after reading the card, so it is not dimmed like the detail above it. */
+.integration-next { color: var(--vscode-foreground); }
+.integration-card.readiness-ready { border-left: 3px solid var(--vscode-charts-green, var(--vscode-focusBorder)); }
+.integration-card.readiness-degraded { border-left: 3px dashed var(--vscode-editorWarning-foreground); }
+.integration-card.readiness-unavailable { border-left: 3px solid var(--vscode-errorForeground); }
+.integration-card.readiness-unavailable .integration-state { color: var(--vscode-errorForeground); }
+/* Nothing has been measured in this workspace, so the card carries no accent: an unmeasured service must not look
+   like a settled one, and it must not look like a broken one either. */
+.integration-card.readiness-unchecked { border-left-width: 1px; }

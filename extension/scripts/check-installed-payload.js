@@ -260,12 +260,29 @@ async function main() {
     assert.match(state.installation.line, /component setup|Installation/, state.installation.line);
     assert.equal(state.installation.toolkitVersion, version, "the installation card is labelled with the packaged release");
     report.commands = registered.size;
-    assert.equal(registered.size, 33, "every declared command is registered (25 through 0.3.8, the five 0.3.9 corpus, freshness and bundle commands, and the three 0.3.10 update and problem-report commands)");
+    assert.equal(registered.size, 38, "every declared command is registered (25 through 0.3.8, the five 0.3.9 corpus, freshness and bundle commands, the three 0.3.10 update and problem-report commands, and the five 0.3.11 integration commands)");
     for (const command of ["researchToolkit.retryFailedSteps", "researchToolkit.clearSetupLock", "researchToolkit.openSetupLog", "researchToolkit.copyInstallationDiagnostics",
       "researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness", "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus",
-      "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension"]) {
+      "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension",
+      "researchToolkit.manageIntegrations", "researchToolkit.checkIntegrations", "researchToolkit.activateIntegration", "researchToolkit.setIntegrationApiKey", "researchToolkit.resetIntegration"]) {
       assert.equal(typeof registered.get(command), "function", `${command} ships registered`);
     }
+    // 0.3.11: the integration card ships in the packaged panel, and the packaged state carries the
+    // four dimensions rather than one readiness flag. A stored key must never appear in the panel HTML.
+    assert.match(panel.webview.html, /Integrations &amp; Accounts/, "the packaged panel names the Integrations & Accounts section");
+    assert.match(panel.webview.html, /data-action="checkIntegrations"/, "the packaged panel offers the integration check");
+    assert.ok(Array.isArray(state.integrations.views) && state.integrations.views.length === 2, "the packaged state carries both integrations");
+    for (const view of state.integrations.views) {
+      for (const dimension of ["installation", "authorization", "readiness", "onboarding"]) {
+        assert.ok(typeof view[dimension] === "string" && view[dimension].length, `${view.id} reports its ${dimension} separately`);
+      }
+    }
+    const zoteroView = state.integrations.views.find((view) => view.id === "zotero");
+    const scholarView = state.integrations.views.find((view) => view.id === "semantic-scholar");
+    assert.equal(zoteroView.consentRequired, false, "Zotero local reading asks for no consent");
+    assert.equal(scholarView.consentRequired, true, "Semantic Scholar asks for the operator's own confirmation");
+    assert.equal(scholarView.authorization, "awaiting-consent", "a fresh install has no authorization, so nothing is injected");
+    assert.ok(!panel.webview.html.includes("SEMANTIC_SCHOLAR_API_KEY"), "the panel HTML does not carry a credential variable's value");
     for (const setting of ["researchStack.uvPath", "researchStack.setupTimeoutSeconds", "researchStack.checkForUpdates"]) {
       assert.ok(manifestPackage.contributes.configuration.properties[setting], `${setting} ships in the manifest`);
     }

@@ -6,9 +6,15 @@ import urllib.error
 
 import pytest
 
-from research_stack import research
-from research_stack.recommended import add_recommended_workspace
+from research_stack import provider_budget, research
+from research_stack.recommended import WORKER_FILES, add_recommended_workspace
 from research_stack.workspace import initialize_workspace
+
+
+@pytest.fixture(autouse=True)
+def _shared_budget_stays_out_of_the_operator_directories(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The request budget is a per-user file outside the workspace; a test run must not write the operator's real one."""
+    monkeypatch.setattr(provider_budget, "budget_directory", lambda _env=None: (tmp_path / "budget", "isolated for this test"))
 
 
 def test_normalize_doi_handles_url_case_and_invalid_values() -> None:
@@ -126,11 +132,93 @@ def test_zotero_item_key_validation_precedes_network(monkeypatch: pytest.MonkeyP
         research.get_zotero_item("not-a-key")
 
 
+class _ZoteroClient:
+    """A stand-in for the loopback client, so a Zotero test never reaches a port."""
+
+    def __init__(self, error: Exception | None = None, body: bytes = b"") -> None:
+        self.error, self.body = error, body
+        self.urls: list[str] = []
+        self.headers: list[dict[str, str]] = []
+        self.timeouts: list[object] = []
+
+    def open(self, request, timeout=None):  # type: ignore[no-untyped-def]
+        self.urls.append(request.full_url)
+        self.headers.append({name.lower(): value for name, value in request.header_items()})
+        self.timeouts.append(timeout)
+        if self.error is not None:
+            raise self.error
+        return _ZoteroAnswer(self.body)
+
+
+class _ZoteroAnswer:
+    def __init__(self, body: bytes) -> None:
+        self.body, self.headers = body, {}
+
+    def read(self, *_args) -> bytes:
+        return self.body
+
+    def __enter__(self) -> "_ZoteroAnswer":
+        return self
+
+    def __exit__(self, *_args) -> bool:
+        return False
+
+
+def _refused(reason: Exception) -> urllib.error.URLError:
+    return urllib.error.URLError(reason)
+
+
+def test_zotero_requests_carry_the_hardening_zotero_10_requires(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A browser-looking request is dropped without a response, and a `localhost` Host can miss an IPv4-only server."""
+    client = _ZoteroClient(error=urllib.error.HTTPError("http://127.0.0.1:23119/api", 403, "Forbidden", {}, None))
+    monkeypatch.setattr(research.urllib.request, "build_opener", lambda *_args: client)
+    with pytest.raises(research.ResearchError) as error:
+        research.list_zotero_collections()
+    assert error.value.code == "ZOTERO_API_DISABLED"
+    assert client.urls == ["http://127.0.0.1:23119/api/users/0/collections?limit=100&format=json"]
+    assert client.headers[0].get("zotero-allowed-request") == "1"
+    assert client.timeouts == [2], "the Zotero timeout stays 2 seconds"
+
+
+def test_the_connector_ping_answers_with_plain_text_at_the_documented_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """/connector/ping answers "Zotero is running" as text, beside /api rather than under it."""
+    client = _ZoteroClient(body=b"Zotero is running")
+    monkeypatch.setattr(research.urllib.request, "build_opener", lambda *_args: client)
+    assert research.zotero_connector_ping() is True
+    assert client.urls == ["http://127.0.0.1:23119/connector/ping"]
+    assert client.headers[0].get("zotero-allowed-request") == "1"
+    assert client.timeouts == [2]
+
+
+@pytest.mark.parametrize(("reason", "code"), [(ConnectionRefusedError(111, "refused"), "ZOTERO_NOT_AVAILABLE"),
+                                              (TimeoutError(), "ZOTERO_NO_ANSWER"),
+                                              (ConnectionResetError(), "ZOTERO_NO_ANSWER")])
+def test_nothing_listening_and_no_usable_answer_are_different_facts(monkeypatch: pytest.MonkeyPatch, reason: Exception, code: str) -> None:
+    """A silent drop reads as a state, not as an absence and not as a crash."""
+    monkeypatch.setattr(research.urllib.request, "build_opener", lambda *_args: _ZoteroClient(error=_refused(reason)))
+    with pytest.raises(research.ResearchError) as error:
+        research._zotero_request("users/0/collections?limit=1")
+    assert error.value.code == code
+
+
+def test_the_ping_counts_an_http_answer_but_never_a_refusal_or_a_drop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The ping answers the question "is Zotero running", so any HTTP answer counts and no answer does not."""
+    monkeypatch.setattr(research.urllib.request, "build_opener", lambda *_args: _ZoteroClient(
+        error=urllib.error.HTTPError("http://127.0.0.1:23119/connector/ping", 403, "Forbidden", {}, None)))
+    assert research.zotero_connector_ping() is True
+    for reason in (ConnectionRefusedError(111, "refused"), TimeoutError(), ConnectionResetError()):
+        monkeypatch.setattr(research.urllib.request, "build_opener", lambda *_args, reason=reason: _ZoteroClient(error=_refused(reason)))
+        assert research.zotero_connector_ping() is False
+
+
 def test_add_recommended_merges_and_is_idempotent(tmp_path) -> None:
     initialize_workspace(tmp_path)
     worker_package = tmp_path / ".research-toolkit/worker/src/research_stack"
     (worker_package / "research.py").unlink()
     (worker_package / "recommended_server.py").unlink()
+    # The shape of the real trap (DD12-14): a Basic workspace created by an earlier release does not
+    # hold the module this release's worker imports, and the upgrade is what has to bring it.
+    (worker_package / "machinefacts.py").unlink()
     extensions_path = tmp_path / ".vscode/extensions.json"
     extensions_path.write_text(json.dumps({"recommendations": ["GitHub.copilot"], "unrelated": True}), encoding="utf-8")
     mcp_path = tmp_path / ".mcp.json"
@@ -153,7 +241,19 @@ def test_add_recommended_merges_and_is_idempotent(tmp_path) -> None:
     assert "research-stack-recommended" in mcp["mcpServers"]
     assert sentinel.read_text(encoding="utf-8") == "user content"
     assert any(name.endswith("research.py") for name in first["created"])
+    assert any(name.endswith("machinefacts.py") for name in first["created"]), \
+        "an upgraded workspace receives the module this release's worker imports, or the first tool call is an ImportError"
+    assert (worker_package / "machinefacts.py").is_file()
     assert second["created"] == []
+
+
+def test_the_recommended_upgrade_lists_the_machine_level_facts_module() -> None:
+    """DD12-14: `WORKER_FILES` is a list, and a module missing from it ships broken to an old workspace."""
+    assert "machinefacts.py" in WORKER_FILES, "the 0.3.11 fact module must be named where the upgrade copies worker modules"
+    assert "provider_budget.py" in WORKER_FILES and "research.py" in WORKER_FILES
+    source = (Path(__file__).resolve().parents[1] / "src/research_stack/recommended.py").read_text(encoding="utf-8")
+    for name in WORKER_FILES:
+        assert f'"{name}"' in source, f"{name} is named in the copy loop this release runs"
 
 
 def test_recommended_profile_delta_matches_schema() -> None:

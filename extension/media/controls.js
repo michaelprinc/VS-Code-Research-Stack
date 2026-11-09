@@ -414,6 +414,81 @@
       row.append(actions); list.append(row);
     }
   }
+  // 0.3.11: the card offers exactly the actions the state model listed for this record, under the labels the model
+  // chose. The renderer decides no action of its own — a card that decides is a card that can offer the wrong thing
+  // in the wrong state. [tooltip, message type]; "guide" carries the component id rather than the provider id.
+  const CARD_ACTIONS = {
+    check: ["One read-only check in the selected workspace. Nothing is checked until you press this.", "checkIntegration"],
+    activate: ["Read both of the provider's agreements and confirm them yourself. The Toolkit never confirms them for you.", "activateIntegration"],
+    guideInstall: ["Opens the official Zotero download page and a short numbered guide. The Toolkit downloads nothing and runs nothing.", "guideIntegrationInstall"],
+    installedNow: ["One check when you say the installation is finished. The Toolkit does not watch for it or poll for it.", "checkIntegration"],
+    apiGuide: ["Opens the guide that names the Zotero setting to change. The Toolkit never changes a Zotero setting.", "guide"],
+    machineFact: ["Asks the Toolkit's own worker to read its machine-level installation record for this OS user. It reaches no service, reads no key and stores no key.", "readIntegrationFacts"],
+    requestKey: ["Opens the provider's own application page and the Toolkit's guide. The Toolkit never applies for you.", "requestApiKey"],
+    provideKey: ["Asks for the key once, into VS Code secret storage for this profile.", "setIntegrationKey"],
+    noKey: ["Keeps the anonymous mode, whose capacity is shared with every other unauthenticated user.", "continueWithoutKey"],
+    replaceKey: ["Stores a new key in VS Code secret storage, replacing the stored one.", "setIntegrationKey"],
+    removeKey: ["Removes the stored key. The integration stays authorized and keeps working anonymously.", "clearIntegrationKey"],
+    testKey: ["Runs one check with the stored key and reports what the service said.", "testIntegrationKey"],
+    deactivate: ["Stops handing this service to the research worker and removes any stored key. Your confirmation record is kept.", "deactivateIntegration"],
+    reset: ["Withdraws your authorization in this profile and removes its stored key. Nothing in your workspace is touched.", "resetIntegration"],
+  };
+  // 0.3.11: the integration cards. The panel renders the states the controller computed and never
+  // shows a stored key — only whether one exists.
+  function renderIntegrations(state) {
+    const list = document.getElementById("integration-list");
+    const note = document.getElementById("integrations-note");
+    list.replaceChildren();
+    const integrations = state.integrations;
+    if (!integrations || !Array.isArray(integrations.views)) { note.textContent = ""; list.textContent = "Integration state is not available in this window yet."; return; }
+    const footprint = integrations.environment && integrations.environment.names.length
+      ? `Already configured outside the Toolkit and left untouched: ${integrations.environment.names.join(", ")} (values are never read).`
+      : "Nothing is configured outside the Toolkit. Saved once for this VS Code profile.";
+    // INT-15 (DD12-02): a machine installation record the Toolkit could not use is said here, not swallowed.
+    note.textContent = integrations.factsNote ? `${integrations.factsNote} ${footprint}` : footprint;
+    for (const view of integrations.views) {
+      const card = document.createElement("article");
+      card.className = `integration-card readiness-${view.readiness}`;
+      const title = document.createElement("h3"); title.textContent = view.title || view.id; card.append(title);
+      const line = document.createElement("p"); line.className = "integration-state"; line.textContent = view.label; card.append(line);
+      const detail = document.createElement("p"); detail.textContent = view.detail; card.append(detail);
+      const dimensions = document.createElement("p"); dimensions.className = "integration-dimensions";
+      dimensions.textContent = `Setup: ${view.installation} · Authorization: ${view.authorization} · Readiness: ${view.readiness} · Guide: ${view.onboarding}`
+        + (view.mode ? ` · Mode: ${view.mode}` : "")
+        + (view.id === "semantic-scholar" ? ` · Stored key: ${view.credentialConfigured ? "present" : "none"}` : "");
+      card.append(dimensions);
+      // What the check actually saw, kept apart from the Toolkit's own sentence, so a person can tell the
+      // evidence apart from the interpretation of it. INT-15 (DD12-02): the installation line says whose
+      // fact it is and when it was taken — a machine fact shown without that reads as this profile's own verdict.
+      const seen = [];
+      if (view.installationProvenance) seen.push(`${view.installationProvenance}${view.installationFactAt ? ` at ${new Date(view.installationFactAt).toLocaleString()}` : ""}`);
+      if (view.evidence) seen.push(`Found: ${String(view.evidence).slice(0, 120)}`);
+      if (view.serverId) seen.push(`Library: ${String(view.serverId).slice(0, 60)}`);
+      if (view.workerDetail) seen.push(`Worker said: ${String(view.workerDetail).slice(0, 200)}`);
+      if (seen.length) {
+        const observed = document.createElement("p");
+        observed.className = "integration-observed";
+        observed.textContent = seen.join(" · ");
+        card.append(observed);
+      }
+      const next = document.createElement("p"); next.className = "integration-next"; next.textContent = `Next: ${view.nextAction}`; card.append(next);
+      const checked = document.createElement("small");
+      checked.textContent = `Last check: ${view.lastCheckAt ? new Date(view.lastCheckAt).toLocaleString() : "not run in this profile yet"}`
+        + (view.lastSuccessfulCheckAt ? ` · last that answered: ${new Date(view.lastSuccessfulCheckAt).toLocaleString()}` : "");
+      card.append(checked);
+      const actions = document.createElement("div"); actions.className = "actions";
+      const componentId = view.id === "zotero" ? "zotero-local-api" : "semantic-scholar-academic-graph";
+      for (const [id, label] of view.actions) {
+        const spec = CARD_ACTIONS[id];
+        if (!spec) continue;
+        const button = document.createElement("button");
+        button.className = "secondary"; button.textContent = label; button.title = spec[0];
+        button.addEventListener("click", () => send(spec[1] === "guide" ? { type: "guide", id: componentId } : { type: spec[1], provider: view.id }));
+        actions.append(button);
+      }
+      card.append(actions); list.append(card);
+    }
+  }
   // One id per outgoing request, so a result can be matched to the action that caused it
   // and a late result for an abandoned request is not shown as the answer to the current one.
   let nextRequestId = 1;
@@ -553,6 +628,7 @@
       renderInstallPlan();
       renderInstallStatus();
       renderRecentPresets();
+      renderIntegrations(message);
       applyControlAvailability();
     } else if (message.type === "result") {
       if (message.requestId !== undefined && pendingRequests.size && !pendingRequests.has(message.requestId)) return;

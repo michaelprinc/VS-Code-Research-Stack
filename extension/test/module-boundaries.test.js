@@ -33,8 +33,14 @@ const REVIEWED = {
   // 0.3.10: the problem-report builder. Text, redaction and a `mailto:` string only — no process, no
   // socket, no file write. The write and the open belong to the controller, where the operator consents.
   "reports.js": [],
+  // 0.3.11: the integration state model, its storage adapter and the worker probe's argv/receipt. All
+  // three are pure: the readiness probe is a worker verb, so no new socket edge joins the package and
+  // `REVIEWED_NETWORK_MODULE` below stays a single name.
+  "integrations.js": [],
+  "integrationstore.js": ["integrations.js"],
+  "integrationprobe.js": ["integrations.js"],
   "ui.js": [],
-  "extension.js": ["ui.js", "diagnostics.js", "runtime.js", "installer.js", "setuplog.js", "status.js", "preflight.js", "steps.js", "hosttools.js", "runner.js", "bundles.js", "updates.js", "reports.js"],
+  "extension.js": ["ui.js", "diagnostics.js", "runtime.js", "installer.js", "setuplog.js", "status.js", "preflight.js", "steps.js", "hosttools.js", "runner.js", "bundles.js", "updates.js", "reports.js", "integrations.js", "integrationstore.js", "integrationprobe.js"],
 };
 const DATA_FILES = ["components.json", "presets.json", "package.json", "vsix-manifest.json"];
 

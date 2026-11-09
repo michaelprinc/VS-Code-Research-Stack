@@ -85,7 +85,7 @@ reachable from this container**; no case in [acceptance.md](acceptance.md) claim
 | NF11-01 | Activation performs no probe and no request. |
 | NF11-02 | No packaged JavaScript member other than `updates.js` gains a socket; the audit still names one. |
 | NF11-03 | A readiness probe runs through the reviewed process boundary (`runner.js`) with a stated timeout. |
-| NF11-04 | The unpacked artifact stays under the reviewed 1 310 720 byte ceiling. |
+| NF11-04 | The unpacked artifact stays under the reviewed ceiling, which this release re-measured from 1 310 720 to 1 376 256 with the growth attributed member by member (DD11-10). |
 | NF11-05 | The webview keeps its CSP, its nonce, and its message whitelist; no secret is sent to it. |
 | NF11-06 | An untrusted or remote workspace gets no local access and no probe. |
 | NF11-07 | Warm readiness work stays inside the host-test budget the 0.3.10 release measured. |

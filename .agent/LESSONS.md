@@ -258,3 +258,51 @@ Report: [docs/research/windows-testing-on-linux-2026-11/](../docs/research/windo
 67. **A successful `vsce package` is not a publishable package.** The 30-keyword limit, the prerelease refusal and the
     PNG icon rule are enforced by the Marketplace or by `publish`, not by `package`. Verify against the server (the
     `extensionquery` probe, `vsce show`) and against `publish --help`, not against a green package step.
+68. **A stored instant and the code that compares it must agree on the type, and a guard that reads "no data" instead of "bad data" turns a type error into an absent feature.** 0.3.11 wrote `lastProbeAt` as ISO text while `readRegistry` and `probeCooldown` accepted only `Number.isFinite` values, so the shared check budget silently never applied and every window believed no check had ever run — the feature was missing while every unit test passed. Prove a cross-window guarantee with two harnesses that share one stored record, not with one harness and a constant.
+69. **A pure module's option name is not a contract unless a wiring test passes the real caller's shape.** `integrationViews({ now })` required a number while every caller passed ISO text, so the staleness sentence could never appear; `interpretReceipt` returns `semanticScholar` while the controller indexed `probed["semantic-scholar"]`, which would have discarded Semantic Scholar's verdict. Neither is visible to a module-level test. The seam between a new module and its first caller needs its own test file.
+70. **A byte-scan capability audit matches words, including the ones in your own comments.** Writing "no new socket" in a docstring made `verify_vsix.py` report that the module introduced a network capability. Describe the absence in the vocabulary the audit is looking for ("no network transport"), and expect a green gate to fail on prose before it fails on code.
+71. **Raise a reviewed byte ceiling only with the growth attributed member by member.** 0.3.11 outgrew the 1 310 720 unpacked ceiling by 65 787 bytes. Diffing the two artifacts member by member turned "raise the limit" into a reviewable statement — which modules grew, by how much, and how much headroom is left — and that is what the next release inherits instead of an unexplained number.
+
+## 0.3.11 phase 12 (2026-11-09) — integration resilience and guided installation
+
+72. **A source-tree scan and a payload scan are different measurements, and only one of them is the gate.**
+    Reviewing Python outbound capability over `src/research_stack/` found one member. Running the same gate
+    over the built VSIX found a second — `extension/bundles/theological-research/scripts/crossref_lookup.py`.
+    A capability that exists only in a generated or bundled copy is invisible to a review of the hand-written
+    tree. Gate the artifact.
+73. **A renderer reading a field the state model never sends is invisible to every test in both modules.**
+    `media/controls.js` read `view.authorized`; `integrationViews` sends `view.authorization`. The card rendered,
+    the "Turn off" button never appeared, and 436 tests stayed green. The fix is not only the field name but a
+    test that enumerates every `view.<field>` the renderer reads and asserts the model sends it.
+74. **Two label tables for one record are the same defect class seen from the other side.** The card and the
+    Quick Pick each had their own action table for the same integration record, so one state could offer two
+    different things. Compute the offers once from the record and have both surfaces render that list, then gate
+    that every id the model can offer has a rendering entry — a silently dropped offer is the mirror of a
+    silently missing field.
+75. **A byte guard on a source file is a proxy metric, not the budget.** `integrations.py` passed a 6 200-byte
+    guard, then outgrew it, while the artifact still had headroom; and the artifact breached its ceiling while
+    every per-file guard passed. Report a guard failure rather than trimming reviewed operator-facing text to
+    clear it, and raise it with the reason recorded in the test.
+76. **A known headroom is not a budget unless something measures the spend before the gate does.** The phase
+    started knowing 10 856 bytes of headroom and spent 39 455. The first thing that measured it was a failing
+    `verify-package`. When a phase is expected to grow the payload, measure the artifact mid-phase, not at the gate.
+77. **A projection that double-counts a generated copy invents a breach.** A new Python module was assumed to
+    ship twice; only `extension/worker/src/research_stack/` is packaged and `src/research_stack/` is the source
+    it is byte-compared against. The projected 1 381 161 did not exist; the measured figure was 1 365 400. Count
+    members from the archive, not from the tree layout.
+78. **A shared provider limit is not an allowance this Toolkit owns, and the wording must say so.** Semantic
+    Scholar's anonymous 1000 requests per second is one pool shared with every unauthenticated caller on Earth.
+    Presenting it as a budget the Toolkit holds invites the operator to believe a refusal is their fault. Label
+    constants with the source, the access date, and whose capacity it is.
+79. **An undocumented provider behaviour must not be designed in as an expectation.** `Retry-After` is absent
+    from Semantic Scholar's documentation and absent on a real 429. Backoff with jitter is the mechanism; a
+    carried `Retry-After` is an opportunity. No operator-facing sentence may promise a wait the provider named.
+80. **A loopback service that binds one address family makes `localhost` a defect.** Zotero binds IPv4 loopback
+    only, so a host where `localhost` resolves to `::1` produces a refusal the probe would report as
+    "not installed" for a running application. Pin `127.0.0.1`, and put the constant in the reviewed bound
+    literals so a revert fails the audit instead of shipping.
+81. **A boundary is a contract and both ends must state the same number.** The Python writer capped the machine-level record at 8 192 bytes; the JavaScript reader capped what it would accept at 4 096. Every test on each side passed. The Toolkit could write a file it would then refuse as oversized. The same shape appeared one field over: the writer accepted `detectedAtMs = 0`, the reader required `> 0`. Cross-check the two contracts after both halves land — a green suite on each side is not a green seam between them.
+82. **A module's own operator-facing sentence goes stale when the module gains a write.** `integrations.py` told the operator the probe "writes nothing" and "nothing was written" after it began recording one machine-level fact outside the workspace. No test could catch it: the sentence is prose, and the assertion pinned the sentence rather than the behaviour. When a component gains a side effect, search its own text for the claim it used to be true.
+83. **A guard that a correctness fix would break is a reason to move the guard, not to shorten the sentence.** `integrations.py` sat at 7 348 under a 7 400 guard; making the write claim accurate needed 172 more bytes. Trimming the statement would have kept a false sentence in the shipped text to preserve a number. The guard moved to 7 600 with the reason recorded in the test.
+84. **A requirement satisfied only by a button press is not satisfied.** The machine-level record was first read only when the operator pressed "What did this machine find?", so a fresh profile still offered guided installation until it asked — the re-asking INT-15.2 exists to prevent. The test passed because it seeded the fact directly. When a requirement says "does not re-ask", the test must reach the state through the same route an operator does.
+85. **Renegotiating a test bound must be done in the open, with the new bound written into the assertion message.** The old assertion said the integrations flow "launches nothing beyond the check the operator asked for". The honest replacement is a stated bound — at most one extra worker call, it must be the facts verb, zero secret reads, zero written files — not a widened number.

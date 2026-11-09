@@ -60,6 +60,11 @@ function controlPanelHtml(webview, extensionUri, Uri) {
 <details id="preset-details"><summary>Context usage and tools in the selected preset</summary><div id="preset-estimate"></div>
 <div class="actions"><button class="secondary" data-action="copyPreset">Copy preset summary</button><button class="secondary" data-action="diagnose">Diagnose tool limit</button></div></details>
 <p class="check-disclosure" id="preset-note"></p></section>
+<section aria-labelledby="integrations-heading"><h2 id="integrations-heading">Integrations &amp; Accounts</h2>
+<p class="check-disclosure" id="integrations-note"></p>
+<div id="integration-list" class="integrations"></div>
+<div class="actions"><button class="secondary" data-action="checkIntegrations" data-readonly="true">Check integrations</button><button class="secondary" data-action="integrations" data-readonly="true">Manage integrations</button></div>
+<p class="check-disclosure">Nothing is checked until you press it. Zotero local reading needs no account and no key. Semantic Scholar works anonymously once you confirm its API licence yourself — the Toolkit never confirms it for you. A key you add is kept in VS Code secret storage, never in your project, your settings, the setup log or a problem report. Your decision is saved once for this VS Code profile, so another project does not ask again; it is not shared with other VS Code profiles.</p></section>
 <div class="columns"><section aria-labelledby="interface-heading"><h2 id="interface-heading">Interface options</h2>
 <label class="option"><input type="checkbox" id="show-status-bar"><span>Show package in the status bar<small>Click it to reopen this panel.</small></span></label>
 <label class="option"><input type="checkbox" id="open-on-startup"><span>Open this panel when VS Code starts<small>Off by default. Saved in your current profile.</small></span></label>
