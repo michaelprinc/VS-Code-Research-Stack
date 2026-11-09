@@ -56,7 +56,13 @@
 > provider; **two real VS Code profiles of one OS user** (the cross-profile reuse is proven against a seeded machine
 > record, not against a second editor profile); `npm run test:host` and `npm run test:browser`, which this container
 > cannot run (no `VSCODE_EXECUTABLE_PATH`, no Playwright, and the session's browser cannot reach this host — both
-> attempted routes are recorded in acceptance.md §5). Committing and tagging remain the user's decision.
+> attempted routes are recorded in acceptance.md §5).
+>
+> **Closed on 9 November 2026.** The user accepted guided-only installation — DD12-15 stands, INT-13B is not
+> implemented and is not to be revisited without a separate capability review — and asked for the work to be committed
+> without a tag. Commit `798c41c` carries the whole 0.3.11 tree (phase 11 plus phase 12); the working tree is clean and
+> no tag exists. The phase-12 goal stays open in the harness only because marking it complete needs a direct human
+> turn.
 
 
 
