@@ -230,10 +230,39 @@ Found by the wiring tests, not by reading the code; each now has a test that fai
 - **Migration reads, never deletes** (DD11-08), and every discarded value is named.
 - **INT-12 and INT-13 left open on purpose** rather than implemented without a threat model.
 
+## Final validation — phase 13, tree `653ce9a`, 13 November 2026
+
+Run in one sweep against the committed tree, working tree clean:
+
+| Check | Command | Result |
+|---|---|---|
+| Node suite | `cd extension && npm test` | **481 tests, 481 pass, 0 fail, 0 skipped** |
+| Panel renderer | `node scripts/panel_renderer_check.js` | **7 assertions, 7 pass, 0 fail, 0 not proven** |
+| VSIX audit | `cd extension && npm run verify-package` | **`result: passed`**, `sourceFilesMatch: true`, 1 446 993 unpacked under the 1 507 328 ceiling |
+| Packaged entry point | `cd extension && npm run check:payload` | **`result: passed`**, 38 commands |
+| Python suite | `uv run --locked python -m pytest -o addopts="" -q tests/` | **386 passed, 0 failed, 0 skipped** |
+| Artifact digest | `sha256sum dist/research-stack-toolkit-0.3.11.vsix` | `e09eee6ffc5efcd42b8b1371e09d3b8d36146c54ab80880e43e12f6fdb646328`, identical across two consecutive builds |
+
+**Consistency review performed.** Every acceptance row in
+[specs/phase-13-integration-correction/acceptance.md](../specs/phase-13-integration-correction/acceptance.md) now
+names an executed test or is recorded in §3 as not run here; the four rows that had been claimed on the strength of
+`test/browser.test.js` were downgraded, then re-earned by `scripts/panel_renderer_check.js`. The gate figures in the
+acceptance table, in [evidence/realhost-2026-11-12/README.md](../evidence/realhost-2026-11-12/README.md) and in this
+file are the same measured numbers. The defect register is P1–P9, J1–J7, M1–M7 — 21, not 20. The disproven Host-header
+hypothesis is recorded as disproven rather than removed.
+
+**What remains owed by the environment, not by the code:** T13-30 a real Zotero 10 on Windows, T13-31 a real Semantic
+Scholar key and a real 429, T13-32 a real Extension Host and a real rendered window, T13-33 two real VS Code profiles
+of one OS user.
+
 ## Next highest-value action
 
-Inside the repository: run the 0.3.11 acceptance cases that need a real host — a Zotero installation answering on
-`localhost:23119` (which turns `not-installed` into a real `ready`/`api-disabled` distinction), one real Semantic Scholar
-key (which is the only way to prove the `api-key` mode end to end), and `npm run test:host` against a real
-`VSCODE_EXECUTABLE_PATH` — each recorded as a new evidence folder. Then the 0.3.10 publication decisions, which are
-unchanged and still gate any release reaching people.
+**On the operator's Windows machine, not in this repository.** Run `python scripts\zotero_local_check.py` there. It is
+the instrument that turns "the check did not work" into one of the named states — the setting is off, the port is held,
+nothing is listening, or the request itself is being rejected — and it is the only way to confirm which of the
+reproduced states the operator is actually in.
+
+Inside the repository, in order: (1) give the readiness probe its own single-attempt bound instead of the research
+retry budget, which is the last known overshoot in the check path; (2) wire `scripts/panel_renderer_check.js` into a
+named npm script so it cannot be forgotten; (3) run `node test/browser.test.js` and `npm run test:host` on a host that
+has Playwright and `VSCODE_EXECUTABLE_PATH`, and record them as a new evidence folder.
