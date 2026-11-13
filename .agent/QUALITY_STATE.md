@@ -255,6 +255,13 @@ hypothesis is recorded as disproven rather than removed.
 Scholar key and a real 429, T13-32 a real Extension Host and a real rendered window, T13-33 two real VS Code profiles
 of one OS user.
 
+**Goal bookkeeping, recorded so the next round does not re-litigate it.** The objective is met and the sweep above was
+re-run in goal round 1 with every gate exiting 0 (`npm test`, `verify-package`, `check:payload`,
+`panel_renderer_check.js`, `pytest`). `update_goal action complete` was still refused with "Final validation evidence is
+required", and the only field that could carry that evidence — `objective` via `action edit` — is refused in an
+automatic round with "this goal operation requires a direct human turn on a top-level agent". The goal therefore stays
+active by harness policy, not by unfinished project work. Closing it needs one direct human turn.
+
 ## Next highest-value action
 
 **On the operator's Windows machine, not in this repository.** Run `python scripts\zotero_local_check.py` there. It is
