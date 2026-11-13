@@ -30,7 +30,9 @@ SCHEMA_VERSION = 1
 # it can legitimately grow to. A write that would pass the bound is a defect to report — the write is
 # refused whole and the file on disk is left exactly as it was. Nothing is ever truncated.
 MAX_FACTS_BYTES = 8_192
-CLASSIFICATIONS = ("ready", "api-disabled", "not-running", "not-installed", "unknown")
+# `auth-required` belongs here because it is evidence about the machine too: something answered on the Zotero
+# port and asked for a credential. Leaving it out would silently discard the one fact that state carries.
+CLASSIFICATIONS = ("ready", "api-disabled", "not-running", "not-installed", "auth-required", "unknown")
 # Semantic Scholar is a hosted endpoint: there is no installation on this machine to record, and giving
 # it a fact would be a claim about the operator's machine that nothing observed.
 FACT_PROVIDERS = ("zotero",)

@@ -151,7 +151,24 @@ MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 # is the one taken: re-measure. The ceiling becomes 1 441 792 (1.375 MiB) — 58 688 bytes of headroom,
 # 4.2 % of the payload, still a gate, and still exactly one 1/16 MiB step (65 536), not a round number
 # chosen to make a build pass.
-MAX_UNPACKED_BYTES = 1_441_792
+# 0.3.11 phase 13 (integration correction from a real operator report on Windows with Zotero 10) re-measures
+# it a third time in the same release, again because the build failed rather than being warned in advance.
+# Measured: 1 445 373 bytes across 110 members — 3 581 over the 1 441 792 ceiling. The chain is recorded:
+# 1 343 649 → 1 365 400 → 1 383 104 → 1 420 824 → 1 445 373. Attribution, member by member against the
+# phase-12 build: worker integrations.py 7 520 → 17 397 (+9 877 — the probe now asks the documented root,
+# then HEAD, then the listing with one retry, and carries what the server actually said); worker research.py
+# 32 187 → 36 333 (+4 146 — per-stage timeouts, the HEAD verb, four new status meanings, the dead 503 mapping
+# removed); worker provider_budget.py 16 943 → 17 384 (+441 — the attempt ceiling now bounds wall-clock, not
+# only sleeping); worker machinefacts.py 10 293 → 10 526 (+233 — a word for the 401 answer); extension.js
+# 118 440 → 122 644 (+4 204 — the verdict reaches the panel, every probe goes through the lock, the facts read
+# is bounded and skipped when busy, the guided-key wording); integrations.js 32 957 → 35 088 (+2 131 — a stale
+# machine fact no longer vetoes guided installation, an action that cannot run carries its reason);
+# media/controls.js 39 475 → 41 871 (+2 396 — the same on the panel); integrationprobe.js +378 (the process
+# bound and the evidence clip). Nothing was moved out and no reviewed file was dropped, so the option this
+# comment names is the one taken: re-measure. The ceiling becomes 1 507 328 (1.4375 MiB) — 61 955 bytes of
+# headroom, 4.3 % of the payload, still exactly one 1/16 MiB step (65 536), not a round number chosen to make
+# a build pass.
+MAX_UNPACKED_BYTES = 1_507_328
 SENSITIVE_NAMES = re.compile(r"(^|/)(\.env(\.|$)|\.venv|node_modules|\.git|corpus|models?|secrets?)(/|$)", re.I)
 # The capability scan is about starting a process or opening a socket. A method call on an object
 # (`SOME_PATTERN.exec(text)` on a RegExp, which `extension/lockfile.js` uses to read a version) is

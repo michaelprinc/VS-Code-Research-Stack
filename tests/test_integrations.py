@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import json
 import re
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -22,11 +24,30 @@ def machine_facts(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.
     return directory
 
 
+ROOT_ANSWER = {"status": 200, "zotero-api-version": "3", "zotero-server-id": "fixture-server"}
+HEAD_ANSWER = {"status": 200}
+# A port that refuses or drops one path refuses or drops `/api/` too, and a Zotero whose local-API preference
+# is off answers 403 at `/api/` as well. Those three mirror themselves unless a test says otherwise.
+_MIRROR_ROOT = ("ZOTERO_NOT_AVAILABLE", "ZOTERO_NO_ANSWER", "ZOTERO_API_DISABLED")
+
+
 def _zotero(monkeypatch: pytest.MonkeyPatch, *, installed: bool, receipt: dict[str, object] | None = None,
-            error: research.ResearchError | None = None, ping: bool = False) -> None:
+            error: research.ResearchError | None = None, ping: bool = False,
+            root: dict[str, object] | research.ResearchError | None = None) -> None:
     """Patch the reused adapter, the connector ping and the installation detection, so no test opens a socket."""
     monkeypatch.setattr(integrations, "detect_zotero_installation", lambda: {"installed": installed, "evidence": "fixture"})
     monkeypatch.setattr(research, "zotero_connector_ping", lambda: ping)
+    if root is None and error is not None and error.code in _MIRROR_ROOT:
+        root = error
+    if isinstance(root, research.ResearchError):
+        def root_refused(refused: research.ResearchError = root) -> dict[str, object]:
+            raise refused
+
+        monkeypatch.setattr(research, "zotero_local_api_root", root_refused)
+        monkeypatch.setattr(research, "zotero_collections_head", lambda: pytest.fail("a stage that got no answer is never followed by a later stage"))
+    else:
+        monkeypatch.setattr(research, "zotero_local_api_root", lambda: root or ROOT_ANSWER)
+        monkeypatch.setattr(research, "zotero_collections_head", lambda: HEAD_ANSWER)
     if error is not None:
         def failing() -> dict[str, object]:
             raise error
@@ -104,34 +125,39 @@ def test_the_confirmed_setting_wording_is_quoted_and_no_other_setting_is_invente
 
 
 def test_the_connector_ping_is_a_fallback_never_an_extra_request(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An answered local API settles the probe; a second request to the same port would be noise."""
+    """An answered local API settles the probe; a third request to the same port would be noise."""
+    _zotero(monkeypatch, installed=True)
     monkeypatch.setattr(research, "zotero_connector_ping", lambda: pytest.fail("the ping is a fallback: it is not owed when the local API answered"))
     monkeypatch.setattr(integrations, "detect_zotero_installation", lambda: pytest.fail("an answered local API is the evidence; no path check is owed"))
-    monkeypatch.setattr(research, "list_zotero_collections", lambda: {"collections": [], "serverId": "fixture-server", "readOnly": True})
     assert integrations.probe_zotero()["outcome"] == "ready"
 
 
-def test_a_refused_local_api_makes_the_ping_worth_asking(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every way the local API can refuse gets the second look, and only a refusal gets it."""
+def test_an_answer_owes_no_ping_and_a_silence_owes_exactly_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 403 is itself an answer, so asking the ping after it proves nothing. A stage that answered nothing is the only case owed."""
     asked: list[str] = []
+    refused = research.ResearchError("ZOTERO_API_DISABLED", "403", evidence="403 Forbidden Local API is not enabled")
+    _zotero(monkeypatch, installed=False, root=refused, error=refused)
     monkeypatch.setattr(research, "zotero_connector_ping", lambda: asked.append("connector/ping") or True)
-    monkeypatch.setattr(integrations, "detect_zotero_installation", lambda: pytest.fail("the ping answered, so no path check is owed"))
-    for code in ("ZOTERO_NOT_AVAILABLE", "ZOTERO_API_DISABLED"):
-        def refused(error: research.ResearchError = research.ResearchError(code, "refused")) -> dict[str, object]:
-            raise error
+    monkeypatch.setattr(integrations, "detect_zotero_installation", lambda: pytest.fail("the 403 answered, so no path check is owed"))
+    result = integrations.probe_zotero()
+    assert result["outcome"] == "api-disabled" and result["installed"] is True
+    assert asked == [], "a refusal that answered is not followed by another request to the same port"
 
-        monkeypatch.setattr(research, "list_zotero_collections", refused)
-        result = integrations.probe_zotero()
-        assert result["outcome"] == "api-disabled" and result["installed"] is True and result["code"] == code
-    assert asked == ["connector/ping", "connector/ping"]
+    silent = research.ResearchError("ZOTERO_NO_ANSWER", "dropped")
+    _zotero(monkeypatch, installed=False, root=silent, error=silent, ping=True)
+    monkeypatch.setattr(research, "zotero_connector_ping", lambda: asked.append("connector/ping") or True)
+    result = integrations.probe_zotero()
+    assert asked == ["connector/ping"], "the ping is asked exactly when a stage got no answer"
+    assert result["outcome"] == "unknown" and result["installed"] is True, "the ping answered, so a Zotero is running"
+    assert "HTTP server is up" in result["detail"] and "documented root request produced no usable answer" in result["detail"], result["detail"]
 
 
 def test_the_three_states_come_from_the_ping_not_from_a_guess(monkeypatch: pytest.MonkeyPatch) -> None:
-    """One sentence used to cover "nothing answered"; the connector ping splits it into three states."""
-    _zotero(monkeypatch, installed=False, error=research.ResearchError("ZOTERO_NOT_AVAILABLE", "refused"), ping=True)
-    refused = integrations.probe_zotero()
-    assert refused["outcome"] == "api-disabled" and refused["installed"] is True, "the ping answers, so Zotero is running"
-    assert OFFICIAL_ZOTERO_SETTING in refused["detail"]
+    """One sentence used to cover "nothing answered"; the ping and the path check split it into states."""
+    _zotero(monkeypatch, installed=False, error=research.ResearchError("ZOTERO_API_DISABLED", "403"), ping=True)
+    refusing = integrations.probe_zotero()
+    assert refusing["outcome"] == "api-disabled" and refusing["installed"] is True, "the 403 is the answer, and the setting is what it names"
+    assert OFFICIAL_ZOTERO_SETTING in refusing["detail"]
 
     _zotero(monkeypatch, installed=True, error=research.ResearchError("ZOTERO_NOT_AVAILABLE", "refused"), ping=False)
     stopped = integrations.probe_zotero()
@@ -141,17 +167,28 @@ def test_the_three_states_come_from_the_ping_not_from_a_guess(monkeypatch: pytes
     absent = integrations.probe_zotero()
     assert absent["outcome"] == "not-installed" and absent["installed"] is False
 
-    details = [state["detail"] for state in (refused, stopped, absent)]
+    details = [state["detail"] for state in (refusing, stopped, absent)]
     assert len(set(details)) == 3, details
     assert all("connector ping" in detail for detail in details[1:]), "both no-answer states say the ping was asked"
 
 
+def test_a_refused_port_names_both_readings_and_never_a_missing_zotero(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Zotero opens 23119 late in startup, and starts no HTTP server at all when the port is already taken."""
+    _zotero(monkeypatch, installed=True, error=research.ResearchError("ZOTERO_NOT_AVAILABLE", "refused"), ping=False)
+    stopped = integrations.probe_zotero()["detail"]
+    assert "late in its startup" in stopped and "already holds it" in stopped, stopped
+    assert "not proof that Zotero is absent" in stopped, stopped
+    _zotero(monkeypatch, installed=False, error=research.ResearchError("ZOTERO_NOT_AVAILABLE", "refused"), ping=False)
+    absent = integrations.probe_zotero()["detail"]
+    assert "still starting answers nothing" in absent and "no evidence of Zotero was found" in absent, absent
+
+
 def test_a_request_that_produced_no_answer_is_a_state_not_a_crash(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Zotero 10 can drop a request without any response: that is `unknown`, not an absence and not a failure."""
+    """Zotero 10 can drop a request without any response: the ping decides which state that silence leaves."""
     _zotero(monkeypatch, installed=False, error=research.ResearchError("ZOTERO_NO_ANSWER", "dropped"), ping=False)
     result = integrations.probe_zotero()
-    assert result["outcome"] == "unknown" and result["code"] == "ZOTERO_NO_ANSWER" and result["installed"] is True
-    assert "no usable answer" in result["detail"] and "which state applies is unknown" in result["detail"]
+    assert result["outcome"] == "not-installed" and result["code"] == "ZOTERO_NO_ANSWER" and result["installed"] is False
+    assert "connector ping" in result["detail"] and "no evidence of Zotero was found" in result["detail"], result["detail"]
 
 
 def test_the_ping_reuses_the_loopback_only_client_and_the_hardened_request() -> None:
@@ -162,16 +199,23 @@ def test_the_ping_reuses_the_loopback_only_client_and_the_hardened_request() -> 
     assert 'ZOTERO_LOCAL_API = "http://127.0.0.1:23119/api"' in source, "Zotero binds IPv4 loopback only"
     assert 'ZOTERO_CONNECTOR_PING = "http://127.0.0.1:23119/connector/ping"' in source, "the ping is a sibling of /api, not a child of it"
     assert '"Zotero-Allowed-Request": "1"' in source, "Zotero 10 drops requests that look like browser requests"
-    api = source.split("def _zotero_request", 1)[1].split("def zotero_connector_ping", 1)[0]
-    assert "ProxyHandler({})" in api and "_NoRedirectHandler()" in api and "timeout=2" in api
+    for name, bound in (("ZOTERO_ROOT_TIMEOUT_SECONDS", 5), ("ZOTERO_LISTING_TIMEOUT_SECONDS", 12), ("ZOTERO_PING_TIMEOUT_SECONDS", 3)):
+        assert f"{name} = {bound}" in source, f"{name} is a reviewed bound, stated once and named at every call"
+    api = source.split("def _zotero_request", 1)[1].split("def zotero_local_api_root", 1)[0]
+    assert "ProxyHandler({})" in api and "_NoRedirectHandler()" in api
+    assert "timeout=timeout" in api, "the one client waits the bound its caller states, and never a bound of its own"
+    head = source.split("def zotero_collections_head", 1)[1].split("def zotero_connector_ping", 1)[0]
+    assert 'method="HEAD"' in head and "build_opener" not in head and "urlopen" not in head, "the path check is a path through the same client"
     ping = source.split("def zotero_connector_ping", 1)[1]
     assert "_zotero_request(ZOTERO_CONNECTOR_PING" in ping, "the ping is a path through the same client"
-    assert "build_opener" not in ping and "urlopen" not in ping and "timeout=" not in ping
+    assert "build_opener" not in ping and "urlopen" not in ping
+    assert "ZOTERO_PING_TIMEOUT_SECONDS" in ping, "the ping names the reviewed bound instead of inventing one"
 
 
 def test_zotero_answered_badly_is_unknown_never_unreachable_and_keeps_its_code(monkeypatch: pytest.MonkeyPatch) -> None:
     """An answer this release cannot classify is `unknown`: it reached Zotero and learned nothing."""
-    for code in ("ZOTERO_NOT_READY", "ZOTERO_NOT_FOUND", "ZOTERO_REQUEST_FAILED", "ZOTERO_SCHEMA_UNEXPECTED", "ZOTERO_RESPONSE_TOO_LARGE"):
+    for code in ("ZOTERO_NOT_FOUND", "ZOTERO_REQUEST_FAILED", "ZOTERO_SCHEMA_UNEXPECTED", "ZOTERO_RESPONSE_TOO_LARGE",
+                 "ZOTERO_REQUEST_REJECTED", "ZOTERO_REQUEST_NOT_ALLOWED", "ZOTERO_API_VERSION_UNSUPPORTED"):
         _zotero(monkeypatch, installed=False, error=research.ResearchError(code, "answered badly"))
         result = integrations.probe_zotero()
         assert result["outcome"] == "unknown" and result["code"] == code
@@ -194,8 +238,8 @@ def _zotero_states(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict[str, objec
 
 def test_the_local_api_is_asked_first_and_its_answer_is_the_installation_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
     """An answered local API settles installation, so no documented path is consulted at all."""
+    _zotero(monkeypatch, installed=True)
     monkeypatch.setattr(integrations, "detect_zotero_installation", lambda: pytest.fail("an answered local API is the evidence; no path check is owed"))
-    monkeypatch.setattr(research, "list_zotero_collections", lambda: {"collections": [], "serverId": "fixture-server", "readOnly": True})
     result = integrations.probe_zotero()
     assert result["outcome"] == "ready" and result["installed"] is True and result["serverId"] == "fixture-server"
     assert "local API" in result["detail"]
@@ -240,13 +284,7 @@ def test_no_zotero_outcome_opens_a_file(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setattr(research, "zotero_connector_ping", lambda: False)
     monkeypatch.setattr(integrations.shutil, "which", lambda _name: str(tmp_path / "zotero"))
     for error in (None, research.ResearchError("ZOTERO_NOT_AVAILABLE", "refused"), research.ResearchError("ZOTERO_API_DISABLED", "403")):
-        if error is None:
-            monkeypatch.setattr(research, "list_zotero_collections", lambda: {"collections": [], "serverId": "fixture-server", "readOnly": True})
-        else:
-            def failing(refused: research.ResearchError = error) -> dict[str, object]:
-                raise refused
-
-            monkeypatch.setattr(research, "list_zotero_collections", failing)
+        _zotero(monkeypatch, installed=True, error=error)
         assert integrations.probe_zotero()["outcome"] in {"ready", "not-running", "api-disabled"}
     assert open(library, encoding="utf-8").read() == "library bytes"
 
@@ -258,6 +296,181 @@ def test_zotero_ready_carries_the_server_id_and_states_that_nothing_was_written(
     assert result["serverId"] == "fixture-server"
     assert "read-only collection listing succeeded" in result["detail"]
     assert "No library file was opened" in result["detail"] and "no configuration changed" in result["detail"]
+
+
+def _answered_error(code: str, http_code: int, reason: str, body: bytes) -> research.ResearchError:
+    """A refusal shaped the way `research.py` raises one: its own code over what the server actually said."""
+    answer = urllib.error.HTTPError("http://127.0.0.1:23119/api", http_code, reason, {}, io.BytesIO(body))
+    return research.ResearchError(code, "the adapter's own sentence", evidence=research._zotero_said(answer))
+
+
+def _dropped_error(code: str, cause: Exception) -> research.ResearchError:
+    """The same shape for a failure with no HTTP answer behind it."""
+    return research.ResearchError(code, "the adapter's own sentence", evidence=research._zotero_said(cause))
+
+
+def test_the_documented_root_is_asked_before_the_collection_listing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Root, then the path check, then the listing — and no fourth request once all three answered."""
+    asked: list[str] = []
+    monkeypatch.setattr(research, "zotero_local_api_root", lambda: asked.append("root") or ROOT_ANSWER)
+    monkeypatch.setattr(research, "zotero_collections_head", lambda: asked.append("head") or HEAD_ANSWER)
+    monkeypatch.setattr(research, "list_zotero_collections", lambda: asked.append("listing") or {"collections": [], "serverId": "fixture-server", "readOnly": True})
+    monkeypatch.setattr(research, "zotero_connector_ping", lambda: pytest.fail("an answered root, path check and listing owe no fourth request"))
+    assert integrations.probe_zotero()["outcome"] == "ready"
+    assert asked == ["root", "head", "listing"], "cheap stages first, and the ping stays a fallback"
+
+
+def test_the_listing_is_the_only_stage_asked_twice_and_only_after_it_answered_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The first listing pays for the library to load; the second is the cheap question, and it is the only repeat."""
+    asked: list[str] = []
+    attempts = {"listing": 0}
+
+    def slow_then_answer() -> dict[str, object]:
+        attempts["listing"] += 1
+        if attempts["listing"] == 1:
+            raise research.ResearchError("ZOTERO_NO_ANSWER", "no answer within 12 seconds", evidence="TimeoutError ")
+        return {"collections": [{"key": "ABCD1234"}], "serverId": "fixture-server", "readOnly": True}
+
+    monkeypatch.setattr(research, "zotero_local_api_root", lambda: asked.append("root") or ROOT_ANSWER)
+    monkeypatch.setattr(research, "zotero_collections_head", lambda: asked.append("head") or HEAD_ANSWER)
+    monkeypatch.setattr(research, "list_zotero_collections", lambda: asked.append("listing") or slow_then_answer())
+    monkeypatch.setattr(research, "zotero_connector_ping", lambda: pytest.fail("a listing that answered owes no ping"))
+    result = integrations.probe_zotero()
+    assert asked == ["root", "head", "listing", "listing"], "one retry of the listing, and nothing else repeated"
+    assert result["outcome"] == "ready" and result["code"] is None
+    assert "first attempt got no answer within 12 seconds and the second answered" in result["detail"], result["detail"]
+    assert "library that was still loading" in result["detail"], "the operator is told what the timeout meant"
+
+
+def test_a_listing_that_answers_nothing_twice_is_reported_without_spending_more_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The probe degrades instead of running on: after the retry it answers at once, and spends nothing further."""
+    asked: list[str] = []
+    silent = research.ResearchError("ZOTERO_NO_ANSWER", "no answer within 12 seconds", evidence="TimeoutError ")
+
+    def failing() -> dict[str, object]:
+        asked.append("listing")
+        raise silent
+
+    monkeypatch.setattr(research, "zotero_local_api_root", lambda: asked.append("root") or ROOT_ANSWER)
+    monkeypatch.setattr(research, "zotero_collections_head", lambda: asked.append("head") or HEAD_ANSWER)
+    monkeypatch.setattr(research, "list_zotero_collections", failing)
+    monkeypatch.setattr(research, "zotero_connector_ping", lambda: pytest.fail("the listing already settled this probe"))
+    monkeypatch.setattr(integrations, "detect_zotero_installation", lambda: pytest.fail("the root answered, so no path check is owed"))
+    result = integrations.probe_zotero()
+    assert asked == ["root", "head", "listing", "listing"], "exactly one retry, then the receipt"
+    assert result["outcome"] == "unknown" and result["code"] == "ZOTERO_NO_ANSWER" and result["installed"] is True
+    detail = result["detail"]
+    assert "collection listing produced no usable answer within 12 seconds" in detail, detail
+    assert "asked a second time and produced none either" in detail and "library has finished loading" in detail, detail
+    assert "root 200" in (result["evidence"] or ""), "the receipt still says the local API itself answered"
+
+
+def test_the_stages_add_up_to_the_worst_case_the_probe_promises() -> None:
+    """The host kills the probe process on a clock; the sum of the stage bounds is what that clock must clear."""
+    worst_case = 2 * research.ZOTERO_ROOT_TIMEOUT_SECONDS + 2 * research.ZOTERO_LISTING_TIMEOUT_SECONDS
+    assert worst_case == 34, "root, path check, listing and its one retry: the number the host's bound is set against"
+    source = (Path(__file__).resolve().parents[1] / "src/research_stack/integrations.py").read_text(encoding="utf-8")
+    assert "34 seconds" in source, "the probe states its own worst case where the host can check it"
+    assert "never asked after the listing has been retried" in source, "the probe degrades instead of spending the rest of the budget"
+
+
+def test_a_401_is_authentication_required_and_is_never_a_missing_credential(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The official page says a read needs no authentication, so a 401 is named without inventing a key flow."""
+    refused = _answered_error("ZOTERO_AUTH_REQUIRED", 401, "Unauthorized", b"WWW-Authenticate: Zotero-API-Key")
+    _zotero(monkeypatch, installed=False, root=refused, error=refused)
+    result = integrations.probe_zotero()
+    assert result["outcome"] == "auth-required" and result["code"] == "ZOTERO_AUTH_REQUIRED"
+    assert result["installed"] is True, "a 401 is an answer on the Zotero port, so Zotero is there"
+    detail = result["detail"]
+    assert "401" in detail and "no authentication" in detail and "not a missing credential" in detail, detail
+    assert "401" in (result["evidence"] or ""), "the receipt carries the status the port actually returned"
+
+
+def test_the_root_answering_and_the_listing_refused_is_never_reported_as_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 404 after an answered root means this request was not accepted, not that Zotero is missing."""
+    _zotero(monkeypatch, installed=False, error=_answered_error("ZOTERO_NOT_FOUND", 404, "Not Found", b"<html><body>Not Found</body></html>"))
+    result = integrations.probe_zotero()
+    assert result["outcome"] == "unknown" and result["code"] == "ZOTERO_NOT_FOUND" and result["installed"] is True
+    detail = result["detail"]
+    assert "answered at /api/" in detail and "did not recognise this request" in detail, detail
+    assert "not installed" not in detail.lower() and "is absent" not in detail.lower(), detail
+    assert "404" in result["evidence"] and "Not Found" in result["evidence"], result["evidence"]
+    assert "root 200" in result["evidence"] and "fixture-server" in result["evidence"], "the root's own headers travel too"
+
+
+def test_a_403_after_an_answered_root_is_not_reported_as_the_preference_being_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The root already said the local API is enabled, so sending the operator to that setting would be wrong."""
+    _zotero(monkeypatch, installed=False, root=ROOT_ANSWER, error=research.ResearchError("ZOTERO_API_DISABLED", "403", evidence="403 Forbidden"))
+    result = integrations.probe_zotero()
+    assert result["outcome"] == "unknown" and result["code"] == "ZOTERO_API_DISABLED" and result["installed"] is True
+    detail = result["detail"]
+    assert "answered at /api/" in detail and "a later request was refused with 403" in detail, detail
+    assert OFFICIAL_ZOTERO_SETTING not in detail, "the setting is not the fact this evidence supports"
+
+
+def test_a_connection_closed_without_an_answer_is_a_state_the_receipt_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Measured defect: this crash used to destroy the whole check instead of being reported."""
+    closed = _dropped_error("ZOTERO_NO_ANSWER", ConnectionResetError(104, "Connection reset by peer"))
+    _zotero(monkeypatch, installed=False, root=closed, error=closed, ping=True)
+    result = integrations.probe_zotero()
+    assert result["outcome"] == "unknown" and result["code"] == "ZOTERO_NO_ANSWER" and result["installed"] is True
+    assert "no usable answer" in result["detail"] and "which state applies is unknown" in result["detail"]
+    assert "ConnectionResetError" in (result["evidence"] or ""), "the receipt says what the port did"
+
+
+def test_an_answer_that_is_not_the_local_api_json_says_what_arrived(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The classification stays honest, and the sentence now names the answer instead of shrugging."""
+    wrong = _dropped_error("ZOTERO_SCHEMA_UNEXPECTED", json.JSONDecodeError("Expecting value", "<html><body>Zotero</body></html>", 0))
+    _zotero(monkeypatch, installed=True, error=wrong)
+    result = integrations.probe_zotero()
+    assert result["outcome"] == "unknown" and result["code"] == "ZOTERO_SCHEMA_UNEXPECTED"
+    assert "not the JSON the local API returns" in result["detail"], result["detail"]
+
+
+def test_an_empty_library_is_ready_and_the_receipt_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty library is a working library: the operator is told that, not left to infer it."""
+    _zotero(monkeypatch, installed=True, receipt={"collections": [], "serverId": "fixture-server", "readOnly": True})
+    result = integrations.probe_zotero()
+    assert result["outcome"] == "ready" and result["code"] is None and result["installed"] is True
+    assert "working empty library" in result["detail"] and "not a failure" in result["detail"], result["detail"]
+
+
+def test_the_servers_own_words_reach_the_receipt_clipped_and_scrubbed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """What the port said is worth carrying, but never a whole answer, a key-shaped run or a file path."""
+    body = rb"see C:\Users\operator\Zotero\zotero.sqlite and the key a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6 now"
+    _zotero(monkeypatch, installed=True, error=_answered_error("ZOTERO_REQUEST_FAILED", 500, "Server Error", body))
+    evidence = integrations.probe_zotero()["evidence"] or ""
+    assert len(evidence) <= 160, f"the receipt carries a short line, not the server's whole answer: {evidence!r}"
+    assert "zotero.sqlite" not in evidence and "Users" not in evidence, evidence
+    assert "a1b2c3d4" not in evidence, evidence
+    assert "500" in evidence and "Server Error" in evidence, evidence
+
+
+def test_a_probe_that_crashes_still_leaves_a_complete_two_provider_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Measured defect: one provider's crash destroyed the whole receipt, so the other was never checked."""
+    def broken() -> dict[str, object]:
+        raise RuntimeError("the Zotero probe itself broke")
+
+    monkeypatch.setattr(integrations, "probe_zotero", broken)
+    _semantic_scholar(monkeypatch, receipt={"records": [{"id": "doi:10.1234/probe"}]})
+    result = integrations.probe_integrations("zotero, semantic_scholar")
+    assert result["providers"] == ["zotero", "semantic_scholar"]
+    assert result["zotero"]["outcome"] == "unknown" and result["zotero"]["code"] == "PROBE_ZOTERO_FAILED"
+    assert "RuntimeError" in result["zotero"]["detail"], result["zotero"]["detail"]
+    assert result["semanticScholar"]["outcome"] == "ready", "the other provider is still checked"
+
+
+def test_a_crashed_probe_still_exits_zero_and_prints_both_receipts(monkeypatch: pytest.MonkeyPatch,
+                                                                    capsys: pytest.CaptureFixture[str]) -> None:
+    """A readiness check that crashes must not leave the host reporting "The integration check failed"."""
+    def broken() -> dict[str, object]:
+        raise RuntimeError("the Semantic Scholar probe itself broke")
+
+    monkeypatch.setattr(integrations, "probe_semantic_scholar", broken)
+    _zotero(monkeypatch, installed=True, receipt={"collections": [{"key": "ABCD1234"}], "serverId": "fixture-server", "readOnly": True})
+    assert main(["probe-integrations", "--providers", "zotero,semantic_scholar"]) == 0, "a readiness check never exits non-zero"
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["zotero"]["outcome"] == "ready" and printed["semanticScholar"]["code"] == "PROBE_SEMANTIC_SCHOLAR_FAILED"
 
 
 def test_semantic_scholar_rate_limit_is_degraded_and_carries_retry_after(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -442,4 +655,22 @@ def test_the_module_carries_no_forbidden_or_outbound_primitive() -> None:
     # is accurate, and the module docstring names the fact file and states that it holds a classification and a
     # timestamp and never a credential. Trimming that statement to keep the old ceiling would have kept a false
     # operator-facing claim in the shipped text, so the guard moved instead. Capability assertions unchanged.
-    assert len(source.read_bytes()) < 7600, "the module is packaged in the worker copy and the artifact has a reviewed byte ceiling"
+    # Raised to 13 900 (module now 13 753) for the measured probe defects, not for a new capability. The module
+    # now (a) asks the documented `/api/` root before the listing and carries its `Zotero-API-Version` and
+    # `Zotero-Server-ID` headers into the receipt, (b) gives a 401, a 404 and a non-JSON answer their own
+    # operator-facing sentence instead of one generic "unknown", (c) carries what the port actually said — the
+    # status, the reason line and the start of the body — clipped to 160 characters with key-shaped runs and
+    # file paths taken out, and (d) returns a complete two-provider receipt when a probe itself raises, because
+    # a readiness check must never crash. No transport call site was added: the module still holds no
+    # `urllib.request`, `build_opener`, `urlopen`, `socket` or `http.client`, all asserted above, and those
+    # assertions are unchanged. The artifact's own ceiling is measured by `scripts/verify_vsix.py`, not here.
+    # Raised again to 17 500 (module now 17 397) for the same measured defects, and still for no new capability.
+    # The probe now asks three stages in place of one request — `/api/`, then `HEAD /api/users/0/collections`,
+    # then the listing — because each answers a different question and the old single request could only answer
+    # one. It states its own worst case (34 seconds) in the probe's docstring because the host kills the probe
+    # process on a clock, retries the listing once because Zotero answers the local API only after the library has
+    # loaded, names which stage got no answer instead of one generic "no usable answer", says what a 400, a 403
+    # that is not the preference, a 501 and a 404 each mean in the operator's words, and says what a refused port
+    # can and cannot mean. No transport call site was added: the module still holds no `urllib.request`,
+    # `build_opener`, `urlopen`, `socket` or `http.client`, all asserted above, and those assertions are unchanged.
+    assert len(source.read_bytes()) < 17500, "the module is packaged in the worker copy and the artifact has a reviewed byte ceiling"

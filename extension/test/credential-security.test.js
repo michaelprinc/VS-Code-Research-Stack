@@ -137,8 +137,9 @@ test("the probe boundary builds one reviewed worker call and refuses an unknown 
   assert.deepEqual(probe.probeArgv({ providers: ["semantic-scholar", "zotero", "semantic-scholar"] }), ["probe-integrations", "--providers", "semantic_scholar,zotero"], "in the order asked, de-duplicated, so one probe checks each service once");
   assert.deepEqual(probe.probeArgv({}), ["probe-integrations", "--providers", "zotero,semantic_scholar"], "asked for nothing, it probes exactly the two services this release knows");
   for (const provider of ["openalex", "ZOTERO", "", null, 7]) assert.throws(() => probe.probeArgv({ providers: [provider] }), TypeError, `${JSON.stringify(provider)} is refused before any command is built, so a typo cannot become a process call`);
-  assert.equal(probe.PROBE_COOLDOWN_MS, 30_000, "one probe per 30 seconds, so a panel refresh cannot hammer a live service");
-  assert.equal(probe.PROBE_TIMEOUT_MS, 20_000, "and the call has a stated timeout (NF11-03), so a hung service cannot hold the panel open");
+  assert.equal(probe.PROBE_COOLDOWN_MS, 10_000, "one probe per 10 seconds: enough that a panel refresh cannot hammer a live service, short enough that the operator's deliberate 'I have installed Zotero — check it now' is not refused because an automatic check spent the window");
+  assert.equal(integrations.probeCooldown({ lastProbeAt: Date.now(), now: Date.now() }).waitMs, probe.PROBE_COOLDOWN_MS, "and the model's own default is the window the probe module publishes, so the two halves cannot drift apart");
+  assert.equal(probe.PROBE_TIMEOUT_MS, 80_000, "and the call has a stated timeout (NF11-03), so a hung service cannot hold the panel open — and it is above the worker's own worst case, so a Zotero still loading its library is not killed mid-check");
 
   const receipt = probe.interpretReceipt({ zotero: { outcome: "not-running", code: "ZOTERO_NO_ANSWER", installed: true }, semantic_scholar: { outcome: "rate-limited", code: "HTTP_429", retryAfter: "31 seconds" } });
   assert.deepEqual(Object.keys(receipt), ["zotero", "semanticScholar"], "the worker's underscore names become the host's camelCase names here, once: a caller that indexes the receipt by `semantic-scholar` gets nothing and silently records no verdict");

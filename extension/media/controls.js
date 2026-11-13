@@ -478,11 +478,22 @@
       card.append(checked);
       const actions = document.createElement("div"); actions.className = "actions";
       const componentId = view.id === "zotero" ? "zotero-local-api" : "semantic-scholar-academic-graph";
+      // Whole seconds, so the tooltip and the host's refusal name the same wait. Only the two buttons that start
+      // a check carry it; nothing else on the card depends on the shared budget.
+      const waitText = Number.isFinite(view.probeWaitMs) && view.probeWaitMs > 0 ? ` The next check is allowed in ${Math.ceil(view.probeWaitMs / 1000)} s.` : "";
+      const blocked = typeof view.probeBlocked === "string" && view.probeBlocked.trim() ? view.probeBlocked.trim() : null;
       for (const [id, label] of view.actions) {
         const spec = CARD_ACTIONS[id];
         if (!spec) continue;
         const button = document.createElement("button");
         button.className = "secondary"; button.textContent = label; button.title = spec[0];
+        // A check this workspace cannot run is shown as unavailable with the reason, not as a live button that
+        // answers a Zotero question with an error about package components. The offer stays visible: an action the
+        // operator cannot see is an action they cannot take once the workspace is set up. Only these two consume
+        // the shared budget, so only these two carry the wait.
+        const startsACheck = id === "check" || id === "installedNow";
+        if (startsACheck && blocked) markUnavailable(button, `${blocked}${waitText}`);
+        else if (startsACheck && waitText) button.title = `${spec[0]}${waitText}`;
         button.addEventListener("click", () => send(spec[1] === "guide" ? { type: "guide", id: componentId } : { type: spec[1], provider: view.id }));
         actions.append(button);
       }
@@ -492,10 +503,15 @@
   // One id per outgoing request, so a result can be matched to the action that caused it
   // and a late result for an abandoned request is not shown as the answer to the current one.
   let nextRequestId = 1;
+  // The ids this panel asked for, oldest first. A request whose result never arrives — a panel disposed while
+  // the host was still working on it — would otherwise stay in the set for the life of the window, so only the
+  // most recent ids are kept: an older one belongs to an action no live host reply can still answer.
+  const PENDING_REQUEST_LIMIT = 25;
   const pendingRequests = new Set();
   function send(message) {
     message.requestId = nextRequestId++;
     pendingRequests.add(message.requestId);
+    if (pendingRequests.size > PENDING_REQUEST_LIMIT) pendingRequests.delete(pendingRequests.values().next().value);
     document.querySelectorAll("button, input, select").forEach((control) => {
       if (isReadOnly(control)) return;
       control.disabled = true;
@@ -631,11 +647,20 @@
       renderIntegrations(message);
       applyControlAvailability();
     } else if (message.type === "result") {
-      if (message.requestId !== undefined && pendingRequests.size && !pendingRequests.has(message.requestId)) return;
-      if (message.requestId !== undefined) pendingRequests.delete(message.requestId);
+      // A result either answers a press this panel made, or it is the host speaking on its own; the id tells the
+      // two apart. An id this panel never sent belongs to an earlier panel — the script restarts on a re-render
+      // while the host is still finishing the previous action — and painting it here would answer a press the
+      // operator never made. A message with no id cannot be matched to a press at all, so it is shown as the
+      // host's own statement and touches no pending request.
+      if (message.requestId !== undefined) {
+        if (!pendingRequests.has(message.requestId)) return;
+        pendingRequests.delete(message.requestId);
+      }
       applyControlAvailability();
       feedback.classList.toggle("error", Boolean(message.error));
-      feedback.textContent = message.error || message.message;
+      // The `textContent` setter turns `undefined` into the word "undefined" inside a live region, so a result
+      // carrying neither field would be read out as that word. The fallback says what the panel can say honestly.
+      feedback.textContent = message.error || message.message || "The Toolkit answered without a message. The cards above show the current state.";
     }
   });
   vscode.postMessage({ type: "ready" });

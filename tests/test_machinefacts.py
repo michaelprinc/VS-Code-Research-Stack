@@ -207,10 +207,15 @@ def test_a_file_that_is_not_the_document_this_module_writes_reads_as_no_facts(ma
 
 
 def test_a_classification_the_host_cannot_read_is_refused(machine_dir: Path) -> None:
-    """The five words are the host's vocabulary; a sixth word would be a claim the panel cannot show."""
+    """These words are the host's vocabulary; a word outside it would be a claim the panel cannot show.
+
+    `auth-required` was added in phase 13 because a 401 from the Zotero port is evidence about the machine —
+    something answered there — and refusing it would have discarded the one fact that state carries. It is one
+    of the outcomes `extension/integrationprobe.js` already knows how to read.
+    """
     refused = record(classification="probably-there")
     assert refused["written"] is False and refused["code"] == "FACTS_CLASSIFICATION_REFUSED"
-    assert set(machinefacts.CLASSIFICATIONS) == {"ready", "api-disabled", "not-running", "not-installed", "unknown"}
+    assert set(machinefacts.CLASSIFICATIONS) == {"ready", "api-disabled", "not-running", "not-installed", "auth-required", "unknown"}
     assert not facts_file(machine_dir).exists()
 
 

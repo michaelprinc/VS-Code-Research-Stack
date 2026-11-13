@@ -62,6 +62,8 @@ const FACT_FOUND = { ready: true, "api-disabled": true, "not-running": true, "no
 // Where the installation dimension got its value, stored with it, so the card can tell "this profile checked
 // it" apart from "another window of the same OS user found this" (INT-15.4).
 const INSTALLATION_SOURCES = Object.freeze(["profile-check", "machine-fact"]);
+// The model is told only that a check cannot run, not which requirement failed.
+const PROBE_BLOCKED_SENTENCE = "The check runs in the Toolkit's locked worker in a trusted local workspace folder, and this workspace does not provide one.";
 const DEFAULTS = {
   zotero: { installation: "unknown", authorization: "not-required", readiness: "unchecked", onboarding: "not-started", lastCheck: null, lastSuccessfulCheckAt: null },
   "semantic-scholar": { installation: "not-applicable", authorization: "awaiting-consent", readiness: "unchecked", onboarding: "not-started", mode: "anonymous", license: { acknowledged: false, reference: null, acknowledgedAt: null }, credentials: { storage: "vscode-secret-storage", configured: false }, keyDecision: "not-offered", lastCheck: null, lastSuccessfulCheckAt: null },
@@ -298,12 +300,18 @@ const ACTION_LABELS = {
   replaceKey: "Replace key", removeKey: "Remove key", testKey: "Test the key", deactivate: "Turn off", reset: "Reset",
 };
 
-function offeredActions(entry, provider) {
+function offeredActions(entry, provider, { installationUnconfirmed = false } = {}) {
   const ids = ["check"];
   if (provider === "zotero") {
-    if (entry.installation === "not-detected") ids.push("guideInstall", "installedNow");
+    // A machine installation fact past its window is still evidence and is still stored, but it no longer answers
+    // the installation question: a month-old confirmation is not a fact about now. The guided offer and the
+    // re-check come back; nothing is deleted.
+    if (entry.installation === "not-detected" || installationUnconfirmed) ids.push("guideInstall", "installedNow");
     if (entry.lastCheck?.outcome === "api-disabled") ids.push("apiGuide");
-    if (entry.onboarding !== "completed") ids.push("activate");
+    // Zotero's guide has no consent step, so `activate` there is the walkthrough, not a grant. Once the operator
+    // has closed it, or a check has reached Zotero, it re-opens the modal and spends the shared 30-second budget.
+    const guideStillOpen = entry.onboarding === "not-started" || entry.onboarding === "in-progress";
+    if (guideStillOpen && entry.readiness !== "ready" && entry.authorization !== "authorized") ids.push("activate");
     // INT-15: the machine record is consulted only when the operator asks for it. It is never consulted on
     // opening a window, and Semantic Scholar is never offered it — a hosted API has no installation fact.
     ids.push("machineFact");
@@ -316,9 +324,12 @@ function offeredActions(entry, provider) {
   return ids.concat("reset").map((id) => [id, ACTION_LABELS[id]]);
 }
 
-function integrationViews(registry, { now } = {}) {
+function integrationViews(registry, { now, canProbe = true } = {}) {
   const base = registry?.providers ? registry : emptyRegistry();
   const instant = epoch(now);
+  // The check budget belongs to the record, not to a window, so the card can name the wait before the press.
+  // `probeCooldown` gets the caller's instant only: with no clock handed in the wait is 0 — this module owns none.
+  const probeWaitMs = instant === null ? 0 : probeCooldown({ lastProbeAt: base.lastProbeAt, now: instant }).waitMs;
   return PROVIDERS.map((provider) => {
     const entry = base.providers[provider] || structuredClone(DEFAULTS[provider]);
     const consentRequired = needsConsent(base, provider);
@@ -332,6 +343,8 @@ function integrationViews(registry, { now } = {}) {
     const platform = typeof entry.installationFactPlatform === "string" && entry.installationFactPlatform.length ? ` on ${entry.installationFactPlatform}` : "";
     const fromMachine = provider === "zotero" && entry.installationSource === "machine-fact";
     const machine = fromMachine && entry.readiness === "unchecked" && entry.installation !== "unknown";
+    // Only where the installation rests on the stale fact: one this profile measured stands on its own.
+    const installationUnconfirmed = provider === "zotero" && factStale && entry.installationSource !== "profile-check";
     let provenance = null;
     let provenanceAt = null;
     if (fromMachine) {
@@ -358,7 +371,9 @@ function integrationViews(registry, { now } = {}) {
       // INT-15: the installation dimension's own provenance, and how old the fact behind it is.
       installationSource: entry.installationSource ?? null, installationProvenance: provenance,
       installationFactAt: provenanceAt, installationFactStale: provenanceAt !== null && factStale,
-      actions: offeredActions(entry, provider),
+      actions: offeredActions(entry, provider, { installationUnconfirmed }),
+      // Whether a check can run here, and how long the shared budget has to wait.
+      probeBlocked: canProbe === false ? PROBE_BLOCKED_SENTENCE : null, probeWaitMs,
       // A pause is named only when the check actually carried one: the provider does not document a wait window,
       // so promising one would be a promise the Toolkit cannot keep.
       detail: key === "degraded" && retryAfter ? `${detail} The check carried a pause of ${retryAfter}.` : detail,
@@ -366,12 +381,15 @@ function integrationViews(registry, { now } = {}) {
     };
     // A "ready" verdict is only as good as the check behind it, and nothing probes on its own (DD11-07).
     if (key === "ready" && instant !== null && entry.lastSuccessfulCheckAt && instant - Date.parse(entry.lastSuccessfulCheckAt) > 86_400_000) view.detail += " That check is more than 24 hours old.";
+    // An installer offer beside a found-on-this-machine line has to say why it is back.
+    if (installationUnconfirmed) view.detail += ` The guided installation is offered again because that confirmation is older than the Toolkit's ${MACHINE_FACT_DAYS}-day window.`;
     return view;
   });
 }
 
-/** One probe per window across every window of the profile, so the cooldown comes from storage, not memory (DD11-09). */
-function probeCooldown({ lastProbeAt, now = Date.now(), cooldownMs = 30000 } = {}) {
+/** One probe per window across every window of the profile, so the cooldown comes from storage, not memory (DD11-09).
+ *  The default is the window `integrationprobe.js` publishes; a test asserts the two agree. */
+function probeCooldown({ lastProbeAt, now = Date.now(), cooldownMs = 10000 } = {}) {
   const started = epoch(lastProbeAt);
   const instant = epoch(now);
   if (started === null || started <= 0 || instant === null) return { allowed: true, waitMs: 0 };
@@ -382,7 +400,7 @@ function probeCooldown({ lastProbeAt, now = Date.now(), cooldownMs = 30000 } = {
 module.exports = {
   SCHEMA_VERSION, PROVIDERS, DIMENSIONS, LICENSE_REFERENCE, LICENSE_URL, API_LICENSE_URL, KEY_DECISIONS, ZOTERO_DOWNLOAD_URL,
   ZOTERO_LOCAL_API_SETTING, API_KEY_APPLICATION_URL, MACHINE_FACT_MAX_AGE_MS, MACHINE_FACT_DAYS, FACT_CLASSIFICATIONS,
-  INSTALLATION_SOURCES, FACT_FOUND, NAMES, emptyRegistry, readRegistry, authorizeSemanticScholar,
+  INSTALLATION_SOURCES, FACT_FOUND, NAMES, PROBE_BLOCKED_SENTENCE, emptyRegistry, readRegistry, authorizeSemanticScholar,
   beginOnboarding, skipOnboarding, revokeIntegration, resetIntegration, setMode, setCredentialConfigured,
   recordKeyDecision, applyMachineFact, recordProbe, isAuthorized, needsConsent, integrationViews, probeCooldown,
 };

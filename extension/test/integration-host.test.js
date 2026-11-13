@@ -20,6 +20,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { makeHarness } = require("./harness");
 const integrations = require("../integrations");
+const integrationProbe = require("../integrationprobe");
 const integrationStore = require("../integrationstore");
 const bundle = require("../worker/bundle.json");
 
@@ -290,7 +291,7 @@ test("the check is one worker call with the reviewed interpreter flags and no ke
     "the probe runs in the locked worker with the same interpreter flags the research tools use");
   assert.ok(!("SEMANTIC_SCHOLAR_API_KEY" in calls[0].options.env), "an integration nobody authorized is not handed a key");
   assert.ok(!calls[0].options.env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED, "nor the licence flag");
-  assert.equal(calls[0].options.timeout, 20000, "the check is bounded by a timeout, so a hung service cannot hold the window open");
+  assert.equal(calls[0].options.timeout, integrationProbe.PROBE_TIMEOUT_MS, "the check is bounded by a timeout, so a hung service cannot hold the window open — and by the bound the probe module publishes, not by a number repeated here");
   assert.equal(calls[0].options.cwd, root, "the check runs in the selected workspace, the same place the research tools run");
 });
 
@@ -687,7 +688,8 @@ test("opening the integrations flow reuses the machine installation fact, with n
   assert.equal(calls.length, 1, "opening the flow is the act that reads the machine record — once, not at activation, not on a timer, not twice for one opening");
   assert.deepEqual(calls[0].args, ["-I", "-B", "-X", "utf8", "-m", "research_stack.cli", "integration-facts"], "the facts verb runs in the locked worker with the same reviewed interpreter flags as the check, and no extra argument");
   assert.equal(calls[0].options.cwd, root, "in the selected workspace, the same place the research tools run");
-  assert.equal(calls[0].options.timeout, 20000, "bounded by the same stated timeout the check has");
+  assert.ok(calls[0].options.timeout > 0 && calls[0].options.timeout <= 5000, "the machine-record read is bounded by its own short bound (5 s at most): it is a local file read by the Toolkit's own worker, not a reach to two services");
+  assert.ok(calls[0].options.timeout < integrationProbe.PROBE_TIMEOUT_MS, "and it is shorter than the probe's bound, so opening this flow cannot hold the operator's lock for the whole check and make \"Check now\" throw (J3)");
   assert.equal(harness.events.secrets.length, 0, "and the machine-fact path read no secret");
   assert.equal(record(harness, "zotero").installation, "detected", "the installation question is answered from the machine record instead of re-asked");
   assert.equal(record(harness, "zotero").installationSource, "machine-fact", "and the record says where the answer came from");
@@ -756,6 +758,15 @@ test("a stale machine fact pre-fills the panel, and the check is still offered a
   assert.equal(before.installationFactAt, new Date(detectedAt).toISOString(), "and names the moment it was detected, so the operator can judge it");
   assert.ok(offers(before, "check"), "the check is still offered");
   assert.equal(checks, 0, "and reading the fact ran no check");
+  // M1: a confirmation older than the window re-opens the guided path, and the host must not then refuse the
+  // button the card just offered. A refusal here would contradict the panel in the same screen.
+  assert.ok(offers(before, "guideInstall") && offers(before, "installedNow"), "and the guided installation is offered again, because that confirmation is no longer current");
+  await panel.receive({ type: "guideIntegrationInstall", provider: "zotero" });
+  const guided = harness.events.messages.at(-1);
+  assert.ok(guided.options && guided.options.modal === true, "pressing it opens the guide as a modal instead of refusing with an information message");
+  assert.ok(guided.buttons.includes("Open the official download page"), "with the official page named as the first thing to do, which is the only thing the Toolkit can honestly point at");
+  assert.match(guided.options.detail, /older than the Toolkit's 7-day window/, "and the guide says why it is being offered again to a machine that already reported an installation");
+  assert.equal(harness.events.external, "https://www.zotero.org/download/", "and the only thing the Toolkit opens is the official page — it downloads nothing and runs nothing itself");
   await panel.receive({ type: "checkIntegration", provider: "zotero" });
   assert.equal(checks, 1, "the check still runs when the operator asks for it — a fact about a moment does not suppress it");
   const after = viewOf(harness, "zotero");
@@ -945,4 +956,223 @@ test("the reader accepts a record at the writer's own size bound and refuses one
   await panel.receive({ type: "readIntegrationFacts" });
   assert.match(panel.messages.at(-1).error, /over the 8192 the Toolkit will read/, "one past the bound is refused whole, with the number named");
   assert.equal(outside.globalState.get(integrationStore.REGISTRY_STATE_KEY), undefined, "and the refusal writes nothing");
+});
+
+// --- the reported defects: the press, the lock, the bound, the capability, the guided path ----------
+// Each of these is a thing a real operator hit: a button that answered "Done.", a second press that
+// started a second worker, a flow opening that held the lock for 20 s, a check offered where no check
+// can run, and a guided modal that named a button the card never shows.
+
+/** Let the host's own async work reach its worker call before pressing again. */
+const settled = () => new Promise((resolve) => setTimeout(resolve, 5));
+async function until(condition, tries = 200) {
+  for (let i = 0; i < tries && !condition(); i += 1) await settled();
+  return condition();
+}
+
+/** A worker call that stays open until the test releases it, so the lock is visibly held. */
+function heldWorker(reply = () => receipt()) {
+  const held = { launched: 0, facts: 0, release: null };
+  held.gate = new Promise((resolve) => { held.release = resolve; });
+  held.runProcess = async (executable, args) => {
+    held.launched += 1;
+    if (args.includes("integration-facts")) { held.facts += 1; return { exitCode: 0, stdout: factsReceipt(), stderr: "" }; }
+    await held.gate;
+    return { exitCode: 0, stdout: reply(), stderr: "" };
+  };
+  return held;
+}
+
+const lastResult = (panel) => panel.messages.filter((item) => item.type === "result").at(-1);
+
+test("pressing Check now answers the panel with the verdict the check produced, not with \"Done.\" (J1)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const answering = makeHarness({
+    folders: foldersFor(root), initial: GOAL,
+    diagnosticServices: { runProcess: async () => ({ exitCode: 0, stdout: receipt({ zotero: { outcome: "ready", code: "OK", installed: true, serverId: "Zotero 7" } }), stderr: "" }) },
+  });
+  const panel = answering.api.openControlPanel();
+  await panel.receive({ type: "checkIntegration", provider: "zotero", requestId: 41 });
+  const answer = lastResult(panel);
+  assert.equal(answer.requestId, 41, "the verdict is matched to the press that asked for it");
+  assert.equal(answer.error, undefined, "the check ran, so the panel is not shown an error");
+  assert.notEqual(answer.message, "Done.", "the panel is not left with a word that says nothing about the service");
+  assert.match(answer.message, /^Zotero — Ready: The last check reached the service\.$/, "the sentence names the service and the state the check found, in the card's own words");
+
+  const missing = makeHarness({ folders: foldersFor(root), initial: GOAL, diagnosticServices: { runProcess: async () => ({ exitCode: 0, stdout: receipt(), stderr: "" }) } });
+  const missingPanel = missing.api.openControlPanel();
+  await missingPanel.receive({ type: "checkIntegration", provider: "zotero", requestId: 42 });
+  const verdict = lastResult(missingPanel);
+  assert.match(verdict.message, /^Zotero — Not installed: No Zotero was found on this machine\./, "a check that found nothing says so back to the button that asked for it");
+  assert.ok(!/Done\./.test(verdict.message), "and the operator is never told \"Done.\" about a service the check could not find");
+
+  const both = makeHarness({ folders: foldersFor(root), initial: GOAL, diagnosticServices: { runProcess: async () => ({ exitCode: 0, stdout: receipt(), stderr: "" }) } });
+  await run(both, "researchToolkit.checkIntegrations");
+  const shown = both.output.lines.at(-1);
+  assert.match(shown, /Zotero — Not installed:/, "the Output channel keeps the same sentences the panel was given");
+  assert.match(shown, /Semantic Scholar — Requires your confirmation:/, "for both services, in the order the operator reads them");
+});
+
+test("a second check while one is running is refused with the reason, instead of starting a second worker (J2)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const held = heldWorker();
+  const harness = makeHarness({
+    folders: foldersFor(root), initial: GOAL, quickPicks: ["Zotero", "Check now"], pickButton: "Start checking Zotero",
+    diagnosticServices: { runProcess: held.runProcess },
+  });
+  const running = run(harness, "researchToolkit.checkIntegrations");
+  try {
+    assert.ok(await until(() => held.launched >= 1), "the first check reached its worker call");
+    assert.equal(harness.api.state().busy, true, "and the panel is told a check is running, so its buttons are not live mid-check");
+    const panel = harness.api.openControlPanel();
+    await panel.receive({ type: "checkIntegration", provider: "zotero" });
+    assert.match(lastResult(panel).error, /already running\. Wait for it to finish\./, "the card's Check now is refused with the reason, not queued behind the first check");
+    await assert.rejects(() => run(harness, "researchToolkit.activateIntegration", "zotero"), /already running/, "so is the guided \"Start checking Zotero\" press");
+    await assert.rejects(() => run(harness, "researchToolkit.manageIntegrations"), /already running/, "and so is the Quick Pick's \"Check now\"");
+    assert.equal(held.launched, 1, "none of the three presses started a second worker, and none spent the shared check budget");
+  } finally {
+    held.release();
+    await running;
+  }
+  assert.equal(held.launched, 1, "the one check that was allowed ran exactly once");
+  assert.equal(harness.api.state().busy, false, "and the lock is released when it finishes");
+});
+
+test("opening the integrations flow reads the machine record on its own short bound, not the probe's 20 s (J3)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const calls = [];
+  const harness = makeHarness({ folders: foldersFor(root), initial: GOAL, quickPicks: ["Zotero", null], diagnosticServices: { runProcess: factsServices(undefined, undefined, calls) } });
+  await run(harness, "researchToolkit.manageIntegrations");
+  assert.equal(calls.length, 1, "opening the flow still consults the machine record once — the deliberate read survives the fix");
+  assert.deepEqual(calls[0].args, ["-I", "-B", "-X", "utf8", "-m", "research_stack.cli", "integration-facts"], "and it is still the facts verb and nothing else");
+  assert.ok(calls[0].options.timeout > 0 && calls[0].options.timeout <= 5000, "the read is bounded by its own short bound (5 s at most): it is a local file read by the Toolkit's own worker, not a reach to two services");
+  assert.ok(calls[0].options.timeout < integrationProbe.PROBE_TIMEOUT_MS, "and it is shorter than the probe's bound, so opening this flow cannot hold the operator's lock for the whole check");
+});
+
+test("opening the integrations flow while a check is running skips the machine-record read and says why (J3)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const held = heldWorker();
+  const harness = makeHarness({ folders: foldersFor(root), initial: GOAL, quickPicks: ["Zotero", null], diagnosticServices: { runProcess: held.runProcess } });
+  const running = run(harness, "researchToolkit.checkIntegrations");
+  try {
+    assert.ok(await until(() => held.launched >= 1), "a check is running when the operator opens the integrations flow");
+    await run(harness, "researchToolkit.manageIntegrations");
+    assert.equal(held.facts, 0, "no machine-record read was launched while the check held the lock, and none was queued behind it");
+    const note = harness.api.state().integrations.factsNote;
+    assert.match(note, /A setup or a check is already running, so this opening did not read the machine installation record/, "the reason is said in the panel instead of the read being attempted anyway");
+    assert.match(note, /Press "What did this machine find\?" once it finishes\./, "and the operator is told how to get it afterwards");
+    const row = harness.events.quickPicks[0].items.find((item) => item.id === "zotero");
+    assert.match(row.detail, /did not read the machine installation record/, "and it is in front of the operator in the flow they just opened");
+    assert.equal(held.launched, 1, "opening the flow added no worker call of any kind");
+  } finally {
+    held.release();
+    await running;
+  }
+  assert.equal(held.facts, 0, "and the skipped read stayed skipped");
+});
+
+test("the host states whether a check could run here at all, so a workspace with no worker is not offered one (J4)", async (t) => {
+  const noWorker = makeHarness({ folders: foldersFor(await scratch(t)), initial: GOAL });
+  await assert.rejects(() => run(noWorker, "researchToolkit.checkIntegrations"),
+    /Set up package components before checking integrations/, "the actionable error is kept for a press that does get through");
+  assert.equal(noWorker.api.state().integrations.canProbe, false, "and the host has already told the model that no check can run in this workspace");
+
+  const { root } = await workerWorkspace(t);
+  const services = { runProcess: async () => ({ exitCode: 0, stdout: receipt(), stderr: "" }) };
+  const withWorker = makeHarness({ folders: foldersFor(root), initial: GOAL, diagnosticServices: services });
+  await run(withWorker, "researchToolkit.checkIntegrations");
+  assert.equal(withWorker.api.state().integrations.canProbe, true, "in a workspace that has the locked worker the host says a check can run");
+
+  const untrusted = makeHarness({ folders: foldersFor(root), initial: GOAL, trusted: false, diagnosticServices: services });
+  await assert.rejects(() => run(untrusted, "researchToolkit.checkIntegrations"), /trusted local workspace/);
+  assert.equal(untrusted.api.state().integrations.canProbe, false, "an untrusted workspace gets no check, whatever files it has on disk");
+});
+
+test("the host passes its probe capability into the state model, as the contract fixes it (J4)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const seen = [];
+  const real = integrations.integrationViews;
+  integrations.integrationViews = (registry, options) => { seen.push(options); return real(registry, options); };
+  t.after(() => { integrations.integrationViews = real; });
+  const harness = makeHarness({ folders: foldersFor(root), initial: GOAL, diagnosticServices: { runProcess: async () => ({ exitCode: 0, stdout: receipt(), stderr: "" }) } });
+  await run(harness, "researchToolkit.checkIntegrations");
+  const panel = harness.api.openControlPanel();
+  await panel.receive({ type: "ready" });
+  assert.ok(seen.some((options) => options.canProbe === true), "the model is asked for its views with `canProbe: true` in a workspace that has the locked worker");
+  const state = panel.messages.filter((item) => item.type === "state").at(-1);
+  assert.equal(state.integrations.canProbe, true, "and the panel state carries the same answer the model was given");
+  assert.ok(Number.isFinite(state.integrations.cooldownMs) && state.integrations.cooldownMs > 0, "the cooldown budget is still handed to the panel beside it");
+  assert.ok(Number.isFinite(state.integrations.lastProbeAt), "and so is the instant of the last check, which is what a wait is measured from");
+});
+
+test("the guided key request names the step that actually exists: activate first, then \"I already have a key\" (J5)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const harness = makeHarness({ folders: foldersFor(root), initial: GOAL, pickButton: "Open the official application page" });
+  const panel = harness.api.openControlPanel();
+  await panel.receive({ type: "requestApiKey", provider: "semantic-scholar" });
+  const detail = lastMessage(harness).options.detail;
+  assert.match(detail, /Activate the integration first/, "the modal names the activation step, because it is the step that makes a key storable at all");
+  assert.match(detail, /you must accept the provider's terms before the Toolkit will store or use a key/, "and says why the order is what it is");
+  assert.ok(detail.indexOf("Activate the integration first") < detail.indexOf("\"I already have a key\""), "the key box comes after activation, not before it");
+  assert.match(detail, /emails the key to you/, "every existing promise is kept: how the key arrives");
+  assert.match(detail, /never receives, stores or sees that email/, "that the Toolkit is not in that path");
+  assert.match(detail, /never asks for a key in a chat, a workspace file or a log/, "and never asks for one anywhere else");
+  assert.match(detail, /secret storage for this VS Code profile only/, "and where the key lives once pasted");
+  assert.match(detail, /never in a workspace file, a setting, a log or a problem report/, "and where it does not");
+  assert.match(detail, /one request per second across all endpoints/, "and what a key buys");
+  assert.equal(harness.secrets.size, 0, "the modal stored nothing and asked for nothing");
+
+  const guided = makeHarness({ folders: foldersFor(root), initial: GOAL, pickButton: "Activate without an API key", reportNote: KEY });
+  assert.ok(!offers(viewOf(guided, "semantic-scholar"), "provideKey"), "before activating, the card offers no key box — which is exactly why the modal says activate first");
+  await run(guided, "researchToolkit.activateIntegration", "semantic-scholar");
+  assert.ok(offers(viewOf(guided, "semantic-scholar"), "provideKey"), "after activating, the button the modal named is on the card");
+  await run(guided, "researchToolkit.setIntegrationApiKey", "semantic-scholar");
+  assert.equal(guided.secrets.get(integrationStore.secretKey("semantic-scholar")), KEY, "and the key lands where the modal said it would");
+  const unactivated = makeHarness({ folders: foldersFor(root), initial: GOAL, reportNote: KEY });
+  await assert.rejects(() => run(unactivated, "researchToolkit.setIntegrationApiKey", "semantic-scholar"),
+    /Activate the integration before adding a key/, "the refusal the modal describes is still the refusal the host gives");
+});
+
+test("the Output channel carries a failure sentence only when the check did not answer (J6)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const ready = makeHarness({
+    folders: foldersFor(root), initial: GOAL,
+    diagnosticServices: { runProcess: async () => ({ exitCode: 0, stdout: receipt({ zotero: { outcome: "ready", code: "OK", installed: true, serverId: "Zotero 7" }, semanticScholar: { outcome: "ready", code: "OK" } }), stderr: "" }) },
+  });
+  await run(ready, "researchToolkit.checkIntegrations");
+  const shown = ready.output.lines.at(-1);
+  assert.match(shown, /Zotero — Ready: The last check reached the service\./, "the verdict sentence is there");
+  assert.ok(!/Zotero answered\.|Semantic Scholar answered\./.test(shown), "and no failure sentence is printed beside a check that answered — the old filter never fired, so both were");
+
+  const refused = makeHarness({
+    folders: foldersFor(root), initial: GOAL,
+    diagnosticServices: { runProcess: async () => ({ exitCode: 0, stdout: receipt({ zotero: { outcome: "api-disabled", code: "ZOTERO_API_DISABLED", installed: true } }), stderr: "" }) },
+  });
+  await run(refused, "researchToolkit.checkIntegrations");
+  const bad = refused.output.lines.at(-1);
+  const sentence = integrationProbe.describeProbeFailure("zotero", { outcome: "api-disabled", code: "ZOTERO_API_DISABLED", detail: null, retryAfter: null, installed: true, serverId: null, evidence: null });
+  assert.ok(sentence, "the probe has a failure sentence for a refusing Zotero");
+  assert.match(bad, /Zotero — Installed — Zotero is refusing local access/, "the verdict sentence names what the check found");
+  assert.ok(bad.includes(sentence), "and the probe's own sentence is printed under it, where the operator reads it");
+});
+
+test("a refused re-check names the seconds that remain and what to do next (J7)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const seeded = {
+    schemaVersion: integrations.SCHEMA_VERSION, updatedAt: null, lastProbeAt: Date.now() - 1_000,
+    providers: { zotero: { installation: "detected", authorization: "not-required", readiness: "ready", onboarding: "not-started", lastCheck: null, lastSuccessfulCheckAt: null } },
+  };
+  const harness = makeHarness({
+    folders: foldersFor(root), initial: GOAL, initialGlobalState: { [integrationStore.REGISTRY_STATE_KEY]: seeded },
+    diagnosticServices: { runProcess: async () => ({ exitCode: 0, stdout: receipt({ zotero: { outcome: "ready", code: "OK", installed: true, serverId: "Zotero 7" } }), stderr: "" }) },
+  });
+  const remaining = Math.ceil((integrationProbe.PROBE_COOLDOWN_MS - 1_000) / 1000);
+  await assert.rejects(() => run(harness, "researchToolkit.checkIntegrations"), (error) => {
+    assert.match(error.message, new RegExp(`allowed in ${remaining} s`), "the refusal names the wait that remains, in seconds, whatever the shared budget is set to");
+    assert.match(error.message, /press Check now again/, "and says what the operator does next, instead of leaving the press hanging");
+    assert.match(error.message, /share one check budget/, "and why several windows cannot all probe");
+    assert.match(error.message, /the last verdict is still on the card/, "and says that nothing they did was lost");
+    assert.ok(!/is \d+ s old/.test(error.message), "it is not the age of the last check, which is a different number from the wait");
+    return true;
+  }, "the guided re-check refusal is actionable at the moment it is read");
 });

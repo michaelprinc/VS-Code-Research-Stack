@@ -1,6 +1,39 @@
 # Quality state — Research Stack Toolkit 0.3.11 (unified integration onboarding for Zotero and Semantic Scholar)
 
-> **Phase 12 is implemented and verified on top of this state; it is not committed.** Plan of record:
+> **PHASE 13 IN PROGRESS — integration correction from a real-host report (12 November 2026).** An operator ran
+> 0.3.11 on **Windows with Zotero 10** and reported: Zotero was installed and correctly detected, the GUI checks
+> failed, **"Check now" did not work correctly**, and the guided Semantic Scholar key flow had a problem. Plan of
+> record: [specs/phase-13-integration-correction/spec.md](../specs/phase-13-integration-correction/spec.md) — 20
+> defects registered (P1–P7 worker, J1–J7 host, M1–M6 model/panel) with decisions DD13-01…DD13-09.
+> **Reproduced here, not assumed:** the shipped probe was run against an emulated Zotero on the real port
+> `127.0.0.1:23119` — a server that closes without answering **crashes** the probe with `RemoteDisconnected`, and
+> 401 / 404 / a non-JSON 200 all collapse to the same generic `unknown` sentence, so the Toolkit cannot tell the
+> operator what Zotero said. Primary source read directly: the official
+> [Zotero Local API](https://www.zotero.org/support/dev/web_api/v3/local_api) — reads need **no** authentication,
+> a disabled preference gives **403**, the local API has **no rate limits**, ask `/api/` first, Zotero 10+ adds
+> `Zotero-Server-ID`, and Zotero 10+ **writes** need a user-approved local key (the Toolkit must not trigger that
+> dialog). New operator-facing instrument: [scripts/zotero_local_check.py](../scripts/zotero_local_check.py)
+> (not packaged, not installed) — verified against three emulated states, each giving the right verdict and exit
+> code. Evidence: [evidence/realhost-2026-11-12/README.md](../evidence/realhost-2026-11-12/README.md).
+> **Open, and recorded as open:** whether Zotero 10's local API accepts `Host: 127.0.0.1:23119` or requires
+> `localhost:23119`; whether `users/0` and `format=json` are right on the local API; what Windows binds 23119 to.
+> None of these can be answered in this container.
+>
+> **Phase 13 measured, current.** Node **481 tests, 481 pass, 0 fail, 0 skipped** (was 468). Python **386 passed,
+> 0 failed, 0 skipped** (was 352). Artifact **110 members, 481 282 packed, 1 445 373 unpacked,
+> `sourceFilesMatch: true`, `result: passed`**, sha256 `84f206c5…`, reproduced byte-identically by a second build.
+> Payload check passed with **38 commands unchanged**. **The byte ceiling was breached again and moved again**:
+> 1 445 373 against 1 441 792 — 3 581 over. Nothing was moved out and no reviewed file was dropped; the ceiling
+> moved one 1/16 MiB step to **1 507 328** with member-by-member attribution in `scripts/verify_vsix.py`. The chain
+> is recorded: 1 343 649 → 1 365 400 → 1 383 104 → 1 420 824 → **1 445 373**. Acceptance:
+> [specs/phase-13-integration-correction/acceptance.md](../specs/phase-13-integration-correction/acceptance.md)
+> (T13-01…T13-33).
+>
+> **The defect this phase almost missed.** `CALL_CEILING_MS` documented that no attempt loop outlives the caller's
+> patience, but it counted only the pauses the loop slept — four 15-second timeouts ran to ~66 s against a 20 s
+> promise. Both sides of the boundary had tests that passed. A named ceiling must bound what its name claims.
+>
+> **Phase 12 is implemented, verified and committed** (`798c41c`, `9a6c726`, `32b3b38`, `8001c80`; no tag). Plan of record:
 > [specs/phase-12-integration-resilience/](../specs/phase-12-integration-resilience/) —
 > [spec.md](../specs/phase-12-integration-resilience/spec.md),
 > [design.md](../specs/phase-12-integration-resilience/design.md) (DD12-01…DD12-20),

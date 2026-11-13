@@ -212,6 +212,32 @@ def test_a_timeout_uses_the_same_bounded_schedule_as_a_429(budget_dir: Path) -> 
     assert sum(clock.slept) <= provider_budget.RETRY_MAX_TOTAL_MS
 
 
+def test_a_slow_request_counts_against_the_ceiling_as_much_as_a_sleep_does(budget_dir: Path) -> None:
+    """Defect P8: `CALL_CEILING_MS` says no attempt loop outlives the caller's patience.
+
+    It used to count only the pauses the loop slept. Four requests that each timed out after 15 seconds
+    slept almost nothing, so the loop ran to about 66 seconds against a 20-second promise — and that is what
+    killed the readiness probe mid-check. A request that takes 15 seconds has spent the patience too, whether
+    or not the loop slept.
+    """
+    clock = Clock()
+    calls: list[str] = []
+
+    def slow_then_fail(url: str, _headers: dict[str, str] | None = None):
+        calls.append(url)
+        clock.now += 15_000  # the request itself consumed the time; no sleep was involved
+        raise Unreachable()
+
+    result = budget(budget_dir, clock).run(slow_then_fail, URL)
+    assert result["deferred"] == "exhausted", "the loop still reports what it ran out of, rather than pretending it finished"
+    assert len(calls) < provider_budget.RETRY_MAX_ATTEMPTS, (
+        f"the loop stopped after {len(calls)} slow request(s) instead of spending all "
+        f"{provider_budget.RETRY_MAX_ATTEMPTS} attempts, because the time the requests took counts")
+    assert len(calls) * 15_000 <= provider_budget.CALL_CEILING_MS + 15_000, (
+        "the whole loop stayed inside the stated ceiling plus the one request already in flight when it was "
+        "reached, so a caller that set a bound gets a bound")
+
+
 def test_jitter_stays_inside_its_bounds_across_seeded_draws() -> None:
     rng = random.Random(20261108)
     for attempt in range(1, provider_budget.RETRY_MAX_ATTEMPTS + 2):
@@ -510,4 +536,10 @@ def test_the_module_carries_no_forbidden_or_outbound_primitive() -> None:
     for primitive in ("subprocess", "eval(", "exec(", "__import__(", "os.system", "os.popen", "pty", "multiprocessing",
                       "fcntl", "msvcrt", "urllib.request", "urlopen", "build_opener", "socket", "http.client"):
         assert primitive not in text, f"provider_budget.py must not contain {primitive}"
-    assert len(source.read_bytes()) < 17_000, "the module ships twice and the artifact has a reviewed byte ceiling"
+    # 17 600, raised from 17 000 (0.3.11 phase 13, defect P8). `CALL_CEILING_MS` claimed no attempt loop
+    # outlives the caller's patience, but it only counted the pauses the loop slept: four 15-second requests
+    # that each timed out ran to ~66 seconds against a 20-second promise, which is what killed the readiness
+    # probe mid-check. The loop now measures wall-clock as well as waiting. That is four lines of arithmetic
+    # in a module that ships twice, and the alternative — trimming the sentence that explains why the ceiling
+    # is wall-clock — would remove the only place the reason is written down.
+    assert len(source.read_bytes()) < 17_600, "the module ships twice and the artifact has a reviewed byte ceiling"

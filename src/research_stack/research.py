@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import http.client
 import json
 import os
 import re
@@ -32,6 +33,11 @@ ZOTERO_LOCAL_API = "http://127.0.0.1:23119/api"
 # one request that can tell "Zotero is running" from "the local API is off".
 ZOTERO_CONNECTOR_PING = "http://127.0.0.1:23119/connector/ping"
 ZOTERO_LOOPBACK_ORIGIN = "http://127.0.0.1:23119"
+# Zotero answers the local API only after the library has finished loading, and its own Connector waits 15
+# seconds for these endpoints. These are the waits one readiness check allows each stage of its own work.
+ZOTERO_ROOT_TIMEOUT_SECONDS = 5
+ZOTERO_LISTING_TIMEOUT_SECONDS = 12
+ZOTERO_PING_TIMEOUT_SECONDS = 3
 PROVIDERS = ("openalex", "crossref", "semantic_scholar")
 _THROTTLE_LOCKS = {provider: threading.Lock() for provider in PROVIDERS}
 _LAST_REQUEST_AT: dict[str, float] = {}
@@ -43,10 +49,13 @@ _KEYED_ENVIRONMENT = {"openalex": "OPENALEX_API_KEY", "crossref": "CROSSREF_PLUS
 class ResearchError(RuntimeError):
     """An actionable provider or local-library error with a stable code."""
 
-    def __init__(self, code: str, message: str, *, retry_after: str | None = None):
+    def __init__(self, code: str, message: str, *, retry_after: str | None = None, evidence: str | None = None):
         super().__init__(message)
         self.code = code
         self.retry_after = retry_after
+        # What the local server actually answered, clipped: the readiness receipt carries it so an operator's
+        # report says which answer Zotero gave instead of leaving the cause to be guessed.
+        self.evidence = evidence
 
     def as_dict(self) -> dict[str, object]:
         result: dict[str, object] = {"code": self.code, "message": str(self)}
@@ -456,21 +465,37 @@ def validate_citation(doi_value: str) -> dict[str, Any]:
     return {"status": "record-found", "doi": doi, "fromCache": bool(budget.get("fromCache")), "record": _normalize("crossref", work, fetched_at, _query_hash("crossref-doi", doi)), "interpretation": "Crossref metadata record found; this does not verify scientific claims or guarantee all bibliographic fields are correct."}
 
 
-def _zotero_request(path: str, *, expect_json: bool = True) -> tuple[Any, dict[str, str]]:
-    """One bounded request to the fixed loopback Zotero port, JSON or plain text.
+def _zotero_said(exc: Exception) -> str:
+    """What the port actually answered, on one clipped line: for an HTTP answer its status, its reason line and
+    the start of its body; for a transport failure, the name of what went wrong. The readiness receipt carries
+    this so a report from another machine says which answer Zotero gave instead of leaving it to be guessed.
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        try:
+            body = exc.read(240).decode("utf-8", "replace")
+        except Exception:  # a body this client cannot read is no reason to lose the status the operator needs
+            body = ""
+        return re.sub(r"\s+", " ", f"{exc.code} {exc.reason} {body}").strip()[:160]
+    return f"{type(exc).__name__} {exc}".strip()[:160]
 
-    A bare path is read under `/api`; a full URL is honoured only when it already names the reviewed loopback
-    port, which is how the connector ping — a sibling of `/api`, not a child of it — reuses this one client.
-    `Zotero-Allowed-Request` keeps the request from being dropped: Zotero 10 drops requests that look like
-    browser requests without any response unless it is sent. The IPv4 loopback URL gives urllib a `Host` of
-    `127.0.0.1:23119`, one of the three Zotero accepts.
+
+def _zotero_request(path: str, *, timeout: int, expect_json: bool = True, method: str = "GET") -> tuple[Any, dict[str, str]]:
+    """One bounded request to the fixed loopback Zotero port, and what the port said when it refused.
+
+    A bare path is read under `/api`, so an empty path is `/api/` itself. A full URL is honoured only when it
+    already names the reviewed loopback port, which is how the connector ping — a sibling of `/api` — reuses
+    this one client. `Zotero-Allowed-Request` keeps the request from being dropped: Zotero 10 drops requests
+    that look like browser requests without any response unless it is sent. The IPv4 loopback URL gives urllib
+    a `Host` of `127.0.0.1:23119`, one of the three Zotero accepts. Every caller states its own `timeout`
+    because the stages of one check are not equally cheap: Zotero answers the local API only after the library
+    has loaded, so the listing waits far longer than the endpoints that answer before the preference is read.
     """
     url = path if path.startswith(ZOTERO_LOOPBACK_ORIGIN) else f"{ZOTERO_LOCAL_API}/{path.lstrip('/')}"
     # Bypass proxy settings for this fixed loopback-only address.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirectHandler())
-    request = urllib.request.Request(url, headers={"Accept": "application/json", "Zotero-API-Version": "3", "Zotero-Allowed-Request": "1"})
+    request = urllib.request.Request(url, headers={"Accept": "application/json", "Zotero-API-Version": "3", "Zotero-Allowed-Request": "1"}, method=method)
     try:
-        with opener.open(request, timeout=2) as response:
+        with opener.open(request, timeout=timeout) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
             if len(raw) > MAX_RESPONSE_BYTES:
                 raise ResearchError("ZOTERO_RESPONSE_TOO_LARGE", "Zotero response exceeded the 4 MiB safety limit.")
@@ -482,35 +507,66 @@ def _zotero_request(path: str, *, expect_json: bool = True) -> tuple[Any, dict[s
                 raise ResearchError("ZOTERO_SCHEMA_UNEXPECTED", "Zotero local API returned an unexpected response.")
             return payload, headers
     except urllib.error.HTTPError as exc:
-        code = "ZOTERO_API_DISABLED" if exc.code == 403 else "ZOTERO_NOT_READY" if exc.code == 503 else "ZOTERO_NOT_FOUND" if exc.code == 404 else "ZOTERO_REQUEST_FAILED"
-        raise ResearchError(code, "Zotero local API request failed. Confirm Zotero is running and local API access is enabled.") from exc
+        said = _zotero_said(exc)
+        if exc.code == 403 and "not allowed" in said.lower():
+            raise ResearchError("ZOTERO_REQUEST_NOT_ALLOWED", "Zotero refused this request as one that looks like a browser request. No Zotero setting needs changing for this answer.", evidence=said) from exc
+        if exc.code == 400:
+            raise ResearchError("ZOTERO_REQUEST_REJECTED", "Zotero answered 400 and rejected this request itself. The port answered, so a Zotero is there; this request was not accepted.", evidence=said) from exc
+        if exc.code == 401:
+            raise ResearchError("ZOTERO_AUTH_REQUIRED", "Something at 127.0.0.1:23119 answered 401, asking for authentication; a read needs none.", evidence=said) from exc
+        if exc.code == 501:
+            raise ResearchError("ZOTERO_API_VERSION_UNSUPPORTED", "Zotero does not implement the API version this request asked for.", evidence=said) from exc
+        code = "ZOTERO_API_DISABLED" if exc.code == 403 else "ZOTERO_NOT_FOUND" if exc.code == 404 else "ZOTERO_REQUEST_FAILED"
+        raise ResearchError(code, "Zotero local API request failed. Confirm Zotero is running and local API access is enabled.", evidence=said) from exc
     except urllib.error.URLError as exc:
         # A refused connection and a request that got no answer are different facts, and the probe says so.
         if isinstance(exc.reason, ConnectionRefusedError):
-            raise ResearchError("ZOTERO_NOT_AVAILABLE", "Nothing answered at 127.0.0.1:23119; no library files were opened.") from exc
-        raise ResearchError("ZOTERO_NO_ANSWER", "The request to 127.0.0.1:23119 produced no usable answer within 2 seconds.") from exc
-    except TimeoutError as exc:
-        raise ResearchError("ZOTERO_NO_ANSWER", "The request to 127.0.0.1:23119 produced no usable answer within 2 seconds.") from exc
+            raise ResearchError("ZOTERO_NOT_AVAILABLE", "Nothing answered at 127.0.0.1:23119; no library files were opened.", evidence=_zotero_said(exc)) from exc
+        raise ResearchError("ZOTERO_NO_ANSWER", f"The request to 127.0.0.1:23119 produced no usable answer within {timeout} seconds.", evidence=_zotero_said(exc)) from exc
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ResearchError("ZOTERO_SCHEMA_UNEXPECTED", "Zotero local API returned malformed JSON.") from exc
+        raise ResearchError("ZOTERO_SCHEMA_UNEXPECTED", "Zotero answered, but not with the JSON its local API returns.", evidence=_zotero_said(exc)) from exc
+    except (http.client.HTTPException, OSError) as exc:
+        # Closed mid-answer, half-answered, or out of time: the port answered nothing usable, which is a state.
+        raise ResearchError("ZOTERO_NO_ANSWER", f"The request to 127.0.0.1:23119 produced no usable answer within {timeout} seconds.", evidence=_zotero_said(exc)) from exc
+
+
+def zotero_local_api_root() -> dict[str, Any]:
+    """Ask the documented root, `/api/`, first: its answer settles the local-API preference.
+
+    A 403 here is the documented answer for the preference being off; `Zotero-Server-ID` proves a Zotero answered.
+    """
+    _, headers = _zotero_request("", timeout=ZOTERO_ROOT_TIMEOUT_SECONDS, expect_json=False)
+    return {"status": 200, **headers}
+
+
+def zotero_collections_head() -> dict[str, Any]:
+    """`HEAD /api/users/0/collections`: the path answered, independently of the local-API preference.
+
+    Zotero's own server answers a HEAD on a registered local-API path before it consults the preference, so a
+    200 here says the path is registered and the Host header was accepted. That separates "this Zotero has no
+    local API endpoint" from "the endpoint is there and the preference is off", which the GET alone cannot tell.
+    """
+    _, headers = _zotero_request("users/0/collections", timeout=ZOTERO_ROOT_TIMEOUT_SECONDS, expect_json=False, method="HEAD")
+    return {"status": 200, **headers}
 
 
 def zotero_connector_ping() -> bool:
     """Did Zotero's connector endpoint answer? It is not gated on the local-API preference.
 
-    Fallback evidence for a local API request that failed, never an extra request when one answered: the same
-    loopback-only, proxy-bypassing, no-redirect client and the same 2 second timeout, reached by path. An HTTP
-    answer of any status counts as an answer; a refused connection or a request with no answer does not.
+    Fallback evidence for a request that got no answer, never an extra request when one arrived: the same
+    loopback-only, proxy-bypassing, no-redirect client, reached by path, on its own 3 second bound. The answer
+    is a short HTML page saying Zotero is running, so only the fact that it answered counts. A refused
+    connection, or a request that got no answer at all, does not.
     """
     try:
-        _zotero_request(ZOTERO_CONNECTOR_PING, expect_json=False)
+        _zotero_request(ZOTERO_CONNECTOR_PING, timeout=ZOTERO_PING_TIMEOUT_SECONDS, expect_json=False)
         return True
     except ResearchError as exc:
         return exc.code not in ("ZOTERO_NOT_AVAILABLE", "ZOTERO_NO_ANSWER")
 
 
 def list_zotero_collections() -> dict[str, Any]:
-    payload, headers = _zotero_request("users/0/collections?limit=100&format=json")
+    payload, headers = _zotero_request("users/0/collections?limit=100&format=json", timeout=ZOTERO_LISTING_TIMEOUT_SECONDS)
     rows = payload if isinstance(payload, list) else []
     collections = [{"key": row.get("key"), "name": (row.get("data") or {}).get("name"), "parentCollection": (row.get("data") or {}).get("parentCollection")} for row in rows if isinstance(row, dict)]
     return {"collections": collections, "serverId": headers.get("zotero-server-id"), "readOnly": True}
@@ -519,7 +575,7 @@ def list_zotero_collections() -> dict[str, Any]:
 def get_zotero_item(key: str) -> dict[str, Any]:
     if not re.fullmatch(r"[A-Z0-9]{8}", key):
         raise ResearchError("ZOTERO_ITEM_KEY_INVALID", "Zotero item keys must be eight uppercase letters or digits.")
-    payload, headers = _zotero_request(f"users/0/items/{key}?format=json")
+    payload, headers = _zotero_request(f"users/0/items/{key}?format=json", timeout=ZOTERO_LISTING_TIMEOUT_SECONDS)
     if not isinstance(payload, dict):
         raise ResearchError("ZOTERO_SCHEMA_UNEXPECTED", "Zotero local API item response was not an object.")
     return {"item": payload, "serverId": headers.get("zotero-server-id"), "readOnly": True}

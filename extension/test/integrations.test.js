@@ -11,6 +11,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const integrations = require("../integrations");
+// The check window belongs to the probe module. The model's own default has to agree with it, so the test reads
+// the published number instead of repeating it: the window can move without the suite going stale.
+const { PROBE_COOLDOWN_MS } = require("../integrationprobe");
 
 const AT = "2026-11-08T14:00:00.000Z";
 const LATER = "2026-11-08T14:05:00.000Z";
@@ -187,7 +190,7 @@ test("the panel wording tells the operator the truth in each of the five states 
     assert.ok(!/not working|broken|failed/i.test(view.detail), "a record that has simply not been looked at is not described as a fault");
   }
   assert.equal(saved.length, 2, "one entry per provider, in the order the record lists them");
-  assert.deepEqual(Object.keys(saved[0]).sort(), ["actions", "authorization", "consentRequired", "credentialConfigured", "detail", "evidence", "id", "installation", "installationFactAt", "installationFactStale", "installationProvenance", "installationSource", "label", "lastCheckAt", "lastOutcome", "lastSuccessfulCheckAt", "mode", "nextAction", "onboarding", "readiness", "retryAfter", "serverId", "title", "workerDetail"].sort(), "the panel gets exactly the fields it renders — including what the check actually saw, whose installation fact the card is showing and which actions this record allows — and no secret");
+  assert.deepEqual(Object.keys(saved[0]).sort(), ["actions", "authorization", "consentRequired", "credentialConfigured", "detail", "evidence", "id", "installation", "installationFactAt", "installationFactStale", "installationProvenance", "installationSource", "label", "lastCheckAt", "lastOutcome", "lastSuccessfulCheckAt", "mode", "nextAction", "onboarding", "probeBlocked", "probeWaitMs", "readiness", "retryAfter", "serverId", "title", "workerDetail"].sort(), "the panel gets exactly the fields it renders — including what the check actually saw, whose installation fact the card is showing, which actions this record allows and whether the check can run at all — and no secret");
 });
 
 test("a probe writes a lastCheck for every outcome, and only a check that reached the service counts as successful", () => {
@@ -206,8 +209,8 @@ test("a probe writes a lastCheck for every outcome, and only a check that reache
   assert.equal(registry.lastProbeAt, Date.parse(AT), "the record remembers when the last probe ran, as an instant the cooldown can actually compare — an ISO string here would make every window believe no check had ever run");
   const stored = integrations.readRegistry({ schemaVersion: 1, providers: { zotero: { lastCheck: { at: AT } } }, lastProbeAt: registry.lastProbeAt });
   assert.equal(stored.registry.lastProbeAt, Date.parse(AT), "and the instant survives the round trip through the profile store");
-  assert.deepEqual(integrations.probeCooldown({ lastProbeAt: stored.registry.lastProbeAt, now: Date.parse(LATER), cooldownMs: 30000 }), { allowed: true, waitMs: 0 }, "a check long enough ago may run again");
-  assert.equal(integrations.probeCooldown({ lastProbeAt: stored.registry.lastProbeAt, now: Date.parse(AT) + 5000, cooldownMs: 30000 }).allowed, false, "a check five seconds ago is refused in every other window of the same profile");
+  assert.deepEqual(integrations.probeCooldown({ lastProbeAt: stored.registry.lastProbeAt, now: Date.parse(LATER), cooldownMs: PROBE_COOLDOWN_MS }), { allowed: true, waitMs: 0 }, "a check long enough ago may run again");
+  assert.equal(integrations.probeCooldown({ lastProbeAt: stored.registry.lastProbeAt, now: Date.parse(AT) + 1, cooldownMs: PROBE_COOLDOWN_MS }).allowed, false, "a check one millisecond ago is refused in every other window of the same profile");
   const legacyText = integrations.readRegistry({ schemaVersion: 1, providers: {}, lastProbeAt: AT });
   assert.equal(legacyText.registry.lastProbeAt, Date.parse(AT), "a record that stored the ISO text is still read as the same instant, so an upgrade does not forget the budget");
 
@@ -223,13 +226,14 @@ test("a probe writes a lastCheck for every outcome, and only a check that reache
 });
 
 test("one probe per window is allowed, and the second probe in the same window is refused", () => {
-  const first = integrations.probeCooldown({ lastProbeAt: null, now: 1_000, cooldownMs: 30_000 });
+  const first = integrations.probeCooldown({ lastProbeAt: null, now: 1_000, cooldownMs: PROBE_COOLDOWN_MS });
   assert.deepEqual(first, { allowed: true, waitMs: 0 }, "a profile that has never probed may probe now");
-  const second = integrations.probeCooldown({ lastProbeAt: 1_000, now: 11_000, cooldownMs: 30_000 });
-  assert.equal(second.allowed, false, "ten seconds after a probe, a second one is refused: the probe starts a worker and reaches a live service");
-  assert.equal(second.waitMs, 20_000, "and the operator is told how long to wait");
-  assert.deepEqual(integrations.probeCooldown({ lastProbeAt: 1_000, now: 31_000, cooldownMs: 30_000 }), { allowed: true, waitMs: 0 }, "the window is 30 seconds, so 30 seconds later a probe is allowed");
-  assert.deepEqual(integrations.probeCooldown({ lastProbeAt: 1_000, now: 31_000 }), { allowed: true, waitMs: 0 }, "the default window is the 30 seconds the probe module publishes, so the two modules cannot drift apart in a test");
+  const second = integrations.probeCooldown({ lastProbeAt: 1_000, now: 1_001, cooldownMs: PROBE_COOLDOWN_MS });
+  assert.equal(second.allowed, false, "a probe inside the window is refused: the probe starts a worker and reaches a live service");
+  assert.equal(second.waitMs, PROBE_COOLDOWN_MS - 1, "and the operator is told how long is left, not how old the last check was");
+  assert.deepEqual(integrations.probeCooldown({ lastProbeAt: 1_000, now: 1_000 + PROBE_COOLDOWN_MS, cooldownMs: PROBE_COOLDOWN_MS }), { allowed: true, waitMs: 0 }, "one window later a probe is allowed");
+  assert.deepEqual(integrations.probeCooldown({ lastProbeAt: 1_000, now: 1_000 + PROBE_COOLDOWN_MS }), { allowed: true, waitMs: 0 }, "the model's own default is the window the probe module publishes, read from the module rather than repeated as a number, so the two cannot drift apart");
+  assert.equal(integrations.probeCooldown({ lastProbeAt: 1_000, now: 1_001 }).waitMs, PROBE_COOLDOWN_MS - 1, "and the default is exactly that window, whatever number the probe module carries today");
 });
 
 test("the panel renderer only asks the state model for fields the state model actually sends", () => {
@@ -431,4 +435,86 @@ test("the installation provenance survives the profile store, and a source this 
   assert.equal(damaged.notes.length, 1, "the one drop is said out loud");
   assert.match(damaged.notes[0], /cannot vouch for/);
   assert.ok(!damaged.notes[0].includes("last tuesday"), "the note names the source it rejected, not the values it also threw away");
+});
+
+// --- Defect round on the shipped 0.3.11 model: a stale machine fact, an offer that outlived its purpose,
+// and a check the workspace may not be able to run at all. --------------------------------------------
+
+test("a stale machine installation fact no longer suppresses the guided installation (M1)", () => {
+  const stale = zoteroView(applied({ detectedAtMs: STALE_AT }));
+  assert.equal(stale.installation, "detected", "the stored fact is kept: a stale fact is still evidence about the moment it was taken");
+  assert.equal(stale.installationSource, "machine-fact", "and it is still named as another window's fact");
+  assert.equal(stale.installationFactStale, true, "the model knows it is past the window");
+  assert.ok(offers(stale, "guideInstall"), "so the guided installation is offered again");
+  assert.ok(offers(stale, "installedNow"), "and so is the operator's own re-check");
+  assert.match(stale.detail, /older than the Toolkit's 7-day window/, "the card says plainly that the confirmation is old, so the offer is not read as a claim that Zotero is missing");
+  assert.match(stale.installationProvenance, /older than the Toolkit's 7-day window/, "and the installation line still says it");
+  assert.equal(applied({ detectedAtMs: STALE_AT }).providers.zotero.installationFactAt, new Date(STALE_AT).toISOString(), "nothing is deleted from the record to make the offer come back");
+
+  const fresh = zoteroView(applied({ detectedAtMs: DETECTED_AT }));
+  assert.ok(!offers(fresh, "guideInstall") && !offers(fresh, "installedNow"), "inside the window the machine's answer still stands (T12-33)");
+
+  const ownCheck = zoteroView(integrations.recordProbe(applied({ detectedAtMs: STALE_AT }), "zotero", { outcome: "ready", code: "OK", installed: true }, AT));
+  assert.equal(ownCheck.installationSource, "profile-check", "this profile measured the installation itself");
+  assert.ok(!offers(ownCheck, "guideInstall") && !offers(ownCheck, "installedNow"), "an old machine record does not reopen the installation question after this profile found Zotero");
+
+  const missing = zoteroView(applied({ found: false, classification: "not-installed", code: "ZOTERO_NOT_AVAILABLE", detectedAtMs: STALE_AT }));
+  assert.ok(offers(missing, "guideInstall") && offers(missing, "installedNow"), "a stale fact that found nothing behaves as it always did");
+});
+
+test("the Zotero card stops offering Activate once there is nothing left to activate (M2)", () => {
+  assert.ok(offers(zoteroView(integrations.emptyRegistry()), "activate"), "a profile that has never been through the guide is offered it");
+  assert.ok(offers(zoteroView(integrations.beginOnboarding(integrations.emptyRegistry(), "zotero", AT)), "activate"), "a guide left half-way is offered again");
+  assert.ok(!offers(zoteroView(integrations.skipOnboarding(integrations.emptyRegistry(), "zotero", AT)), "activate"), "an operator who closed the guide is not pitched it again");
+  const ready = zoteroView(integrations.recordProbe(integrations.emptyRegistry(), "zotero", { outcome: "ready", code: "OK", installed: true }, AT));
+  assert.ok(!offers(ready, "activate"), "a Zotero that answered is ready: pressing Activate would re-open the modal and spend the shared 30-second check budget on the button the operator did not mean to press");
+  assert.ok(offers(ready, "check"), "and the button they meant to press is still offered");
+  assert.ok(offers(zoteroView(integrations.recordProbe(integrations.emptyRegistry(), "zotero", { outcome: "not-running", code: "ZOTERO_NO_ANSWER", installed: true }, AT)), "activate"), "a Zotero that is there but quiet still has its guide open");
+  const scholar = (registry) => integrations.integrationViews(registry, { now: Date.parse(AT) }).find((item) => item.id === "semantic-scholar");
+  assert.ok(offers(scholar(integrations.emptyRegistry()), "activate"), "Semantic Scholar is unchanged: Activate is its consent step");
+  assert.ok(offers(scholar(integrations.skipOnboarding(integrations.emptyRegistry(), "semantic-scholar", AT)), "activate"), "and closing its guide does not answer for the operator — the consent is still owed");
+  assert.ok(!offers(scholar(authorized()), "activate"), "an authorized Semantic Scholar is not offered it again");
+  assert.ok(offers(scholar(integrations.revokeIntegration(authorized(), "semantic-scholar", AT)), "activate"), "a turned-off service is offered it again");
+});
+
+test("the model says whether a check can run here at all, and how long the shared budget still has to wait (M6)", () => {
+  const at = Date.parse(AT);
+  const noWorker = integrations.recordProbe(integrations.emptyRegistry(), "zotero", { outcome: "not-installed", code: "ZOTERO_NOT_AVAILABLE", installed: false }, AT);
+  const blocked = integrations.integrationViews(noWorker, { now: at, canProbe: false });
+  for (const view of blocked) {
+    assert.equal(typeof view.probeBlocked, "string", `${view.id}: the reason is a sentence an operator can read`);
+    assert.ok(view.probeBlocked.length > 40, "and not a code or a single word");
+    assert.match(view.probeBlocked, /locked worker/, "it names what the check needs");
+    assert.match(view.probeBlocked, /trusted local workspace/, "and the kind of workspace it needs");
+  }
+  const zoteroBlocked = blocked.find((view) => view.id === "zotero");
+  assert.ok(offers(zoteroBlocked, "check") && offers(zoteroBlocked, "installedNow"), "the actions stay offered: the operator has to see what is unavailable, and why");
+  const open = integrations.integrationViews(noWorker, { now: at, canProbe: true });
+  assert.deepEqual(open.map((view) => view.probeBlocked), [null, null], "with the check available nothing is blocked");
+  assert.deepEqual(integrations.integrationViews(noWorker, { now: at }), open, "a caller that says nothing about the worker gets exactly what it got before this field existed");
+  assert.deepEqual(integrations.integrationViews(noWorker), integrations.integrationViews(noWorker, { canProbe: true }), "and the same with no clock handed in");
+
+  assert.deepEqual(integrations.integrationViews(integrations.emptyRegistry(), { now: at }).map((view) => view.probeWaitMs), [0, 0], "a profile that has never checked has nothing to wait for");
+  const justChecked = integrations.recordProbe(integrations.emptyRegistry(), "zotero", { outcome: "ready", code: "OK", installed: true }, AT);
+  const remaining = integrations.probeCooldown({ lastProbeAt: justChecked.lastProbeAt, now: at + 1_000 }).waitMs;
+  assert.ok(remaining > 0, "one second after a check the shared window has not passed");
+  assert.deepEqual(integrations.integrationViews(justChecked, { now: at + 1_000 }).map((view) => view.probeWaitMs), [remaining, remaining], "immediately after a check both cards name the remaining wait the cooldown helper itself computes — one budget, one number, because one press checks both services");
+  assert.deepEqual(integrations.integrationViews(justChecked, { now: Date.parse(LATER) }).map((view) => view.probeWaitMs), [0, 0], "five minutes on, the budget has refreshed");
+  assert.deepEqual(integrations.integrationViews(justChecked).map((view) => view.probeWaitMs), [0, 0], "a view built with no clock reports no wait rather than reading a clock this module does not own");
+});
+
+test("the panel accepts a result only for a request it asked for, bounds its pending ids, and never prints the word undefined (M3, M4, M5, M6)", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const renderer = fs.readFileSync(path.join(__dirname, "..", "media", "controls.js"), "utf8");
+  assert.ok(!/pendingRequests\.size\s*&&/.test(renderer), "an empty pending set must not accept any request id: a re-rendered panel starts with an empty set while the host is still finishing the previous action, and its late result would be painted onto the fresh panel as the answer to a press that never happened");
+  assert.match(renderer, /if \(!pendingRequests\.has\(message\.requestId\)\) return;/, "a result is accepted only when this panel asked for that id");
+  assert.match(renderer, /if \(message\.requestId !== undefined\) \{[\s\S]{0,200}?pendingRequests\.has\(message\.requestId\)/, "the id guard is its own branch, so a message with no id is handled as the host's own statement rather than falling through the guard");
+  assert.match(renderer, /const PENDING_REQUEST_LIMIT = \d+;/, "the pending ids are bounded: a request whose result never arrives would otherwise stay in the set for the life of the window");
+  assert.match(renderer, /pendingRequests\.delete\(pendingRequests\.values\(\)\.next\(\)\.value\)/, "the oldest id is the one dropped, and nothing polls or waits to do it (NF12-04)");
+  assert.ok(!/setTimeout|setInterval|requestAnimationFrame/.test(renderer), "the bound is a bound, not a timer");
+  assert.match(renderer, /message\.error \|\| message\.message \|\| "/, "the status line falls back to a sentence: the textContent setter turns undefined into the word \"undefined\" inside a live region");
+  assert.match(renderer, /const startsACheck = id === "check" \|\| id === "installedNow";/, "exactly the two actions that start a check are the ones qualified");
+  assert.match(renderer, /if \(startsACheck && blocked\) markUnavailable\(button, `\$\{blocked\}\$\{waitText\}`\)/, "a check this workspace cannot run is rendered as an explained unavailable button, not as one that answers a Zotero question with an error about package components");
+  assert.match(renderer, /button\.title = `\$\{spec\[0\]\}\$\{waitText\}`/, "the remaining whole seconds are in the tooltip before the press");
 });

@@ -45,6 +45,9 @@ const PACKAGE_OPTIONS = Object.freeze([
   Object.freeze({ id: "full", label: "Full", detail: "Full Research Lab — prototype foundation only; G3 not passed" }),
 ]);
 const PACKAGES_BY_ID = new Map(PACKAGE_OPTIONS.map((item) => [item.id, item]));
+// J3: the machine record is a small local file the Toolkit's own worker reads. The probe's 20 s is the bound for
+// reaching a loopback app and a hosted API, not this read's timing contract; 20 s under the lock made "Check now" throw.
+const MACHINE_FACT_READ_TIMEOUT_MS = 5_000;
 
 /** Presets offered for a package: the goal list changes with the package choice. */
 function presetsForPackage(packageId) {
@@ -202,6 +205,20 @@ function activateWith(vscode, context, diagnosticServices) {
   // INT-15: why the machine installation record was not used, if it was not. Session state only — it is a
   // sentence for this window, never a fact written to the profile, and it is cleared by the next read.
   let integrationFactsNote = null;
+  // J4: whether a readiness check could run here at all. The host learns it from the `managedRuntime` calls it
+  // already makes, so the model can say "no check here" instead of offering a button that answers with a setup error.
+  let managedWorkerPresent = false;
+  /** The one place the host asks for the managed worker, so every ask also answers J4. */
+  async function probeRuntime(folder) {
+    managedWorkerPresent = false;
+    const runtime = await managedRuntime(context, folder);
+    managedWorkerPresent = Boolean(runtime);
+    return runtime;
+  }
+  function probeCapability() {
+    const folder = folderSelected();
+    return Boolean(vscode.workspace.isTrusted && !vscode.env.remoteName && folder && folder.uri.scheme === "file" && managedWorkerPresent);
+  }
 
   async function saveIntegrations(registry) {
     integrationRegistry = await integrationStore.saveRegistry(context.globalState, registry);
@@ -210,8 +227,11 @@ function activateWith(vscode, context, diagnosticServices) {
   }
   /** The panel sees states and sentences. It never sees a stored key — only whether one exists. */
   function integrationPanelState() {
+    const canProbe = probeCapability();
     return {
-      views: integrations.integrationViews(integrationRegistry, { now: new Date().toISOString() }),
+      // J4: the host states whether a check is possible here, and the model decides what the card says about it.
+      views: integrations.integrationViews(integrationRegistry, { now: new Date().toISOString(), canProbe }),
+      canProbe,
       // Names only: what the operator already configured outside the Toolkit, so it is reported and
       // preserved rather than silently replaced (DD11-08).
       environment: integrationStore.environmentFootprint(process.env),
@@ -227,7 +247,7 @@ function activateWith(vscode, context, diagnosticServices) {
   }
   function integrationView(provider) {
     if (!integrations.PROVIDERS.includes(provider)) throw new TypeError("Unknown integration.");
-    return integrations.integrationViews(integrationRegistry, { now: new Date().toISOString() }).find((item) => item.id === provider);
+    return integrations.integrationViews(integrationRegistry, { now: new Date().toISOString(), canProbe: probeCapability() }).find((item) => item.id === provider);
   }
   /** A readiness probe needs a worker, a trusted local folder, and the operator having asked for it. */
   async function runIntegrationProbe(provider) {
@@ -236,8 +256,9 @@ function activateWith(vscode, context, diagnosticServices) {
       throw new Error("Integrations are checked only in a trusted local workspace folder. A remote or untrusted workspace gets no local access.");
     }
     const cooldown = integrations.probeCooldown({ lastProbeAt: integrationRegistry.lastProbeAt, now: new Date().toISOString(), cooldownMs: integrationProbe.PROBE_COOLDOWN_MS });
-    if (!cooldown.allowed) throw new Error(`The last integration check is ${Math.ceil(cooldown.waitMs / 1000)} s old. Several VS Code windows share one check budget, so wait for it.`);
-    const runtime = await managedRuntime(context, folder);
+    // J7: the number given is the wait that remains, not the age of the last check, and it says what to do next.
+    if (!cooldown.allowed) throw new Error(`The next integration check is allowed in ${Math.ceil(cooldown.waitMs / 1000)} s. Several VS Code windows share one check budget, so wait that long and press Check now again — the last verdict is still on the card, and nothing you did was lost.`);
+    const runtime = await probeRuntime(folder);
     if (!runtime) throw new Error("Set up package components before checking integrations. The check runs in the same locked worker that serves the research tools.");
     progressMessage = "Checking integrations…"; refresh();
     const apiKey = integrations.isAuthorized(integrationRegistry, "semantic-scholar") && integrationRegistry.providers["semantic-scholar"].mode === "api-key"
@@ -267,21 +288,29 @@ function activateWith(vscode, context, diagnosticServices) {
     // cooldown unread and every window would probe again.
     next = { ...next, lastProbeAt: Date.parse(at) };
     await saveIntegrations(next);
-    const sentences = (provider ? [provider] : integrations.PROVIDERS).map((id) => {
+    const ids = provider ? [provider] : integrations.PROVIDERS;
+    const sentences = ids.map((id) => {
       const view = integrations.integrationViews(next, { now: at }).find((item) => item.id === id);
       // The worker's own sentence is the specific one; the model's is the one that names what it means
-      // for the operator (a 429 keeps the authorization, a refused local API is not a missing app).
-      return `${view.label}: ${view.detail}`;
+      // for the operator (a 429 keeps the authorization, a refused local API is not a missing app). The
+      // provider's name leads it: a verdict that does not say which service it is about is not actionable.
+      return `${view.title} — ${view.label}: ${view.detail}`;
     });
-    const failures = (provider ? [provider] : integrations.PROVIDERS)
-      .map((id) => integrationProbe.describeProbeFailure(id, probed[id === "semantic-scholar" ? "semanticScholar" : id]))
-      .filter((sentence, index) => sentence && !sentences[index].includes("answered"));
+    // J6: a failure sentence is needed when the check did not answer, and is noise when it did. The old
+    // filter looked for a word the model's sentence never says, so it never fired.
+    const failures = ids
+      .map((id) => ({ id, outcome: probed[id === "semantic-scholar" ? "semanticScholar" : id] }))
+      .filter((item) => item.outcome.outcome !== "ready")
+      .map((item) => integrationProbe.describeProbeFailure(item.id, item.outcome))
+      .filter(Boolean);
     output.clear();
     // The worker's own sentences come from a run that may have been handed the API key, so they are
     // scrubbed before anything is written to a channel an operator might paste somewhere.
     output.appendLine(`Integration check ${at}\n${integrationStore.redactSecrets(JSON.stringify(probed, null, 2), [apiKey]).text}\n\n${sentences.join("\n")}${failures.length ? `\n${failures.join("\n")}` : ""}`);
     output.show(true);
-    return probed;
+    // J1: the verdict has to reach the panel that asked for it. "Done." told the operator nothing, and when the
+    // state did not change the card re-rendered identically, so the press looked like a no-op.
+    return { probed, summary: sentences.join(" · ") };
   }
 
   /**
@@ -292,6 +321,7 @@ function activateWith(vscode, context, diagnosticServices) {
    * and the credential-shaped names this editor process happens to carry are removed from it before it is
    * built. A record this release cannot use is refused with the reason stated, kept in `integrationFactsNote`
    * so the panel and the Quick Pick can say it out loud, and the profile record is left exactly as it was.
+   * J3: the call carries its own short bound (`MACHINE_FACT_READ_TIMEOUT_MS`), not the probe's 20 s.
    */
   async function readIntegrationFacts() {
     integrationFactsNote = null;
@@ -308,13 +338,14 @@ function activateWith(vscode, context, diagnosticServices) {
     if (!vscode.workspace.isTrusted || vscode.env.remoteName || !folder || folder.uri.scheme !== "file") {
       throw new Error("The machine installation record is read only in a trusted local workspace folder. A remote or untrusted workspace gets no local access.");
     }
-    const runtime = await managedRuntime(context, folder);
+    const runtime = await probeRuntime(folder);
     if (!runtime) throw new Error("Set up package components before reading the machine installation record: the Toolkit reads it through its own locked worker.");
     const environment = { ...process.env };
     for (const name of integrationStore.ENVIRONMENT_NAMES) delete environment[name];
     const executed = await asRunProcess(diagnosticServices || {})(runtime.python,
       [...PYTHON_FLAGS, "-m", "research_stack.cli", ...integrationProbe.factsArgv()],
-      { timeout: integrationProbe.PROBE_TIMEOUT_MS, cwd: folder.uri.fsPath, env: environment });
+      // J3: a local file read by the Toolkit's own worker gets its own short bound, not the probe's 20 s.
+      { timeout: MACHINE_FACT_READ_TIMEOUT_MS, cwd: folder.uri.fsPath, env: environment });
     if (executed.exitCode !== 0) throw new Error(`The Toolkit could not read the machine installation record: ${String(executed.stderr || "").slice(-300) || "the worker refused without a message."} Nothing was changed.`);
     let parsed;
     try { parsed = JSON.parse(executed.stdout); } catch { throw new Error("The machine installation record came back unreadable. Nothing was changed."); }
@@ -639,6 +670,9 @@ function activateWith(vscode, context, diagnosticServices) {
       if (generation === currentGeneration) {
         receipt = run.receipt;
         toolSurface = run.receipt.checks?.toolSurface || toolSurface;
+        // J4: setup is what produces the worker a check needs, so the host re-reads it here; a failed setup
+        // leaves it absent, which is the answer the panel needs, not a second error on top of the first.
+        await probeRuntime(folder).catch(() => {});
         await recordPresetInReceipt();
         await loadPlanArtifacts();
         inventory = await checkInventory(vscode, context, folder, { ...diagnosticServices, settings: setupSettings(), functionalResult: run.receipt.checks });
@@ -713,7 +747,7 @@ function activateWith(vscode, context, diagnosticServices) {
 
   register("researchToolkit.runReadingCheck", () => exclusive(async () => {
     const folder = folderSelected(); requireLocal(vscode, folder);
-    const runtime = await managedRuntime(context, folder);
+    const runtime = await probeRuntime(folder);
     if (!runtime) throw new Error("Set up package components before running the MCP reading check.");
     const currentGeneration = generation;
     progressMessage = "Running PDF/DOCX reading, corpus and record-store checks through local MCP…"; refresh();
@@ -730,7 +764,7 @@ function activateWith(vscode, context, diagnosticServices) {
   }));
   register("researchToolkit.readSelectedDocument", () => exclusive(async () => {
     const folder = folderSelected(); requireLocal(vscode, folder);
-    const runtime = await managedRuntime(context, folder);
+    const runtime = await probeRuntime(folder);
     if (!runtime) throw new Error("Set up package components before reading a document.");
     const selected = await vscode.window.showOpenDialog({ canSelectMany: false, canSelectFolders: false, defaultUri: folder.uri,
       title: "Choose a workspace document for a read-only MCP check", filters: { "PDF or Word document": ["pdf", "docx"] } });
@@ -773,7 +807,7 @@ function activateWith(vscode, context, diagnosticServices) {
   }
   register("researchToolkit.indexSelectedSources", () => exclusive(async () => {
     const folder = folderSelected(); requireLocal(vscode, folder);
-    const runtime = await managedRuntime(context, folder);
+    const runtime = await probeRuntime(folder);
     if (!runtime) throw new Error("Set up package components before indexing sources.");
     const picked = await selectedWorkspaceSources("Choose PDF, DOCX or text sources to index into the research store", ["pdf", "docx", "md", "markdown", "txt"]);
     if (!picked) return undefined;
@@ -787,7 +821,7 @@ function activateWith(vscode, context, diagnosticServices) {
   }));
   register("researchToolkit.verifySourceFreshness", () => exclusive(async () => {
     const folder = folderSelected(); const root = requireLocal(vscode, folder);
-    const runtime = await managedRuntime(context, folder);
+    const runtime = await probeRuntime(folder);
     if (!runtime) throw new Error("Set up package components before checking source freshness.");
     progressMessage = "Re-hashing the indexed sources against the files that are present…"; refresh();
     const report = await workerReceipt(runtime, ["verify-sources", "--workspace", root], root, 120000);
@@ -847,7 +881,7 @@ function activateWith(vscode, context, diagnosticServices) {
       const folder = folderSelected();
       if (!vscode.workspace.isTrusted || vscode.env.remoteName || !folder || folder.uri.scheme !== "file") return [];
       let runtime;
-      try { runtime = await managedRuntime(context, folder); } catch { return []; }
+      try { runtime = await probeRuntime(folder); } catch { managedWorkerPresent = false; return []; }
       if (!runtime || folder !== folderSelected()) return [];
       receipt = runtime.receipt || receipt;
       toolSurface = runtime.receipt?.checks?.toolSurface || toolSurface;
@@ -1283,13 +1317,17 @@ function activateWith(vscode, context, diagnosticServices) {
   register("researchToolkit.manageIntegrations", async () => {
     // INT-15.2 (DD12-02): opening the integrations flow is the deliberate act that consults the machine
     // record, so a new profile of the same OS user is not asked again about an installation this machine has
-    // already answered. One read, one worker call, no provider reached, no secret read, no probe — serialized
-    // by the same `exclusive()` the panel uses, so a setup or a check already in flight is not interrupted and
-    // the reason no read happened is said instead of the read being attempted anyway. A record this release
-    // cannot use is refused in the panel and in the row it concerns, never swallowed.
-    await exclusive(() => readIntegrationFacts()).catch(() => null);
+    // already answered. One read, one worker call, no provider reached, no secret read, no probe. A record this
+    // release cannot use is refused in the panel and in the row it concerns, never swallowed.
+    // J3: the read keeps its place and loses its power to queue the operator. If a setup or a check already
+    // holds the lock, this opening says so and carries on with the flow the operator asked for.
+    if (operation || checking) {
+      integrationFactsNote = "A setup or a check is already running, so this opening did not read the machine installation record. Press \"What did this machine find?\" once it finishes.";
+    } else {
+      await exclusive(() => readIntegrationFacts()).catch(() => null);
+    }
     refresh();
-    const views = integrations.integrationViews(integrationRegistry, { now: new Date().toISOString() });
+    const views = integrations.integrationViews(integrationRegistry, { now: new Date().toISOString(), canProbe: probeCapability() });
     const picked = await vscode.window.showQuickPick(views.map((view) => ({
       id: view.id, label: view.title, description: view.label, detail: `${view.detail}\nNext: ${view.nextAction}${view.id === "zotero" && integrationFactsNote ? `\n${integrationFactsNote}` : ""}`,
     })), { title: "Integrations & Accounts — saved once for this VS Code profile", matchOnDescription: true });
@@ -1298,7 +1336,9 @@ function activateWith(vscode, context, diagnosticServices) {
     const action = await vscode.window.showQuickPick(view.actions.map(([id, label]) => ({ id, label })), { title: `${picked.label}: what do you want to do?` });
     if (!action) return undefined;
     const openGuide = () => vscode.commands.executeCommand("researchToolkit.openComponentGuide", picked.id === "zotero" ? "zotero-local-api" : "semantic-scholar-academic-graph");
-    if (action.id === "check" || action.id === "installedNow") return runIntegrationProbe(picked.id);
+    // J2: every probe goes through the one lock, from whichever surface it was pressed on. A probe outside the
+    // lock reports `busy: false`, so the card re-enables mid-check and a second press starts a second worker.
+    if (action.id === "check" || action.id === "installedNow") return exclusive(() => runIntegrationProbe(picked.id));
     if (action.id === "activate") return activateIntegration(picked.id);
     if (action.id === "guideInstall") return guideZoteroInstall(picked.id);
     if (action.id === "apiGuide") return openGuide();
@@ -1319,18 +1359,24 @@ function activateWith(vscode, context, diagnosticServices) {
    */
   async function guideZoteroInstall(provider) {
     if (provider !== "zotero") throw new TypeError("Semantic Scholar is a hosted service with nothing to install on this machine.");
-    if (integrationRegistry.providers.zotero.installation === "detected") {
+    // The model decides whether the guided installation is offered, so the host asks the model rather than
+    // re-deriving the rule here. A machine confirmation older than the Toolkit's window re-opens the offer,
+    // and a host that refused anyway would contradict the button the operator just pressed.
+    const entry = integrationRegistry.providers.zotero;
+    const offered = integrationView("zotero").actions.some(([id]) => id === "guideInstall");
+    if (entry.installation === "detected" && !offered) {
       // INT-15 (DD12-02): the refusal names whose fact it is. An installation another window of the same OS
       // user found must not be reported to this profile as if this profile had verified it.
-      const fromMachine = integrationRegistry.providers.zotero.installationSource === "machine-fact";
+      const fromMachine = entry.installationSource === "machine-fact";
       void vscode.window.showInformationMessage(fromMachine
         ? "Zotero was found on this machine by another window of the same OS user, so the Toolkit offers no installation for it. This profile has not checked it: check integrations to see whether its local API answers."
         : "Zotero is already installed on this machine, so the Toolkit offers no installation for it. Check integrations to see whether its local API answers.");
       return integrationView("zotero");
     }
+    const reconfirmed = entry.installation === "detected";
     const choice = await vscode.window.showInformationMessage(
       "Guided Zotero installation. The Toolkit downloaded nothing and ran nothing: it opened no installer, wrote no file and changed no setting.",
-      { modal: true, detail: `1. Open the official Zotero download page: ${integrations.ZOTERO_DOWNLOAD_URL}\n2. Install Zotero with the installer that page offers for your operating system.\n3. Start Zotero.\n4. Press "I have installed Zotero — check it now". The Toolkit re-checks when you ask; it does not watch for the installation, poll for it or schedule anything.\n\nIt has no reviewed capability to download or run an installer, and it never writes to your Zotero library.` },
+      { modal: true, detail: `${reconfirmed ? "This machine's last confirmation that Zotero is installed is older than the Toolkit's 7-day window, so the guide is offered again. If Zotero is still there, install over it or skip straight to step 4.\n\n" : ""}1. Open the official Zotero download page: ${integrations.ZOTERO_DOWNLOAD_URL}\n2. Install Zotero with the installer that page offers for your operating system.\n3. Start Zotero.\n4. Press "I have installed Zotero — check it now". The Toolkit re-checks when you ask; it does not watch for the installation, poll for it or schedule anything.\n\nIt has no reviewed capability to download or run an installer, and it never writes to your Zotero library.` },
       "Open the official download page", "Open the Toolkit's Zotero guide", "Not now");
     if (choice === "Open the official download page") {
       if (!await vscode.env.openExternal(vscode.Uri.parse(integrations.ZOTERO_DOWNLOAD_URL))) throw new Error("Unable to open the official Zotero download page in the host browser.");
@@ -1352,7 +1398,7 @@ function activateWith(vscode, context, diagnosticServices) {
     await saveIntegrations(integrations.recordKeyDecision(integrationRegistry, provider, "guided", new Date().toISOString()));
     const choice = await vscode.window.showInformationMessage(
       "A Semantic Scholar API key is optional. The Toolkit asked you for nothing here and stored nothing.",
-      { modal: true, detail: `1. Apply on the provider's own page: it asks for an academic or corporate address, your affiliation and what you will use the key for.\n2. The provider emails the key to you. The Toolkit never receives, stores or sees that email, and never asks for a key in a chat, a workspace file or a log.\n3. Press "I already have a key" and paste it once.\n4. It is stored in VS Code secret storage for this VS Code profile only — never in a workspace file, a setting, a log or a problem report.\n\nWithout a key your requests share one capacity with every other unauthenticated user. A key buys one request per second across all endpoints, not per endpoint.` },
+      { modal: true, detail: `1. Apply on the provider's own page: it asks for an academic or corporate address, your affiliation and what you will use the key for.\n2. The provider emails the key to you. The Toolkit never receives, stores or sees that email, and never asks for a key in a chat, a workspace file or a log.\n3. Activate the integration first — you must accept the provider's terms before the Toolkit will store or use a key. Press "Activate" on the Semantic Scholar card and confirm the two agreements there.\n4. Press "I already have a key" and paste it once. It is stored in VS Code secret storage for this VS Code profile only — never in a workspace file, a setting, a log or a problem report.\n\nWithout a key your requests share one capacity with every other unauthenticated user. A key buys one request per second across all endpoints, not per endpoint.` },
       "Open the official application page", "Open the Toolkit's Semantic Scholar guide", "Not now");
     if (choice === "Open the official application page") {
       if (!await vscode.env.openExternal(vscode.Uri.parse(integrations.API_KEY_APPLICATION_URL))) throw new Error("Unable to open the provider's API key application page in the host browser.");
@@ -1375,7 +1421,7 @@ function activateWith(vscode, context, diagnosticServices) {
   async function testIntegrationKey(provider) {
     if (provider !== "semantic-scholar") throw new TypeError("Only Semantic Scholar has a Toolkit-stored key to test.");
     if (!integrationRegistry.providers[provider].credentials?.configured) throw new Error("No key is stored for this integration, so there is nothing to test.");
-    const probed = await runIntegrationProbe(provider);
+    const { probed } = await exclusive(() => runIntegrationProbe(provider));
     void vscode.window.showInformationMessage(integrationProbe.describeProbeFailure(provider, probed?.semanticScholar));
     return integrationView(provider);
   }
@@ -1395,7 +1441,7 @@ function activateWith(vscode, context, diagnosticServices) {
       if (choice === "Open the Zotero guide") return vscode.commands.executeCommand("researchToolkit.openComponentGuide", "zotero-local-api");
       if (choice === "Not now") return declineIntegration(provider);
       if (choice !== "Start checking Zotero") return undefined;
-      return runIntegrationProbe("zotero");
+      return exclusive(() => runIntegrationProbe("zotero"));
     }
     const choice = await vscode.window.showWarningMessage(
       "Activate Semantic Scholar for this VS Code profile?",
@@ -1539,7 +1585,8 @@ function activateWith(vscode, context, diagnosticServices) {
         await testIntegrationKey(message.provider);
       } else if (message.type === "checkIntegration") {
         if (!integrations.PROVIDERS.includes(message.provider)) throw new TypeError("Unknown integration.");
-        await exclusive(() => runIntegrationProbe(message.provider));
+        // J1: the sentence the check produced is the panel's answer, not "Done.".
+        resultMessage = (await exclusive(() => runIntegrationProbe(message.provider))).summary;
       } else if (message.type === "setIntegrationKey") {
         await setIntegrationKey(message.provider);
       } else if (message.type === "clearIntegrationKey") {
@@ -1628,6 +1675,8 @@ function activateWith(vscode, context, diagnosticServices) {
     inventory = baseInventory(vscode, context);
     readingResult = undefined;
     receipt = undefined;
+    // J4: the capability belongs to the folder it was measured in; a new folder has not been measured.
+    managedWorkerPresent = false;
     // Measurements belong to the folder they were taken from; a new folder starts unmeasured.
     toolSurface = undefined;
     planArtifacts = new Map();
@@ -1645,7 +1694,7 @@ function activateWith(vscode, context, diagnosticServices) {
     if (!folder || folder.uri.scheme !== "file") return;
     const startedAt = generation;
     let runtime;
-    try { runtime = await managedRuntime(context, folder); } catch { return; }
+    try { runtime = await probeRuntime(folder); } catch { managedWorkerPresent = false; return; }
     if (startedAt !== generation) return;
     const measured = runtime?.receipt?.checks?.toolSurface;
     const changedSomething = Boolean(measured && measured !== toolSurface) || Boolean(runtime?.receipt && runtime.receipt !== receipt);

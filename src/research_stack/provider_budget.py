@@ -306,6 +306,10 @@ class ProviderBudget:
         if decision["state"] == "deferred":
             return self._defer(decision, 0)
         backoff_ceiling = min(RETRY_MAX_TOTAL_MS, CALL_CEILING_MS)
+        # The ceiling is wall-clock, not sleeping-only (DD12-05). A request that times out has already spent
+        # the caller's patience; a loop that counts only the pauses it slept runs several times past the
+        # number its own name promises, which is what the readiness probe was being killed for.
+        loop_started = int(self.now_ms())
         for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
             try:
                 payload, response_headers = transport(url, headers)
@@ -318,7 +322,8 @@ class ProviderBudget:
                     raise
                 blocked = self.note_blocked(getattr(exc, "retry_after", None))
                 pause = backoff_ms(attempt, self.jitter())
-                if attempt == RETRY_MAX_ATTEMPTS or decision["waitedMs"] + pause > backoff_ceiling:
+                if attempt == RETRY_MAX_ATTEMPTS or decision["waitedMs"] + pause > backoff_ceiling \
+                        or int(self.now_ms()) - loop_started + pause > CALL_CEILING_MS:
                     return self._defer({"reason": "exhausted", "waitMs": pause, "waitedMs": decision["waitedMs"], "blockedUntilMs": blocked}, attempt, exc)
                 if not getattr(exc, "retry_after", None):
                     blocked = self._block(int(self.now_ms()) + pause)

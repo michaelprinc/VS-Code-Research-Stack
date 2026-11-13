@@ -11,8 +11,18 @@
 
 const integrations = require("./integrations");
 
-const PROBE_COOLDOWN_MS = 30_000;
-const PROBE_TIMEOUT_MS = 20_000;
+// 10 s, not 30 s (0.3.11 phase 13, J7): the automatic check that follows "Activate" used to spend a 30 s
+// budget, and the operator's deliberate "I have installed Zotero — check it now" was then refused. A press is
+// not a stampede. The window still stops double-presses and cross-window repeats; `integrations.js` publishes
+// the same number as its own default, and a test asserts the two agree.
+const PROBE_COOLDOWN_MS = 10_000;
+// 80 s, not 20 s (0.3.11 phase 13). Zotero answers its local API only after the library has loaded, and its
+// own Connector allows 15 s for one request. The worker's Zotero stages are 5 + 5 + 12 + 12 (the retry) = 34 s
+// worst case; the hosted side is bounded by the budget module's wall-clock ceiling (20 s) plus the one request
+// already in flight when that ceiling is reached (15 s). This bound is above the sum of the two plus start-up.
+// It is a kill bound, not a promise that a check finishes: a check that runs this long is a check whose
+// services are not answering, and the receipt says so.
+const PROBE_TIMEOUT_MS = 80_000;
 // The worker names its providers with underscores; the host names them the way the panel does.
 const WORKER_IDS = { zotero: "zotero", "semantic-scholar": "semantic_scholar" };
 const OUTCOMES = ["ready", "not-installed", "not-running", "api-disabled", "rate-limited", "auth-required", "unreachable", "unknown"];
@@ -39,7 +49,8 @@ function probeEnvironment({ registry, apiKey } = {}) {
 // the operator sees what the worker said instead of guessing from a generic failure. `serverId` and `evidence` are kept
 // for the same reason: they are how the panel says *which* Zotero answered and *where* an installation was found.
 // Both are clipped to a short string, because they come from a worker and are shown to a person.
-const clipped = (value) => typeof value === "string" && value.length ? value.slice(0, 120) : null;
+// 160, matching the worker's own clip, so the host is never the half that loses the answer the operator needs.
+const clipped = (value) => typeof value === "string" && value.length ? value.slice(0, 160) : null;
 
 const normalized = (raw) => raw && typeof raw === "object"
   ? { outcome: OUTCOMES.includes(raw.outcome) ? raw.outcome : "unreachable", code: raw.code || null, detail: raw.detail || null, retryAfter: raw.retryAfter ?? null, installed: typeof raw.installed === "boolean" ? raw.installed : null, serverId: clipped(raw.serverId), evidence: clipped(raw.evidence) }

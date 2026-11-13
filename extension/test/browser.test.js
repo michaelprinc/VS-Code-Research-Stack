@@ -57,11 +57,39 @@ async function main() {
     });
     await page.exposeFunction("toolkitMessage", (message) => panel.receive(message));
     await page.addInitScript(() => { window.acquireVsCodeApi = () => ({ postMessage: (message) => window.toolkitMessage(message) }); });
-    panel.webview.postMessage = async (data) => { await page.evaluate((message) => window.dispatchEvent(new MessageEvent("message", { data: message })), data); return true; };
+    // The panel's outbound messages are kept so a renderer case can replay one with a field changed, which is
+    // the only way to drive a card state the host on this container cannot reach on its own.
+    const outbound = [];
+    panel.webview.postMessage = async (data) => { outbound.push(data); await page.evaluate((message) => window.dispatchEvent(new MessageEvent("message", { data: message })), data); return true; };
     await page.goto("https://toolkit.test/");
     await page.getByText("Saved: Recommended Research", { exact: true }).waitFor();
     assert.equal(await page.locator('input[value="recommended"]').isChecked(), true);
     assert.equal(await page.locator("#workspace").textContent(), "Research <draft>");
+    // The panel script restarts on a re-render — `nextRequestId` back to 1, no pending requests — while the host
+    // may still be finishing the previous action. A result carrying an id this panel never asked for must not be
+    // painted onto the fresh panel as the answer to a press the operator never made.
+    await page.evaluate(() => window.dispatchEvent(new MessageEvent("message", { data: { type: "result", requestId: 987654, message: "A late answer to a request this panel never made." } })));
+    assert.ok(!(await page.locator("#feedback").textContent()).includes("A late answer"), "an orphan result is dropped instead of replacing the panel's own status line");
+    // A result with no request id cannot be matched to a press at all, so it is the host speaking on its own:
+    // shown, and it touches no pending request.
+    await page.evaluate(() => window.dispatchEvent(new MessageEvent("message", { data: { type: "result", message: "Host-initiated status line." } })));
+    assert.equal(await page.locator("#feedback").textContent(), "Host-initiated status line.", "a result with no id is handled deliberately, not swallowed by the id guard");
+    // A check this workspace cannot run is rendered as an explained unavailable button, with the wait visible
+    // before the press, rather than as a live button that answers with an error about package components.
+    const state = JSON.parse(JSON.stringify(outbound.filter((item) => item.type === "state").at(-1)));
+    const zoteroView = state.integrations.views.find((view) => view.id === "zotero");
+    zoteroView.probeBlocked = "The check runs in the Toolkit's locked worker in a trusted local workspace folder, and this workspace does not provide one.";
+    zoteroView.probeWaitMs = 12_000;
+    await page.evaluate((message) => window.dispatchEvent(new MessageEvent("message", { data: message })), state);
+    const zoteroCard = page.locator("#integration-list article").filter({ hasText: "Zotero" });
+    const checkButton = zoteroCard.getByRole("button", { name: "Check now", exact: true });
+    assert.equal(await checkButton.getAttribute("data-unavailable"), "true", "the check is marked unavailable, not clickable");
+    assert.equal(await checkButton.getAttribute("aria-disabled"), "true", "and a keyboard user still reaches it and hears why");
+    assert.match(await checkButton.getAttribute("title"), /locked worker/, "the button explains itself instead of throwing");
+    assert.match(await checkButton.getAttribute("title"), /next check is allowed in 12 s/, "and the remaining whole seconds are visible before the press");
+    assert.equal(await zoteroCard.getByRole("button", { name: "Activate", exact: true }).getAttribute("data-unavailable"), null, "only the actions that start a check are marked unavailable");
+    await page.evaluate(() => window.dispatchEvent(new MessageEvent("message", { data: { type: "result" } })));
+    assert.match(await page.locator("#feedback").textContent(), /answered without a message/, "a result carrying neither an error nor a message renders a sentence, not the word undefined, in a live region");
     await page.locator("#component-search").fill("Research Stack Toolkit");
     await page.locator(".component-row").getByText(new RegExp(`Version: ${TOOLKIT_VERSION}.*Readiness: Ready`)).waitFor();
     await page.locator(".component-row").getByRole("button", { name: "Guide", exact: true }).click();
@@ -151,7 +179,7 @@ async function main() {
       await page.screenshot({ path: path.join(receiptRoot, `${name}.png`), fullPage: true });
     }
     assert.deepEqual(errors, [], "no renderer errors or CSP violations");
-    console.log(JSON.stringify({ test: "gui-browser-renderer", packageSaveByKeyboard: true, toolPresets: true, presetContextEstimate: true, presetFallbackAcrossPackages: true, invalidPresetRejected: true, interfaceOptions: true, clipboard: true, invalidMessageRejected: true, externalSettingSync: true, componentSearch: true, observedVersions: true, independentGuidesAndLatestDocs: true, setupAndReadingActions: true, selectedDocumentPreview: true, themes: ["dark", "light-mobile", "high-contrast"], errors }));
+    console.log(JSON.stringify({ test: "gui-browser-renderer", packageSaveByKeyboard: true, toolPresets: true, presetContextEstimate: true, presetFallbackAcrossPackages: true, invalidPresetRejected: true, interfaceOptions: true, clipboard: true, invalidMessageRejected: true, externalSettingSync: true, componentSearch: true, observedVersions: true, independentGuidesAndLatestDocs: true, setupAndReadingActions: true, selectedDocumentPreview: true, orphanResultRejected: true, hostResultWithoutIdShown: true, blockedCheckExplainedWithWait: true, undefinedNeverRendered: true, themes: ["dark", "light-mobile", "high-contrast"], errors }));
   } finally {
     await browser.close();
     assert.equal(path.dirname(fs.realpathSync(root)), fs.realpathSync(os.tmpdir()));
