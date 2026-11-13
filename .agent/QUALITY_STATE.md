@@ -1,10 +1,12 @@
 # Quality state — Research Stack Toolkit 0.3.11 (unified integration onboarding for Zotero and Semantic Scholar)
 
-> **PHASE 13 IN PROGRESS — integration correction from a real-host report (12 November 2026).** An operator ran
-> 0.3.11 on **Windows with Zotero 10** and reported: Zotero was installed and correctly detected, the GUI checks
-> failed, **"Check now" did not work correctly**, and the guided Semantic Scholar key flow had a problem. Plan of
-> record: [specs/phase-13-integration-correction/spec.md](../specs/phase-13-integration-correction/spec.md) — 20
-> defects registered (P1–P7 worker, J1–J7 host, M1–M6 model/panel) with decisions DD13-01…DD13-09.
+> **PHASE 13 IMPLEMENTED, VERIFIED AND COMMITTED — integration correction from a real-host report (12 November 2026).**
+> An operator ran 0.3.11 on **Windows with Zotero 10** and reported: Zotero was installed and correctly detected, the
+> GUI checks failed, **"Check now" did not work correctly**, and the guided Semantic Scholar key flow had a problem.
+> Commits `30de507` and `fd81489`; no tag. Plan of
+> record: [specs/phase-13-integration-correction/spec.md](../specs/phase-13-integration-correction/spec.md) — **21
+> defects registered (P1–P9 worker, J1–J7 host, M1–M7 model/panel)** with decisions DD13-01…DD13-09; M7 was found by
+> the instrument built to verify the rest, not by the plan.
 > **Reproduced here, not assumed:** the shipped probe was run against an emulated Zotero on the real port
 > `127.0.0.1:23119` — a server that closes without answering **crashes** the probe with `RemoteDisconnected`, and
 > 401 / 404 / a non-JSON 200 all collapse to the same generic `unknown` sentence, so the Toolkit cannot tell the
