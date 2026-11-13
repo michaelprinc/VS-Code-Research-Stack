@@ -125,10 +125,10 @@ is stored.
 | Python suite | **386 passed, 0 failed, 0 skipped** |
 | Node suite | **481 tests, 481 pass, 0 fail, 0 skipped** |
 | `scripts/panel_renderer_check.js` | **7 assertions, 7 pass, 0 fail, exit 0** — the shipped `media/controls.js` run byte-for-byte in a DOM shim against a real state message from the shipped harness. Run from the repository root. It found defect M7 and **fails against the pre-fix renderer** (`disabled=false`, `aria-disabled=null`, exit 1). |
-| `npm run verify-package` | **Passed** — 110 members, **481 828 packed**, **1 446 993 unpacked**, `sourceFilesMatch: true` |
+| `npm run verify-package` | **Passed** — 110 members, **481 907 packed**, **1 447 197 unpacked**, `sourceFilesMatch: true` |
 | Byte ceiling | The build **failed** at 1 445 373 against 1 441 792. Nothing was moved out and no reviewed file was dropped; the ceiling moved one 1/16 MiB step to **1 507 328** with member-by-member attribution in `scripts/verify_vsix.py`. Chain: 1 343 649 → 1 365 400 → 1 383 104 → 1 420 824 → 1 445 373 → **1 446 993**. |
 | `npm run check:payload` | **Passed**, 38 commands unchanged |
-| Reproducibility | Two consecutive builds of the final tree, same sha256 `e09eee6ffc5efcd42b8b1371e09d3b8d36146c54ab80880e43e12f6fdb646328`. The earlier phase-13 build digested `84f206c50fb4e038d2c97aaa3490cf1022f3ebfa7447410ad52e7b4ef3cc24fd`; it predates the M7 renderer fix and the Zotero guidance added to the readme, and is superseded. |
+| Reproducibility | Two consecutive builds of the final tree, same sha256 `75c533078febccee78ab6e7273c77a8378fa6d61d8cda72807400277335953a5`. Earlier phase-13 builds digested `84f206c5…` and `e09eee6f…`; both predate the M7 renderer fix, the Zotero guidance in the readme, and the named `npm run test:panel` gate, and are superseded. |
 
 ## Running the diagnostic on the operator's machine
 

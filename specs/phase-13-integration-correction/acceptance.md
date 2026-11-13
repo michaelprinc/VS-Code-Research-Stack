@@ -56,8 +56,8 @@ labelled as such. Nothing in this file claims a result that was not measured.
 |---|---|
 | Python suite | **386 passed, 0 failed, 0 skipped** (was 352). `uv run --locked python -m pytest -o addopts="" -q tests/` |
 | Node suite | **481 tests, 481 pass, 0 fail, 0 skipped** (was 468). `npm test` from `extension/` |
-| `scripts/panel_renderer_check.js` | **7 assertions, 7 pass, 0 fail, exit 0.** Run from the repository root. It also **fails (exit 1) against the pre-fix renderer**, which is what makes row G an assertion rather than a description. |
-| `npm run verify-package` | **Passed.** 110 members, **481 828 packed**, **1 446 993 unpacked**, `sourceFilesMatch: true`. sha256 `e09eee6ffc5efcd42b8b1371e09d3b8d36146c54ab80880e43e12f6fdb646328`, reproduced byte-identically by a second build. |
+| `scripts/panel_renderer_check.js` | **7 assertions, 7 pass, 0 fail, exit 0.** Now a named gate: `npm run test:panel` from `extension/`. It also **fails (exit 1) against the pre-fix renderer**, which is what makes row G an assertion rather than a description. |
+| `npm run verify-package` | **Passed.** 110 members, **481 907 packed**, **1 447 197 unpacked**, `sourceFilesMatch: true`. sha256 `75c533078febccee78ab6e7273c77a8378fa6d61d8cda72807400277335953a5`, reproduced byte-identically by a second build. |
 | Byte ceiling | **Re-measured, in the open, for the third time in this release.** The build failed at 1 445 373 against 1 441 792 — 3 581 over. Nothing was moved out and no reviewed file was dropped. The ceiling moved one 1/16 MiB step to **1 507 328**, with member-by-member attribution in `scripts/verify_vsix.py`. The chain is recorded: 1 343 649 → 1 365 400 → 1 383 104 → 1 420 824 → **1 445 373**. |
 | Capability audit | **Passed.** `research.py` still has exactly two `build_opener(` and zero `urlopen(`, the three unchanged Zotero constants, `ProxyHandler({})`, and no new address or opener. The HEAD verb reuses the same client. `integrations.py` gained no outbound primitive; its now-unused `import urllib.error` was removed. |
 | `npm run check:payload` | **Passed**, 38 commands unchanged. |

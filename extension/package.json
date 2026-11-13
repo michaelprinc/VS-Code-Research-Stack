@@ -409,6 +409,7 @@
   "scripts": {
     "test": "node --test test/unit.test.js test/diagnostics.test.js test/guides.test.js test/runtime.test.js test/presets.test.js test/installer.test.js test/bundles.test.js test/runner.test.js test/hosttools.test.js test/preflight.test.js test/setuplog.test.js test/status.test.js test/steps.test.js test/lockfile.test.js test/lockfile-adversarial.test.js test/module-boundaries.test.js test/updates.test.js test/reports.test.js test/integrations.test.js test/onboarding.test.js test/credential-security.test.js test/integration-host.test.js test/gui-status.test.js",
     "test:host": "node test/run-host-test.js",
+    "test:panel": "node ../scripts/panel_renderer_check.js",
     "package": "uv run --locked python ../scripts/build_guide_index.py && uv run --locked python ../scripts/build_worker_bundle.py && node scripts/package.js",
     "verify-package": "node scripts/with-artifact.js uv run --locked python ../scripts/verify_vsix.py",
     "check:payload": "node scripts/with-artifact.js node scripts/check-installed-payload.js"

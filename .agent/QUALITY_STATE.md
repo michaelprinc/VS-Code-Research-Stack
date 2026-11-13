@@ -237,11 +237,11 @@ Run in one sweep against the committed tree, working tree clean:
 | Check | Command | Result |
 |---|---|---|
 | Node suite | `cd extension && npm test` | **481 tests, 481 pass, 0 fail, 0 skipped** |
-| Panel renderer | `node scripts/panel_renderer_check.js` | **7 assertions, 7 pass, 0 fail, 0 not proven** |
-| VSIX audit | `cd extension && npm run verify-package` | **`result: passed`**, `sourceFilesMatch: true`, 1 446 993 unpacked under the 1 507 328 ceiling |
+| Panel renderer | `npm run test:panel` (from `extension/`) | **7 assertions, 7 pass, 0 fail, 0 not proven** — named as a gate in this round |
+| VSIX audit | `cd extension && npm run verify-package` | **`result: passed`**, `sourceFilesMatch: true`, 1 447 197 unpacked under the 1 507 328 ceiling |
 | Packaged entry point | `cd extension && npm run check:payload` | **`result: passed`**, 38 commands |
 | Python suite | `uv run --locked python -m pytest -o addopts="" -q tests/` | **386 passed, 0 failed, 0 skipped** |
-| Artifact digest | `sha256sum dist/research-stack-toolkit-0.3.11.vsix` | `e09eee6ffc5efcd42b8b1371e09d3b8d36146c54ab80880e43e12f6fdb646328`, identical across two consecutive builds |
+| Artifact digest | `sha256sum dist/research-stack-toolkit-0.3.11.vsix` | `75c533078febccee78ab6e7273c77a8378fa6d61d8cda72807400277335953a5`, identical across two consecutive builds |
 
 **Consistency review performed.** Every acceptance row in
 [specs/phase-13-integration-correction/acceptance.md](../specs/phase-13-integration-correction/acceptance.md) now
@@ -270,6 +270,7 @@ nothing is listening, or the request itself is being rejected — and it is the 
 reproduced states the operator is actually in.
 
 Inside the repository, in order: (1) give the readiness probe its own single-attempt bound instead of the research
-retry budget, which is the last known overshoot in the check path; (2) wire `scripts/panel_renderer_check.js` into a
-named npm script so it cannot be forgotten; (3) run `node test/browser.test.js` and `npm run test:host` on a host that
-has Playwright and `VSCODE_EXECUTABLE_PATH`, and record them as a new evidence folder.
+retry budget, which is the last known overshoot in the check path; (2) ~~wire `scripts/panel_renderer_check.js` into a
+named npm script~~ **done in round 2 — it is `npm run test:panel`**; (3) run `node test/browser.test.js` and
+`npm run test:host` on a host that has Playwright and `VSCODE_EXECUTABLE_PATH`, and record them as a new evidence
+folder.
