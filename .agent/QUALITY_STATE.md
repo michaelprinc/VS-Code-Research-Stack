@@ -230,7 +230,7 @@ Found by the wiring tests, not by reading the code; each now has a test that fai
 - **Migration reads, never deletes** (DD11-08), and every discarded value is named.
 - **INT-12 and INT-13 left open on purpose** rather than implemented without a threat model.
 
-## Final validation — phase 13, tree `653ce9a`, 13 November 2026
+## Final validation — phase 13, tree `653ce9a`, re-run on `484b841` in goal round 2, 13 November 2026
 
 Run in one sweep against the committed tree, working tree clean:
 
