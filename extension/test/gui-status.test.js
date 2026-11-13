@@ -392,8 +392,8 @@ test("the status card announces only its verdict, keeps read-only actions live, 
   assert.match(controls, /const isReadOnly = \(control\) => control\.dataset\?\.readonly === "true";/, "controls.js must define read-only");
   const sendBody = /function send\(message\) \{([\s\S]*?)\n  \}/.exec(controls);
   assert.ok(sendBody && /if \(isReadOnly\(control\)\) return;/.test(sendBody[1]), "the send-time disable sweep must skip read-only controls");
-  assert.match(controls, /function applyControlAvailability\(\) \{[\s\S]*?if \(isReadOnly\(control\)\) \{[\s\S]*?control\.disabled = false;/,
-    "the busy re-enable sweep must keep read-only controls enabled");
+  assert.match(controls, /const disabled = unavailable \|\| \(!isReadOnly\(control\) && Boolean\(busy\)\);/,
+    "the busy flag must not disable a read-only control, and an explicit unavailability must disable a control whatever else it is — read-only included. Renegotiated in phase 13: the old shape returned on the read-only branch first, so a read-only control marked unavailable stayed pressable and unannounced.");
   assert.equal((controls.match(/applyControlAvailability\(\);/g) || []).length, 2, "state and result messages re-enable controls through one sweep");
   assert.ok(!/control\.disabled = Boolean\(busy\)/.test(controls), "no sweep may disable every control again");
 

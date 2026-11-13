@@ -15,9 +15,12 @@
 > dialog). New operator-facing instrument: [scripts/zotero_local_check.py](../scripts/zotero_local_check.py)
 > (not packaged, not installed) — verified against three emulated states, each giving the right verdict and exit
 > code. Evidence: [evidence/realhost-2026-11-12/README.md](../evidence/realhost-2026-11-12/README.md).
-> **Open, and recorded as open:** whether Zotero 10's local API accepts `Host: 127.0.0.1:23119` or requires
-> `localhost:23119`; whether `users/0` and `format=json` are right on the local API; what Windows binds 23119 to.
-> None of these can be answered in this container.
+> **Answered from Zotero's own source (`zotero/zotero` at tag 10.0.9), not assumed:** `Host: 127.0.0.1:23119` **is
+> accepted** — `server.js` matches it against `/^(?:127\.0\.0\.1|\[::1\]|localhost)(?::[0-9]+)?$/i`, so the leading
+> hypothesis that the Host header was rejected is **disproven** and recorded as such. `users/0`, `format=json` and
+> `limit=100` are all valid. Zotero binds **IPv4 loopback only**, so `127.0.0.1` is the right constant and `localhost`
+> would have been worse. What is still unknown is which of the reproduced states the operator's machine is actually
+> in — that needs `scripts/zotero_local_check.py` run on their Windows host.
 >
 > **Phase 13 measured, current.** Node **481 tests, 481 pass, 0 fail, 0 skipped** (was 468). Python **386 passed,
 > 0 failed, 0 skipped** (was 352). Artifact **110 members, 481 282 packed, 1 445 373 unpacked,
@@ -27,7 +30,19 @@
 > moved one 1/16 MiB step to **1 507 328** with member-by-member attribution in `scripts/verify_vsix.py`. The chain
 > is recorded: 1 343 649 → 1 365 400 → 1 383 104 → 1 420 824 → **1 445 373**. Acceptance:
 > [specs/phase-13-integration-correction/acceptance.md](../specs/phase-13-integration-correction/acceptance.md)
-> (T13-01…T13-33).
+> (T13-01…T13-33). Committed as `30de507`; no tag.
+>
+> **The gap found at the freeze, and how it closed.** T13-22, T13-27, T13-28 and T13-29 were asserted only in
+> `extension/test/browser.test.js`, which has never run here — Playwright is absent and the file is not in
+> `npm test`. The scratch DOM probe left in `/tmp` by the panel agent **crashed on the new code**
+> (`control.setAttribute is not a function`) and proved nothing. `scripts/panel_renderer_check.js` now runs the
+> shipped `media/controls.js` byte-for-byte in a DOM shim against a real state message from the shipped harness:
+> **7 assertions, 7 pass, exit 0**. Running it found a defect the plan had missed — **M7**: `applyControlAvailability()`
+> returned on the `isReadOnly` branch before the unavailable branch, so `[data-action="updateNow"]` carried
+> `data-unavailable="true"` and an explanatory title while staying `disabled=false` and unannounced. Fixed; row G
+> **fails against the pre-fix renderer** (`disabled=false aria-disabled=null`, exit 1) and passes on the fixed one.
+> `gui-status.test.js`'s source-shape pin on the old branch was renegotiated into a semantic pin. What a real browser
+> is still owed is named in acceptance §3.
 >
 > **The defect this phase almost missed.** `CALL_CEILING_MS` documented that no attempt loop outlives the caller's
 > patience, but it counted only the pauses the loop slept — four 15-second timeouts ran to ~66 s against a 20 s

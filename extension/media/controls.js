@@ -177,13 +177,11 @@
    */
   function applyControlAvailability() {
     document.querySelectorAll("button, input, select").forEach((control) => {
-      if (isReadOnly(control)) {
-        control.disabled = false;
-        control.removeAttribute("aria-disabled");
-        return;
-      }
+      // `data-readonly` means "the busy flag must not disable this control" — the log and the copied
+      // diagnostics stay usable while a setup runs. It does not mean an explicit unavailability is
+      // ignored: a control the renderer has marked unavailable is unavailable whatever it is otherwise.
       const unavailable = control.dataset.unavailable === "true";
-      const disabled = Boolean(busy) || unavailable;
+      const disabled = unavailable || (!isReadOnly(control) && Boolean(busy));
       control.disabled = disabled;
       if (!disabled) { control.removeAttribute("aria-disabled"); return; }
       control.setAttribute("aria-disabled", "true");

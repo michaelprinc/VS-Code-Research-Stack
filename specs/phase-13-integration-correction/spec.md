@@ -90,6 +90,7 @@ and is recorded here as an open question rather than answered.
 | M4 | `controls.js:634`'s `pendingRequests.size &&` term makes an **empty** pending set accept any request id — the opposite of the stated intent. | degrades correctness |
 | M5 | `pendingRequests` grows without bound. | cosmetic |
 | M6 | A button that cannot run is rendered as if it could, with no reason on it. | blocks the user |
+| M7 | **Found by `scripts/panel_renderer_check.js`, not by the plan.** `applyControlAvailability()` returned on the `isReadOnly` branch before the unavailable branch, so a `data-readonly` control the renderer marked unavailable — `[data-action="updateNow"]`, measured — stayed `disabled=false` with no `aria-disabled` while carrying `data-unavailable="true"` and an explanatory title. | degrades correctness and accessibility |
 
 ## 5. Decisions
 

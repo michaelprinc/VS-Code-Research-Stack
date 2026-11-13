@@ -40,14 +40,15 @@ labelled as such. Nothing in this file claims a result that was not measured.
 | T13-19 | A completed check reports the verdict, not "Done.". | **Passed.** `extension/test/integration-host.test.js` asserts the panel result names the service and its state. |
 | T13-20 | A probe while another action holds the lock is refused with the stated reason, and only one worker runs. | **Passed**, for all three previously unlocked presses. |
 | T13-21 | Opening the integrations flow does not hold the lock for the whole check. | **Passed.** The facts read is bounded at 5 000 ms and is **skipped with a stated reason** when something is already running; zero facts calls in that case. |
-| T13-22 | A check that cannot run is shown disabled with its reason, not offered live. | **Passed** on the model side (`probeBlocked`, ids kept) and on the panel side (`data-unavailable`, `aria-disabled`, the reason, and the remaining whole seconds in the tooltip). |
+| T13-22 | A check that cannot run is shown disabled with its reason, not offered live. | **Passed on both sides.** Model: `probeBlocked` and `probeWaitMs` on every view, asserted in `test/integrations.test.js`. Panel: `scripts/panel_renderer_check.js` runs the shipped `media/controls.js` byte-for-byte in a DOM shim against a real state message from the shipped harness and measures `data-unavailable="true"`, `aria-disabled="true"` and the title `…this workspace does not provide one. The next check is allowed in 12 s.` on the Zotero "Check now" button, with "Activate" left live. |
 | T13-23 | The cooldown refusal names the remaining wait and says nothing was lost. | **Passed.** The window is 10 s, not 30 s, and the model's default and the probe module's constant are asserted to agree. |
 | T13-24 | A stale machine fact re-offers guided installation, and the host does not then refuse it. | **Passed on both sides.** Model: `test_integrations` asserts `guideInstall` and `installedNow` return when the fact is outside the window. Host: `test/integration-host.test.js` (the T12-36 case) now presses `guideIntegrationInstall` against an 8-day-old fact and asserts a **modal with the official page as its first button**, the detail sentence naming the 7-day window, and that the only thing opened is `https://www.zotero.org/download/`. The host no longer re-derives the rule; it asks the model's own offer list. |
 | T13-25 | Zotero's card stops offering "Activate" once it is ready or authorized. | **Passed.** Semantic Scholar's path is unchanged and asserted unchanged. |
 | T13-26 | The guided Semantic Scholar modal names the step that actually exists. | **Passed.** It now says to activate first, because a key is not storable before the provider's terms are accepted. The refusal without activation is still asserted. |
-| T13-27 | No result renders the word "undefined" in the live region. | **Passed.** |
-| T13-28 | A late result is not shown as the answer to the current press, even on a freshly re-rendered panel. | **Passed.** |
-| T13-29 | The pending-request set is bounded. | **Passed.** 1 000 unanswered presses, oldest id evicted, newest still answered. |
+| T13-27 | No result renders the word "undefined" in the live region. | **Passed** in `scripts/panel_renderer_check.js` row E: after every state driven, after an orphan result, after a host result, and after a bare `{type:"result"}` with neither error nor message, `#feedback` never contained "undefined" — the bare result renders the fallback sentence. |
+| T13-28 | A late result is not shown as the answer to the current press, even on a freshly re-rendered panel. | **Passed** in row C: a real press left `#feedback` at "Working…", and `{type:"result", requestId:987654}` — an id this panel never sent — left it unchanged. |
+| T13-29 | The pending-request set is bounded. | **Passed** in row F: 1 000 sends through the shipped `send()` path (ids 3…1002); probing every id answered 25 (978…1002) and evicted 975 (3…977). Newest answered, oldest evicted, measured bound 25 = `PENDING_REQUEST_LIMIT`. |
+| T13-34 | **Found by the new check, not by the plan.** A `data-readonly` control the renderer marks unavailable stayed pressable and unannounced. | **Passed after the fix.** `applyControlAvailability()` returned on the `isReadOnly` branch before the unavailable branch, so `[data-action="updateNow"]` carried `data-unavailable="true"` and an explanatory title with `disabled=false` and no `aria-disabled`. Row G now asserts the invariant; it **fails against the pre-fix renderer** (`disabled=false aria-disabled=null`, exit 1) and passes on the fixed one. |
 
 ## 2. Gates
 
@@ -69,9 +70,15 @@ labelled as such. Nothing in this file claims a result that was not measured.
   operator's machine is in.
 - **T13-31 — a real Semantic Scholar key, and a real 429.** Not run.
 - **T13-32 — a real VS Code Extension Host and a real rendered panel.** `npm run test:host` and
-  `npm run test:browser` cannot run here (no `VSCODE_EXECUTABLE_PATH`, no Playwright). The panel
-  behaviour is proven through the harness's recorded `postMessage` results and a scratch DOM harness,
-  not through a rendered window.
+  `node test/browser.test.js` cannot run here (no `VSCODE_EXECUTABLE_PATH`, no Playwright), and
+  `test/browser.test.js` is not part of `npm test`. The panel rows are now measured by
+  **`scripts/panel_renderer_check.js`** — the shipped `media/controls.js` executed byte-for-byte in a DOM shim
+  against a real state message from the shipped harness, 7 assertions, run as `node scripts/panel_renderer_check.js`.
+  That proves the **DOM-level** behaviour. It does not prove the browser-level consequences: whether
+  `controls.css` renders the unavailable state, whether the title appears as a tooltip, whether a screen reader
+  announces `aria-disabled`, whether a keyboard user can reach the control, whether a disabled control really
+  cannot be pressed, or whether a live region really speaks the measured text. Those still belong to
+  `test/browser.test.js` on a host that has Playwright.
 - **T13-33 — two real VS Code profiles of one OS user.** Not run.
 
 ## 4. What is still open by design
