@@ -1,6 +1,6 @@
 # Quality state — Research Stack Toolkit 0.3.13 (Zotero work internalized into the Toolkit's own worker)
 
-> **PHASE 14 IMPLEMENTED, VERIFIED AND COMMITTED — 14 November 2026.** An operator's brief about their own
+> **PHASE 14 IMPLEMENTED, VERIFIED AND COMMITTED — 14 November 2026, commit `a42af03`, no tag.** An operator's brief about their own
 > **Zotero 10.0.8** library (93 items = 43 top-level + 50 child notes, 37 with a DOI, **0 collections, 0 tags,
 > 0 saved searches**, full-text index answering no match) drove the phase. Its claims are labelled by the operator
 > themselves — [ZMĚŘENO] measured, [NAJDO] found in Zotero's source, [ZÁMĚR] deliberately not done — and the brief
