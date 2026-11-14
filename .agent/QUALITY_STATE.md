@@ -1,4 +1,4 @@
-# Quality state — Research Stack Toolkit 0.3.11 (unified integration onboarding for Zotero and Semantic Scholar)
+# Quality state — Research Stack Toolkit 0.3.12 (the 0.3.11 integration onboarding, corrected against a real Zotero 10)
 
 > **PHASE 13 IMPLEMENTED, VERIFIED AND COMMITTED — integration correction from a real-host report (12 November 2026).**
 > An operator ran 0.3.11 on **Windows with Zotero 10** and reported: Zotero was installed and correctly detected, the
@@ -24,15 +24,17 @@
 > would have been worse. What is still unknown is which of the reproduced states the operator's machine is actually
 > in — that needs `scripts/zotero_local_check.py` run on their Windows host.
 >
-> **Phase 13 measured, current.** Node **481 tests, 481 pass, 0 fail, 0 skipped** (was 468). Python **386 passed,
-> 0 failed, 0 skipped** (was 352). Artifact **110 members, 481 282 packed, 1 445 373 unpacked,
-> `sourceFilesMatch: true`, `result: passed`**, sha256 `84f206c5…`, reproduced byte-identically by a second build.
-> Payload check passed with **38 commands unchanged**. **The byte ceiling was breached again and moved again**:
-> 1 445 373 against 1 441 792 — 3 581 over. Nothing was moved out and no reviewed file was dropped; the ceiling
-> moved one 1/16 MiB step to **1 507 328** with member-by-member attribution in `scripts/verify_vsix.py`. The chain
-> is recorded: 1 343 649 → 1 365 400 → 1 383 104 → 1 420 824 → **1 445 373**. Acceptance:
+> **0.3.12 measured, current.** The phase-13 corrections were released as their own version at the operator's
+> request. Node **481 tests, 481 pass, 0 fail, 0 skipped**. Python **386 passed, 0 failed, 0 skipped**. Panel check
+> **7 assertions, 7 pass** (`npm run test:panel`). Artifact **`research-stack-toolkit-0.3.12.vsix`, 110 members,
+> 483 008 packed, 1 450 632 unpacked** under the 1 507 328 ceiling, `sourceFilesMatch: true`, `result: passed`,
+> sha256 `5b1667ab1ce45a07bd63762f53012ad1302dea0ace539d1f82a91f583f602f10`, reproduced byte-identically by a second
+> build. Payload check passed with **38 commands unchanged**. `uv.lock` was re-resolved with uv 0.13.6, not hand-edited.
+> Unpacked-size chain for this release line: 1 343 649 → 1 365 400 → 1 383 104 → 1 420 824 → 1 445 373 → 1 446 993 →
+> 1 447 197 → **1 450 632**, ceiling 1 507 328, headroom 56 696. Acceptance:
 > [specs/phase-13-integration-correction/acceptance.md](../specs/phase-13-integration-correction/acceptance.md)
-> (T13-01…T13-33). Committed as `30de507`; no tag.
+> (T13-01…T13-34). Phase 13 code was committed as `30de507` and `fd81489`; the 0.3.12 identity bump follows in this
+> round's commit. No tag.
 >
 > **The gap found at the freeze, and how it closed.** T13-22, T13-27, T13-28 and T13-29 were asserted only in
 > `extension/test/browser.test.js`, which has never run here — Playwright is absent and the file is not in

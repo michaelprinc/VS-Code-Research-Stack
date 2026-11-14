@@ -548,12 +548,19 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
         bundle = json.loads(archive.read("extension/worker/bundle.json"))
         # The bundle must be the one the reviewed source tree builds for this release.
         reviewed_version = json.loads((_EXTENSION_ROOT / "vsix-manifest.json").read_text(encoding="utf-8")).get("version")
-        reviewed_worker = re.search(r'const WORKER_VERSION = "([^"]+)";', (_EXTENSION_ROOT / "runtime.js").read_text(encoding="utf-8"))
-        if reviewed_worker is None:
-            raise ValueError("reviewed runtime.js does not declare a worker version")
-        reviewed_worker_version = reviewed_worker.group(1)
-        if reviewed_version != reviewed_worker_version:
-            raise ValueError(f"reviewed source versions disagree: extension {reviewed_version} vs worker {reviewed_worker_version}")
+        reviewed_package_version = json.loads((_EXTENSION_ROOT / "package.json").read_text(encoding="utf-8")).get("version")
+        reviewed_runtime_source = (_EXTENSION_ROOT / "runtime.js").read_text(encoding="utf-8")
+        # The worker version must be *declared*, and declared as derived from the manifest the artifact
+        # ships with. It used to be a literal in runtime.js, which a version bump left behind: the managed
+        # folder name, the plan view and the bundle's own workerVersion then disagreed, and validateWorker
+        # refused the bundle this same release shipped. That is what happened at 0.3.12.
+        if 'const WORKER_VERSION = require("./package.json").version;' not in reviewed_runtime_source:
+            raise ValueError('reviewed runtime.js does not derive the worker version from the shipped manifest')
+        if reviewed_package_version != reviewed_version:
+            raise ValueError(
+                f"reviewed source versions disagree: vsix manifest {reviewed_version} vs extension/package.json {reviewed_package_version}"
+            )
+        reviewed_worker_version = reviewed_package_version
         if (
             bundle.get('schemaVersion') != 2
             or bundle.get('workerVersion') != reviewed_worker_version

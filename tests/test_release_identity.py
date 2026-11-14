@@ -54,9 +54,20 @@ def _json_version(path: Path) -> str:
 
 
 def _runtime_constant(name: str) -> str:
-    match = re.search(rf"const {name} = \"([^\"]+)\";", _read(RUNTIME_JS))
-    assert match is not None, f"extension/runtime.js does not declare const {name}"
-    return match.group(1)
+    source = _read(RUNTIME_JS)
+    match = re.search(rf"const {name} = \"([^\"]+)\";", source)
+    if match is not None:
+        return match.group(1)
+    if name == "WORKER_VERSION":
+        # 0.3.12: the worker version is derived from the manifest the artifact ships with. A literal here
+        # survived a version bump, so the managed folder name and the shipped bundle's own workerVersion
+        # disagreed and validateWorker refused the bundle this same release built. The identity test must
+        # follow the derivation, not a number.
+        assert 'const WORKER_VERSION = require("./package.json").version;' in source, (
+            "extension/runtime.js neither declares const WORKER_VERSION nor derives it from the shipped manifest"
+        )
+        return _json_version(EXTENSION_PACKAGE_JSON)
+    raise AssertionError(f"extension/runtime.js does not declare const {name}")
 
 
 def _runtime_folder_template() -> str:

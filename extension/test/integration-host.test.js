@@ -358,7 +358,7 @@ test("only the server that uses the provider receives the integration state, and
   assert.equal(afterRecommended.env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED, "true", "the server that calls Semantic Scholar is handed the confirmation the operator gave");
   assert.ok(!("SEMANTIC_SCHOLAR_API_KEY" in afterRecommended.env), "and no key, because the operator chose the anonymous mode");
   assert.notEqual(afterRecommended.version, beforeRecommended.version, "the server signature changes with the integration state, so the host does not keep a stale tool surface");
-  assert.match(afterRecommended.version, /^0\.3\.11\+research-core:[0-9a-f]{12}$/, "the signature keeps its shape: version, goal and a digest, with no secret in it");
+  assert.match(afterRecommended.version, new RegExp(`^${require("../package.json").version.replace(/\./g, "\\.")}\\+research-core:[0-9a-f]{12}$`), "the signature keeps its shape: this release's version, the goal and a digest, with no secret in it. The version is read from the shipped manifest — pinning it here is how a bump turns this into a false failure.");
   for (const definition of after.filter((item) => !item.args.includes(RECOMMENDED_SERVER))) {
     assert.ok(!("SEMANTIC_SCHOLAR_API_KEY" in definition.env) && !definition.env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED,
       `"${definition.label}" does not call this provider, so it is handed nothing`);

@@ -1,7 +1,11 @@
 # Phase 13 — Integration correction from real-host evidence
 
-Version stays **0.3.11**. This phase corrects the integration work of phase 12 against what an
-operator actually saw on a real machine.
+Version stays **0.3.11** while this phase is written: it corrects the integration work of phase 12
+against what an operator actually saw on a real machine. **It shipped as 0.3.12** — at the operator's
+request the corrections became their own release rather than a re-issue of the 0.3.11 artifact, so
+0.3.11 stays exactly as it was published and 0.3.12 is the artifact to install. Everything below was
+written for 0.3.11 and re-verified on the 0.3.12 tree; the receipts in
+[acceptance.md](acceptance.md) carry the 0.3.12 numbers.
 
 ## 1. The report
 

@@ -274,13 +274,21 @@ test("the version check is refused when the setting is off, and a published buil
   assert.equal(refused.state, "disabled");
   assert.equal(off.events.updateChecks.length, 0, "a switched-off check reaches no transport at all");
 
+  // The published version has to be strictly newer than the version this release installs. Hard-coding
+  // it is the trap the 0.3.8 changelog records for `lockfile-adversarial.test.js`: the fixture stops
+  // being newer the moment the release reaches that number, and the gate then reports the opposite
+  // verdict from the one its name claims — which is exactly what happened at 0.3.12.
+  const installedVersion = require("../package.json").version;
+  const [major, minor, patch] = installedVersion.split(".");
+  const publishedVersion = `${major}.${minor}.${Number(patch) + 1}`;
+
   const on = makeHarness({ updateReply: { status: 200, body: JSON.stringify({
-    versions: [{ version: "0.3.12", lastUpdated: "2026-11-07T10:00:00Z", properties: [{ name: "Microsoft.VisualStudio.Code.Engine", value: "^1.140.0" }] }],
+    versions: [{ version: publishedVersion, lastUpdated: "2026-11-07T10:00:00Z", properties: [{ name: "Microsoft.VisualStudio.Code.Engine", value: "^1.140.0" }] }],
   }) } });
   const verdict = await on.registered.get("researchToolkit.checkForUpdates")();
   assert.equal(verdict.state, "update-available");
-  assert.equal(verdict.publishedVersion, "0.3.12");
-  assert.equal(verdict.installedVersion, require("../package.json").version);
+  assert.equal(verdict.publishedVersion, publishedVersion);
+  assert.equal(verdict.installedVersion, installedVersion);
   assert.equal(on.events.updateChecks.length, 1, "one request");
   assert.equal(on.events.updateChecks[0], "https://marketplace.visualstudio.com/_apis/public/gallery/vscode/michaelprinc/research-stack-toolkit/latest");
   const offer = on.events.messages.find((item) => item.buttons.includes("Update from the Marketplace"));

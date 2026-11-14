@@ -6,7 +6,11 @@ const { createHash } = require("node:crypto");
 const { runProcess, asRunProcess, stderrTail, PYTHON_FLAGS } = require("./runner");
 const { resolverFrom } = require("./hosttools");
 const { pairProblems, isLockDrift } = require("./lockfile");
-const WORKER_VERSION = "0.3.11";
+// The worker version is the release version, read from the manifest the artifact ships with. It used to
+// be a literal here, which meant a version bump left the managed folder name, the plan view and the
+// bundle's own `workerVersion` disagreeing — `validateWorker` then refused the shipped bundle with
+// "Unsupported worker bundle" and every setup step reported `not-run`. That is what happened at 0.3.12.
+const WORKER_VERSION = require("./package.json").version;
 // The managed worker folder name is derived from the version so a release cannot leave one stale.
 const WORKER_FOLDER = `.research-toolkit/managed/worker-${WORKER_VERSION}`;
 const componentCatalog = require("./components.json");

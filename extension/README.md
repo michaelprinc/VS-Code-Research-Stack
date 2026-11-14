@@ -1,8 +1,24 @@
-# Research Stack Toolkit 0.3.11 — Set Up Zotero and Semantic Scholar Once, and Stop Being Asked Again
+# Research Stack Toolkit 0.3.12 — The Zotero Check Now Says What Zotero Answered
 
-Install the components each package actually needs from the VS Code control panel, read **one plain-language verdict for the last component setup** — what completed, what failed, and what to do next — verify real MCP reading, see actual component versions and readiness, and choose a **tools preset shaped by the goal you are working on** so your assistant is offered fewer, better-matched tools. This release adds **Integrations & Accounts**: one place that detects Zotero and Semantic Scholar, asks only for the decision each service actually needs, and remembers it for every workspace in your VS Code profile.
+Install the components each package actually needs from the VS Code control panel, read **one plain-language verdict for the last component setup** — what completed, what failed, and what to do next — verify real MCP reading, see actual component versions and readiness, and choose a **tools preset shaped by the goal you are working on** so your assistant is offered fewer, better-matched tools. **0.3.11 added Integrations & Accounts**: one place that detects Zotero and Semantic Scholar, asks only for the decision each service actually needs, and remembers it for every workspace in your VS Code profile. **0.3.12 is the correction pass after an operator ran 0.3.11 against a real Zotero 10 on Windows** — the readiness check now reports what Zotero actually answered instead of a mystery, and it can no longer crash.
 
 Start with the [onboarding walkthrough](guides/onboarding.md) or [guide hub](guides/index.md). The hub is assembled from **29 individual component guides**, each with setup, a first task, readiness interpretation, troubleshooting and a maintained official documentation link.
+
+## What 0.3.12 adds
+
+0.3.12 changes no feature surface. It is the correction pass after an operator installed Zotero 10 on Windows, pressed **Check now**, and got a failure the Toolkit could not describe.
+
+- **The check reports what Zotero answered.** The receipt now carries the HTTP status and a short, scrubbed line of the server's own words — for example `403 Forbidden Local API is not enabled` or `root 200 Zotero-API-Version 3 Zotero-Server-ID sPMHtLD6HHBd HEAD 200`. A 400, a 401, a 404 and a 403 that is *not* about the setting are four different answers with four different sentences, and only the one that is about the setting tells you to change a setting.
+- **The check waits as long as Zotero actually needs.** Zotero answers its local API only after your library has finished loading, and Zotero's own Connector allows 15 seconds for one request. The stages now wait 5, 12 and 3 seconds instead of 2, and the library listing is asked twice before anything is reported.
+- **The check can no longer crash.** A server that closes the connection without answering used to fail the whole check, so the other service was never assessed. Each service is now assessed on its own.
+- **A refused port is not an absent Zotero.** Zotero opens 23119 late in its startup, and if another program already holds it Zotero starts no HTTP server at all. "Nothing answered" and "no Zotero" are now different sentences.
+- **`Check now` answers, and is not offered where it cannot run.** It used to report "Done." while the verdict went only to the Output channel. Now the verdict sentence names the service and its state; where the check cannot run, the button shows the reason and the remaining wait instead of throwing an error about package components.
+- **One check at a time, and a 10-second shared window instead of 30.** Three of the five ways a check starts bypassed the lock. Opening *Integrations & Accounts* no longer holds it for 20 seconds.
+- **The guided Semantic Scholar flow describes the path that exists.** Its modal told you to press *"I already have a key"* — a button that appears only after the integration is activated, which is correct, because a key must not be stored before you have accepted the provider's terms. It now says to activate first.
+- **A stale installation fact is evidence, not a permanent veto.** A confirmation older than the Toolkit's seven-day window re-opens *Guided installation* and *I have installed Zotero — check it now*.
+- **A panel button that is unavailable says so and announces it** — including read-only controls, which previously could be marked unavailable and still stay pressable.
+
+See **Zotero has one setting that decides whether the Toolkit can read it** below for the setting itself, the twelve-second library wait and the taken-port case.
 
 ## What 0.3.11 adds
 
@@ -80,7 +96,7 @@ If you installed 0.3.6 and **Set up package components** ended with **"Installat
 
 ## Install and open
 
-1. Run **Extensions: Install from VSIX...** in VS Code and choose `research-stack-toolkit-0.3.11.vsix`.
+1. Run **Extensions: Install from VSIX...** in VS Code and choose `research-stack-toolkit-0.3.12.vsix`.
 2. Click the **Research Toolkit** beaker icon in the Activity Bar, then **Open Control Panel**. You can also click the **Research: …** status-bar item or run **Research Toolkit: Open Control Panel** from the Command Palette.
 3. Select the research folder under **Workspace to inspect**, then click **Check components**. Search the list to find a component and inspect its installation, actual version, readiness, evidence and **next action**.
 4. In **Component setup for this package**, review the steps this package offers and click **Set up package components**. Setup starts with a preflight — workspace trust, a local desktop workspace, the host tools the plan needs, the managed paths and the setup lock — and nothing is written or downloaded until that preflight passes. Each step is recorded in the workspace receipt, so a later run resumes instead of repeating finished work.
@@ -93,7 +109,7 @@ Your existing 0.2.0/0.3.0 package and interface preferences are retained. Prefer
 
 ## Component setup, step by step
 
-The install plan is declarative: `components.json` (schemaVersion 2) states, for every component, who installs it, which step provides it, how it is verified and what you should do next. The extension runs only the steps your package needs, in order, and records each one in `.research-toolkit/managed/worker-0.3.11/installation.json`.
+The install plan is declarative: `components.json` (schemaVersion 2) states, for every component, who installs it, which step provides it, how it is verified and what you should do next. The extension runs only the steps your package needs, in order, and records each one in `.research-toolkit/managed/worker-0.3.12/installation.json`.
 
 | Package | Steps offered | What they install |
 |---|---|---|
