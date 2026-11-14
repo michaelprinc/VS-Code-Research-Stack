@@ -50,19 +50,19 @@ test("the settings contributions describe the shipped presets and commands witho
   }
   const categories = new Set(manifest.contributes.commands.map((item) => item.category));
   assert.deepEqual([...categories], ["Research Toolkit"], "the new commands appear in the same Command Palette group as the rest");
-  assert.equal(manifest.contributes.commands.length, 38, "30 through 0.3.9, the three 0.3.10 update and problem-report commands, and the five 0.3.11 integration commands");
+  assert.equal(manifest.contributes.commands.length, 39, "30 through 0.3.9, the three 0.3.10 update and problem-report commands, the five 0.3.11 integration commands, and the 0.3.13 Zotero write-key command");
   for (const command of ["researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness",
     "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus",
     "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension",
     "researchToolkit.manageIntegrations", "researchToolkit.checkIntegrations", "researchToolkit.activateIntegration",
-    "researchToolkit.setIntegrationApiKey", "researchToolkit.resetIntegration"]) {
+    "researchToolkit.setIntegrationApiKey", "researchToolkit.setZoteroWriteKey", "researchToolkit.resetIntegration"]) {
     assert.ok(manifest.contributes.commands.some((item) => item.command === command), `${command} is contributed, not just registered`);
   }
 });
 
 test("activation registers both disposable commands and reports the profile preference", async () => {
   const harness = makeHarness();
-  assert.equal(harness.registered.size, 38, "every contributed command is registered, including the 0.3.10 update and report commands and the 0.3.11 integration commands");
+  assert.equal(harness.registered.size, 39, "every contributed command is registered, including the 0.3.10 update and report commands, the 0.3.11 integration commands and the 0.3.13 Zotero write-key command");
   for (const integrationCommand of ["researchToolkit.manageIntegrations", "researchToolkit.checkIntegrations", "researchToolkit.activateIntegration", "researchToolkit.setIntegrationApiKey", "researchToolkit.resetIntegration"]) {
     assert.equal(typeof harness.registered.get(integrationCommand), "function", `${integrationCommand} is registered so the panel and the command palette can offer it`);
   }
@@ -87,7 +87,7 @@ test("activation registers both disposable commands and reports the profile pref
   assert.equal(harness.values.get("selectedPackage"), "basic");
   assert.equal(harness.output.shown, true);
   for (const subscription of harness.context.subscriptions) subscription.dispose();
-  assert.equal(harness.disposed.length, 39, "every registered command and the status item are disposed with the extension");
+  assert.equal(harness.disposed.length, 40, "every registered command and the status item are disposed with the extension");
 });
 
 test("GUI saves packages/options, reuses its panel, and syncs external settings with sidebar/status", async () => {

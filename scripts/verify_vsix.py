@@ -168,7 +168,25 @@ MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 # comment names is the one taken: re-measure. The ceiling becomes 1 507 328 (1.4375 MiB) — 61 955 bytes of
 # headroom, 4.3 % of the payload, still exactly one 1/16 MiB step (65 536), not a round number chosen to make
 # a build pass.
-MAX_UNPACKED_BYTES = 1_507_328
+# 0.3.13 (phase 14, Zotero internalization) re-measures it for a new release. Measured: 1 527 454 bytes across
+# 113 members — 20 126 over the 1 507 328 ceiling. The chain is recorded: 1 343 649 → 1 365 400 → 1 383 104 →
+# 1 420 824 → 1 445 373 → 1 450 632 (0.3.12) → 1 527 454. Attribution, member by member against the 0.3.12
+# build, and it accounts for the whole 76 822 bytes exactly: worker research.py 36 333 → 69 174 (+32 841 — the
+# Zotero read verbs, the gated write planner, the snapshot reader and the RIS validator); worker
+# zotero_store.py +6 073 (a new member: snapshot and undo journal as workspace files, no network call in it);
+# worker recommended_server.py 5 081 → 9 831 (+4 750 — two verbs replacing three tools, the aliases gated to
+# unmanaged configurations); worker presets.py 4 512 → 4 905 (+393); extension/extension.js 122 644 → 126 315
+# (+3 671 — the write-key command flow and the worker-environment injection); extension/integrationstore.js
+# 4 195 → 4 394 (+199 — one name in the environment footprint); extension/components.json +165 and
+# extension/presets.json −87; the theological-research bundle +14 335 (scripts/validate_ris.py +8 350 and
+# references/zotero-vocabulary.md +4 348 as two new members, SKILL.md 9 895 → 11 532, catalog.json 8 294 → 8 701);
+# guides/zotero-local-api.md 1 865 → 7 204 (+5 339 — the measured endpoint table); extension/readme.md
+# 52 407 → 57 872 (+5 465) and worker/README.md 13 331 → 16 066 (+2 735); functional_check.py +230,
+# guides/index.md +37, worker/bundle.json +110, packaged package.json +159. Nothing was moved out and no
+# reviewed file was dropped, so the option this comment names is the one taken: re-measure. The ceiling becomes
+# 1 572 864 (1.5 MiB) — 45 410 bytes of headroom, 3.0 % of the payload, still exactly one 1/16 MiB step (65 536)
+# above the previous ceiling, not a round number chosen to make a build pass.
+MAX_UNPACKED_BYTES = 1_572_864
 SENSITIVE_NAMES = re.compile(r"(^|/)(\.env(\.|$)|\.venv|node_modules|\.git|corpus|models?|secrets?)(/|$)", re.I)
 # The capability scan is about starting a process or opening a socket. A method call on an object
 # (`SOME_PATTERN.exec(text)` on a RegExp, which `extension/lockfile.js` uses to read a version) is

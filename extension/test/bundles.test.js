@@ -568,16 +568,18 @@ test("the shipped theological bundle installs into a disposable workspace and re
   const root = await workspace(t);
   const catalog = await readCatalog(CATALOG_PATH);
   const plan = await planInstall({ workspaceRoot: root, catalog, bundleId: "theological-research" });
-  assert.equal(plan.files.length, 11);
+  // 13 files: the 11 the bundle shipped with through 0.3.12, plus `scripts/validate_ris.py` and
+  // `references/zotero-vocabulary.md`, which 0.3.13 adds so a RIS file is checked before Zotero sees it.
+  assert.equal(plan.files.length, 13);
   assert.ok(plan.files.every((file) => file.absolute.startsWith(path.join(root, ".github", "skills", "theological-research", ""))));
 
   const receipt = await installBundle({ workspaceRoot: root, catalog, bundleId: "theological-research" });
-  assert.equal(receipt.filesInstalled, 11);
-  assert.equal(receipt.filesWritten, 11);
+  assert.equal(receipt.filesInstalled, 13);
+  assert.equal(receipt.filesWritten, 13);
   assert.equal(receipt.hostDiscoveryVerified, false);
   assert.equal(receipt.workflowTested, false);
   const installed = await treeOf(path.join(root, ".github", "skills", "theological-research"));
-  assert.equal(installed.size, 11);
+  assert.equal(installed.size, 13);
   for (const entry of catalog.bundles.find((item) => item.id === "theological-research").files) {
     const relative = entry.path.replace(/^theological-research\//, "");
     assert.equal(installed.get(relative), entry.sha256, `${entry.path} is not the reviewed file after install`);
@@ -585,7 +587,7 @@ test("the shipped theological bundle installs into a disposable workspace and re
   const repaired = await repairBundle({ workspaceRoot: root, catalog, bundleId: "theological-research" });
   assert.deepEqual(repaired.repair.drift, []);
   assert.deepEqual(repaired.repair.reinstalled, []);
-  assert.equal(repaired.filesInstalled, 11);
+  assert.equal(repaired.filesInstalled, 13);
 });
 
 test("the document bridge ships as a reviewed bundle and no longer tells the operator PDF and DOCX are unsupported", async (t) => {

@@ -23,7 +23,7 @@ metadata:
 
 This section states what has to be true on the computer you are working on. Nothing here is provided by installing the skill.
 
-- **Python.** The two scripts need Python 3.12 or newer, available as `python3`. They use only the Python standard library: no pip install, no `uv`, and no dependency on the toolkit's own Python environment.
+- **Python.** The three scripts need Python 3.12 or newer, available as `python3`. They use only the Python standard library: no pip install, no `uv`, and no dependency on the toolkit's own Python environment.
 - **Network.** `scripts/crossref_lookup.py` contacts `api.crossref.org` and `api.openalex.org`. It is optional, you run it yourself, and the toolkit installer never runs it. Installing this bundle makes no network request. Its User-Agent carries a placeholder contact address; pass your own with `--mailto`.
 - **No licensed database is provisioned.** No account, credential, entitlement or connector for ATLA or any similar database comes with this toolkit, and installing this bundle does not check whether one exists. If a database is reachable, your institution gave you that access and you have to probe it yourself.
 - **What the toolkit does provide:** a local lexical (BM25) index over text sources and MCP tools for reading documents. It does not provide vector or embedding search, OCR, scanned-image recognition, or automatic downloading of papers.
@@ -73,6 +73,17 @@ A script result is a **metadata candidate**, never a verification performed by t
 
 If metadata disagree, report the discrepancy. Never silently pick one value. Mark unresolved records `unverified` in the bibliography instead of guessing.
 
+## 4a. Writing to Zotero (RIS export)
+
+- Run `python3 scripts/validate_ris.py file.ris --expect N` before Zotero ever sees the file. Measured reason: an import on 14 November 2026 returned HTTP success and created 156 items, 61 of them empty.
+- A status code is not an import result. After any import, compare the record count you wrote with the library count, and report the difference.
+- Access status and topic go in `KW` lines, which become tags. Never put them in `N1`: it becomes a child note that cannot be filtered (measured 14 November 2026). Vocabulary: [references/zotero-vocabulary.md](references/zotero-vocabulary.md).
+- `TY  - GEN` arrives as `journalArticle`. For a code of canon law, a conciliar text or a magisterial document use `STAT`; for a report `RPRT`; for a dissertation `THES`. A wrong type is corrected by editing the item, not by re-importing the file.
+- A record with no DOI, ISBN or URL cannot be deduplicated reliably: mark it `status/needs-identifier` instead of guessing a match.
+- Zotero's local API has no duplicate-detection and no merge endpoint. Deduplication is done over your own records before the import.
+- Back up the library before a bulk write. The Toolkit never opens `zotero.sqlite` and never accepts a Zotero write consent on your behalf.
+- Zotero's own export gives `csljson`, `bibtex`, `biblatex` or `csv`; `markdown` is refused. CSL-JSON carries neither `extra` nor tags, so an access label must be generated from the tags by your own script.
+
 ## 5. Synthesize, do not list
 
 Organize findings by thesis, method, school or chronology - whichever answers the question. For each major position give: its claim, its evidence, its strongest objection, and how scholars answered it. Represent opposing views in their best form, without false balance.
@@ -107,6 +118,7 @@ Default citation style: Chicago notes-bibliography. Use SBL, Turabian or a journ
 - Questions involving surveys, psychology, sociology, or empirical material about religious practice: [references/theology-and-social-sciences.md](references/theology-and-social-sciences.md)
 - Your own library, databases and preferred journals: [references/my-library.md](references/my-library.md)
 - Report skeletons to copy: [references/report-templates.md](references/report-templates.md)
+- Zotero tags for a RIS export, the facets and what `KW` and `N1` become: [references/zotero-vocabulary.md](references/zotero-vocabulary.md)
 
 ## Limits and failures
 

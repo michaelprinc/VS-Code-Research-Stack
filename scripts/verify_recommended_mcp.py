@@ -38,7 +38,12 @@ async def verify(root: Path, project: Path) -> dict[str, object]:
     async with Client(parameters) as client:
         listed = await client.list_tools()
         names = sorted(tool.name for tool in listed.tools)
-        expected = ["check_citation", "prepare_zotero_import", "search", "zotero_collections", "zotero_item"]
+        # 0.3.13 (DD14-01/DD14-05): the Zotero surface is two verbs — `zotero_library` for every read and
+        # `zotero_write` for the gated write — and `search_literature` is the real name of the search tool.
+        # The three aliases are registered only because this run carries no managed preset, which is exactly
+        # the case a hand-written MCP entry in a 0.3.12 configuration still is.
+        expected = ["check_citation", "prepare_zotero_import", "search", "search_literature",
+                    "zotero_collections", "zotero_item", "zotero_library", "zotero_write"]
         if names != expected:
             raise AssertionError(f"Unexpected Recommended tool set: {names}")
         failure = await client.call_tool("search", {"provider": "not-a-provider", "query": "fixture", "limit": 1})
@@ -65,7 +70,24 @@ async def verify(root: Path, project: Path) -> dict[str, object]:
         if data.get("zoteroModified") is not False or not ris_path.is_file() or "DO  - 10.1234/example" not in ris_path.read_text(encoding="utf-8"):
             raise AssertionError("RIS preparation did not create the expected new review file.")
         zotero = await client.call_tool("zotero_collections", {})
-        return {"tools": names, "invalidProviderState": error.get("code"), "preparedRis": data["path"], "zoteroState": zotero.structured_content}
+        # The read verb answers with a named state whether or not a Zotero is running here, and it always
+        # says that it read only.
+        status = await client.call_tool("zotero_library", {"action": "status"})
+        status_content = status.structured_content
+        if "error" not in status_content and status_content.get("readOnly") is not True:
+            raise AssertionError(f"zotero_library(status) did not report a read-only state: {status_content}")
+        # The write verb refuses before it touches anything: no confirmation literal, no request to Zotero.
+        refused = await client.call_tool("zotero_write", {"action": "apply", "changes": [{"op": "create_collection", "name": "Verify fixture"}]})
+        if refused.structured_content.get("error", {}).get("code") != "WRITE_CONFIRM_REQUIRED":
+            raise AssertionError(f"zotero_write(apply) accepted a write without the confirmation literal: {refused.structured_content}")
+        preview = await client.call_tool("zotero_write", {"action": "preview", "changes": [{"op": "create_collection", "name": "Verify fixture"}]})
+        preview_content = preview.structured_content
+        if preview_content.get("dryRun") is not True or preview_content.get("zoteroModified") is not False:
+            raise AssertionError(f"zotero_write(preview) is not a dry run: {preview_content}")
+        return {"tools": names, "invalidProviderState": error.get("code"), "preparedRis": data["path"],
+                "zoteroState": zotero.structured_content, "zoteroLibraryState": status_content.get("error", {}).get("code") or "answered",
+                "zoteroWriteRefusedWithoutConfirm": refused.structured_content["error"]["code"],
+                "zoteroWritePreviewDryRun": preview_content["dryRun"]}
 
 
 async def main() -> None:

@@ -863,12 +863,12 @@ test("nothing reads the machine record at activation, and the read is a panel me
   assert.equal(seen.length, 0, "opening a window ran no worker call at all");
   assert.ok(!seen.some((args) => args.includes("integration-facts")), "and no machine-fact read happened at activation");
   assert.equal(harness.events.secrets.length, 0, "and no secret was read");
-  assert.equal(harness.registered.size, 38, "the machine-fact path added no command: the count the payload check asserts is unchanged");
+  assert.equal(harness.registered.size, 39, "the machine-fact path added no command: the count the payload check asserts is unchanged since 0.3.13 added the Zotero write-key command");
   const panel = harness.api.openControlPanel();
   await panel.receive({ type: "readIntegrationFacts" });
   assert.equal(seen.length, 1, "the worker is asked only when the operator asks");
   assert.deepEqual(seen[0], ["-I", "-B", "-X", "utf8", "-m", "research_stack.cli", "integration-facts"], "and it is asked for the facts verb, not for a probe");
-  assert.equal(harness.registered.size, 38, "and the command count is still 38 after the read");
+  assert.equal(harness.registered.size, 39, "and the command count is still 39 after the read");
   const picker = makeHarness({ folders: foldersFor(root), initial: GOAL, quickPicks: ["Zotero", "What did this machine find?"], diagnosticServices: services });
   const before = seen.length;
   await run(picker, "researchToolkit.manageIntegrations");

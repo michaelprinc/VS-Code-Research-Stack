@@ -931,10 +931,17 @@ function activateWith(vscode, context, diagnosticServices) {
         if (key) { env.SEMANTIC_SCHOLAR_API_KEY = key; keyConfigured = true; }
       }
     }
+    // 0.3.13 (DD14-07): a Zotero write key is Zotero's own credential, issued by Zotero's own consent dialog.
+    // The Toolkit never opens that dialog, never reads Zotero's `localAPIKeys.json`, and never asks for a key in
+    // a chat or a file. It hands over only what the operator stored in this profile's secret storage, to the
+    // worker that serves `zotero_write`, and the fingerprint below names only whether one exists.
+    const zoteroWriteKey = await integrationStore.readApiKey(context.secrets, "zotero");
+    if (zoteroWriteKey) env.RESEARCH_STACK_ZOTERO_WRITE_KEY = zoteroWriteKey;
     const fingerprint = crypto.createHash("sha256").update(JSON.stringify({
       semanticScholar: integrations.isAuthorized(integrationRegistry, "semantic-scholar") ? record.mode : "off",
       keyConfigured,
       zotero: integrationRegistry.providers.zotero.readiness,
+      zoteroWriteKeyConfigured: Boolean(zoteroWriteKey),
     })).digest("hex").slice(0, 8);
     return { env, fingerprint };
   }
@@ -1473,6 +1480,32 @@ function activateWith(vscode, context, diagnosticServices) {
     void vscode.window.showInformationMessage("API key stored in VS Code secret storage. It is not copied into your workspace, your settings, the setup log or a problem report.");
     return integrationView(provider);
   }
+  /**
+   * 0.3.13 (DD14-07): the Zotero write key is not a key the Toolkit can request from a provider. Zotero issues
+   * it in its own authorization dialog, on the operator's machine, and the Toolkit never opens that dialog and
+   * never reads Zotero's own key file. This command stores only a key the operator already has, and names where
+   * it came from. It is the only path by which a write credential reaches the worker.
+   */
+  async function setZoteroWriteKey() {
+    const stored = await integrationStore.hasApiKey(context.secrets, "zotero");
+    const choice = await vscode.window.showInformationMessage(
+      stored ? "This profile already stores a Zotero write key." : "This profile stores no Zotero write key. Reading your library needs none.",
+      { modal: true, detail: "Zotero 10 issues a local write key in its own authorization dialog, on your machine, after you press Allow there. The Toolkit never opens that dialog, never accepts that consent for you, never reads Zotero's own key file, and never writes to your library without the literal confirmation `write-to-zotero`.\n\nStore pastes a key Zotero already gave you into VS Code secret storage for this VS Code profile only — never into a workspace file, a setting, a log or a problem report — and hands it only to the research worker's environment. Remove deletes it. Without a key the Toolkit reads your library and refuses every write before Zotero is asked." },
+      stored ? "Replace the key" : "Store a key Zotero gave you", "Remove the stored key", "Not now");
+    if (choice === "Not now" || choice === undefined) return integrationView("zotero");
+    if (choice === "Remove the stored key") {
+      await integrationStore.clearApiKey(context.secrets, "zotero");
+      void vscode.window.showInformationMessage("Zotero write key removed from this profile. The Toolkit will refuse a Zotero write before it asks Zotero for anything.");
+      return integrationView("zotero");
+    }
+    const entered = await vscode.window.showInputBox({ title: "Zotero write key", prompt: "Paste the key Zotero issued when you pressed Allow in its own authorization dialog. It is stored in VS Code's secret storage for this profile and is never written into your project, your logs or a report.", password: true, ignoreFocusOut: true, placeHolder: "Paste the key, or leave empty to keep the current one" });
+    if (entered === undefined) return undefined;
+    if (!entered.trim()) return integrationView("zotero");
+    const result = await integrationStore.storeApiKey(context.secrets, "zotero", entered);
+    void vscode.window.showInformationMessage(`Zotero write key stored for this profile${result.configured ? "" : " — the value was refused as a key"}. It is not copied into your workspace, your settings, the setup log or a problem report, and it is not sent to Zotero by any tool that does not name a write.`);
+    return integrationView("zotero");
+  }
+
   async function clearIntegrationKey(provider) {
     await integrationStore.clearApiKey(context.secrets, provider);
     const at = new Date().toISOString();
@@ -1509,6 +1542,7 @@ function activateWith(vscode, context, diagnosticServices) {
   }
   register("researchToolkit.activateIntegration", (provider) => activateIntegration(provider));
   register("researchToolkit.setIntegrationApiKey", (provider) => setIntegrationKey(provider));
+  register("researchToolkit.setZoteroWriteKey", () => setZoteroWriteKey());
   register("researchToolkit.checkIntegrations", () => exclusive(() => runIntegrationProbe(undefined)));
   register("researchToolkit.resetIntegration", (provider) => resetIntegration(provider));
 

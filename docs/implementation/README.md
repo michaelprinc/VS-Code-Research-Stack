@@ -2,6 +2,8 @@
 
 Planning baseline: 7 October 2026. Language: English. Phase 1 G1 remains open on Windows 11 x64; Phase 2 has an additive implementation prototype but G2 is blocked; Phases 3–4 remain planned. Rows 5 and 6 are release-level plans for the 0.3.5 and 0.3.6 previews against Phase 4, not new profiles or new gates.
 
+**Correction dated 14 November 2026, so the baseline is not read as the current state.** This page is the 7 October plan and is kept as such. What has since shipped is a 0.3.13 VSIX preview under `extension/` (Phase 4 in progress, not complete), a Full-package corpus index and SQLite record store (0.3.9), integration onboarding for Zotero and Semantic Scholar (0.3.11–0.3.12) and the Zotero internalization in the Toolkit's own worker (0.3.13). What has **not** changed is the gate status: G1, G2, G3 and G4 remain open, G3's named candidates (Qdrant, embeddings, DuckDB) are unimplemented, and no gate receipt has been approved since before 0.3.10.
+
 ## Objective and boundary
 
 First install and validate the scientific stack on a local reference workstation, documenting exact versions, installation steps, compatibility settings, integration behavior, and recovery. Then turn those proven procedures into a complete VS Code extension distributed as a VSIX. Component updates are part of the product design where ownership and upstream mechanisms make them feasible.

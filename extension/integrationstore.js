@@ -13,8 +13,9 @@ const integrations = require("./integrations");
 const REGISTRY_STATE_KEY = "researchToolkit.integrations";
 const API_KEY_MIN = 8;
 const API_KEY_MAX = 256;
-// The names DD11-08 names. Only names.
-const ENVIRONMENT_NAMES = ["SEMANTIC_SCHOLAR_API_KEY", "SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED", "OPENALEX_API_KEY", "CROSSREF_MAILTO", "CROSSREF_PLUS_API_TOKEN"];
+// The names DD11-08 names. Only names. `RESEARCH_STACK_ZOTERO_WRITE_KEY` joins them in 0.3.13: the name the
+// worker reads a Zotero write key from, so the footprint can say the host already carries it.
+const ENVIRONMENT_NAMES = ["SEMANTIC_SCHOLAR_API_KEY", "SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED", "OPENALEX_API_KEY", "CROSSREF_MAILTO", "CROSSREF_PLUS_API_TOKEN", "RESEARCH_STACK_ZOTERO_WRITE_KEY"];
 
 const secretKey = (provider) => `researchStack.integration/${provider}/apiKey`;
 const loadRegistry = (globalState) => integrations.readRegistry(globalState?.get?.(REGISTRY_STATE_KEY)).registry;

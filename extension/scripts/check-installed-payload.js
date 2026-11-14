@@ -132,9 +132,18 @@ async function main() {
     const workspace = path.join(stage, "workspace");
     fs.mkdirSync(workspace);
     const { vscode, registered, values } = fakeHost(workspace);
+    // A real host always hands the extension a SecretStorage, so the controller models one: an empty
+    // store whose reads are recorded. 0.3.13 added the Zotero write key, whose only path in or out of the
+    // worker is this store, and the controller has to be able to say whether the payload touched it.
+    const secretReads = [];
+    const secrets = {
+      async get(key) { secretReads.push(key); return undefined; },
+      async store(key, value) { void key; void value; throw new Error("the controller stores no secret"); },
+      async delete(key) { void key; throw new Error("the controller stores no secret"); },
+    };
     const context = {
       subscriptions: [], extensionUri: { fsPath: packageRoot, toString: () => packageRoot },
-      extension: { packageJSON: manifestPackage },
+      extension: { packageJSON: manifestPackage }, secrets,
     };
     // 0.3.10: the installed payload's version check runs against a recorded reply, never a live request.
     const updateRequests = [];
@@ -143,6 +152,7 @@ async function main() {
     });
     report.commands = registered.size;
     assert.deepEqual(await api.mcpProvider.provideMcpServerDefinitions(), [], "no servers before a setup receipt");
+    assert.deepEqual(secretReads, [], "activation and an empty definition request read no secret");
 
     // 0.3.10: the update channel in the installed payload, measured before any panel interaction so that
     // every request counted here belongs to these two calls and to nothing else.
@@ -230,7 +240,7 @@ async function main() {
     const state = panel.messages.at(-1);
     assert.equal(state.version, version);
     assert.equal(state.presets.length, 9, "Full offers the whole preset range");
-    assert.equal(state.toolSurface.toolCount, 20, "the preset-selectable surface is 20 tools: 5 document/recommended readers, 5 research verbs, 10 store verbs (0.3.9 adds verify_sources)");
+    assert.equal(state.toolSurface.toolCount, 20, "the preset-selectable surface is still 20 tools after 0.3.13: 5 document/recommended readers, 5 research verbs (search_literature, check_citation, zotero_library, zotero_write, prepare_zotero_import), 10 store verbs");
     assert.equal(state.installPlan.package.id, "full");
     assert.equal(state.installPlan.steps.length, 4, "Full declares four component steps");
     assert.deepEqual(state.installPlan.counts, { installed: 3, outdated: 1, omittedOptional: 0 }, "the receipt plus produced files drive step status");
@@ -240,7 +250,9 @@ async function main() {
     assert.equal(state.installPlan.components.planned, 5);
     const widest = state.presets.find((item) => item.id === "research-lab-max");
     assert.equal(widest.estimate.measured, true);
-    assert.equal(widest.estimate.totalTools, 101);
+    // 100, not 101: 0.3.13 consolidated the Zotero surface, so the widest preset carries 9 toolkit tools
+    // (5 document + 4 read-only research verbs) beside the 91 external tools it names, 28 under the ceiling.
+    assert.equal(widest.estimate.totalTools, 100);
     assert.ok(widest.estimate.totalTools <= state.toolBudget.clientCeiling);
     assert.match(panel.webview.html, /id="preset-list"/);
     assert.match(panel.webview.html, /id="preset-estimate"/);
@@ -260,7 +272,7 @@ async function main() {
     assert.match(state.installation.line, /component setup|Installation/, state.installation.line);
     assert.equal(state.installation.toolkitVersion, version, "the installation card is labelled with the packaged release");
     report.commands = registered.size;
-    assert.equal(registered.size, 38, "every declared command is registered (25 through 0.3.8, the five 0.3.9 corpus, freshness and bundle commands, the three 0.3.10 update and problem-report commands, and the five 0.3.11 integration commands)");
+    assert.equal(registered.size, 39, "every declared command is registered (25 through 0.3.8, the five 0.3.9 corpus, freshness and bundle commands, the three 0.3.10 update and problem-report commands, the five 0.3.11 integration commands, and the 0.3.13 Zotero write-key command)");
     for (const command of ["researchToolkit.retryFailedSteps", "researchToolkit.clearSetupLock", "researchToolkit.openSetupLog", "researchToolkit.copyInstallationDiagnostics",
       "researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness", "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus",
       "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension",
@@ -342,7 +354,7 @@ async function main() {
     const failingWorkspace = path.join(stage, "workspace-failed-setup");
     fs.mkdirSync(failingWorkspace);
     const failingHost = fakeHost(failingWorkspace, { confirm: true });
-    const failingContext = { subscriptions: [], extensionUri: { fsPath: packageRoot, toString: () => packageRoot }, extension: { packageJSON: manifestPackage } };
+    const failingContext = { subscriptions: [], extensionUri: { fsPath: packageRoot, toString: () => packageRoot }, extension: { packageJSON: manifestPackage }, secrets };
     const failingApi = extension.activateWith(failingHost.vscode, failingContext, {
       async findHostTool(name) { return name === "uv" ? "/packaged-check/uv" : undefined; },
       async runFile(executable, args) {

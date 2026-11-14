@@ -1,3 +1,62 @@
+# Quality state — Research Stack Toolkit 0.3.13 (Zotero work internalized into the Toolkit's own worker)
+
+> **PHASE 14 IMPLEMENTED, VERIFIED AND COMMITTED — 14 November 2026.** An operator's brief about their own
+> **Zotero 10.0.8** library (93 items = 43 top-level + 50 child notes, 37 with a DOI, **0 collections, 0 tags,
+> 0 saved searches**, full-text index answering no match) drove the phase. Its claims are labelled by the operator
+> themselves — [ZMĚŘENO] measured, [NAJDO] found in Zotero's source, [ZÁMĚR] deliberately not done — and the brief
+> is kept as a tracked artifact with its limits in [evidence/realhost-2026-11-14/README.md](../evidence/realhost-2026-11-14/README.md).
+> Plan of record: [specs/phase-14-zotero-internalization/spec.md](../specs/phase-14-zotero-internalization/spec.md)
+> (ZT-01…ZT-18 with dispositions, DD14-01…DD14-11) and [design.md](../specs/phase-14-zotero-internalization/design.md);
+> acceptance in [acceptance.md](../specs/phase-14-zotero-internalization/acceptance.md) (**T14-01…T14-29**, 28 proven,
+> **T14-20 owed**).
+>
+> **What shipped.** Three Zotero tools became **two verbs in the Toolkit's own worker**: `zotero_library`
+> (`status`, `collections`, `item`, `search`, `fulltext`, `export`) and `zotero_write` (`preview`, `snapshot`,
+> `apply`, `journal`, `undo`) over seven operations (`create_item`, `set_item_type`, `update_fields`, `add_tags`,
+> `remove_tags`, `create_collection`, `add_to_collection`). `delete`, `delete_item`, `merge` and `duplicate_check`
+> are refused by name — Zotero's `server_localAPI.js` has **no duplicate-detection and no merge endpoint**. The dry
+> run, the snapshot (`.research-toolkit/zotero-snapshots/`), the undo journal (`.research-toolkit/zotero-journal/`,
+> 4 KiB, names what it dropped) and the version guard are inside the tool, not a procedure the operator must remember.
+> The old names (`search`, `zotero_collections`, `zotero_item`) are registered **only** for unmanaged, hand-written
+> MCP entries. New module `src/research_stack/zotero_store.py` does no network I/O at all.
+>
+> **Measured facts honoured, not assumed.** 428 for a write with no `If-Unmodified-Since-Version`; 412 for a write
+> that raced a change; 401 + `WWW-Authenticate: Zotero-API-Key realm="Zotero Local API"` with no key; `since` is
+> required by `GET /api/users/0/fulltext` (400 without it); `format=markdown` and `format=counts` are answered 400,
+> so a Markdown bibliography is generated from records; CSL-JSON carries neither `extra` nor tags while BibTeX
+> carries `extra` as `annote`; `KW` → tag, `M2` → `extra`, `N2` → abstract, `DP` → libraryCatalog, `N1` →
+> **unfilterable child note**; `TY - GEN` → `journalArticle`; an import that returned HTTP success created
+> **156 items, 61 of them empty**.
+>
+> **0.3.13 measured, current.** Node **482 tests, 482 pass, 0 fail, 0 skipped**. Python **413 passed, 0 failed**
+> (25 of them in the new `tests/test_zotero_library.py`). Panel check **7 assertions, 7 pass**. Artifact
+> **`research-stack-toolkit-0.3.13.vsix`, 113 members, 508 994 packed, 1 527 454 unpacked** under the re-measured
+> ceiling **1 572 864** (headroom 45 410, 3.0 %), sha256
+> `30fc220b372afac58ace0f1f8c9f11c9a5e1c8ff092d833ebb104a0fb553dd77`; `verify-package` and `check:payload` both
+> `result: passed`. The +76 822 bytes over 0.3.12 are attributed member by member in the comment above
+> `MAX_UNPACKED_BYTES` and the attribution **sums to the measured delta exactly**. `uv.lock` was re-resolved with
+> uv 0.13.6, never hand-edited. **Tool budget unchanged:** 20 preset-selectable verbs, every preset ≤ 12 toolkit
+> tools, widest preset `research-lab-max` now **9 toolkit + 91 external = 100** (was 101), 28 tools of headroom
+> under the 128-tool ceiling; `zotero_write` appears in exactly one goal preset (`zotero-handoff`) and in no package
+> default.
+>
+> **Defects closed in this phase.** **F-04** — `scripts/verify_recommended_mcp.py` hard-coded five tool names and
+> omitted `search_literature`; it now expects the real eight and also proves over the MCP transport that
+> `zotero_write(apply)` refuses without the confirmation literal and that `preview` is a dry run (run here: exit 0).
+> The RIS generator failed its own validator (`rstrip()` stripped the trailing space of the final `ER  - ` line and
+> `tests/test_research.py` had pinned the defective text). `RIS_LEGAL_TITLE_PATTERN` was dead code. `libraryEmpty`
+> reported `false` for a library the probe could not read. The installed-payload controller modelled no
+> `SecretStorage`, which the write-key path exposed.
+>
+> **Still open, unchanged by this phase.** **F-01** (`extension/runtime.js:216-225` runs the current checker with
+> the candidate's interpreter), **F-02** (`records.py:155` `CLAIM_STATUSES` lacks `draft` against
+> `specs/phase-3/spec.md:42`). **G1–G4 remain open**: `evidence/gates-2026-11-07/final-validation.json` records
+> `"gatesApproved": []`, the newest G1–G4 receipts are 0.3.9-era and live outside tracked evidence, and G3's named
+> candidates (Qdrant, embeddings, DuckDB) are unimplemented. The 14 November real-host run is the strongest real-host
+> evidence in this repository and it is a **report, not a gate receipt**.
+
+---
+
 # Quality state — Research Stack Toolkit 0.3.12 (the 0.3.11 integration onboarding, corrected against a real Zotero 10)
 
 > **PHASE 13 IMPLEMENTED, VERIFIED AND COMMITTED — integration correction from a real-host report (12 November 2026).**
@@ -264,7 +323,7 @@ required", and the only field that could carry that evidence — `objective` via
 automatic round with "this goal operation requires a direct human turn on a top-level agent". The goal therefore stays
 active by harness policy, not by unfinished project work. Closing it needs one direct human turn.
 
-## Next highest-value action
+## Next highest-value action (0.3.12 era, kept as history)
 
 **On the operator's Windows machine, not in this repository.** Run `python scripts\zotero_local_check.py` there. It is
 the instrument that turns "the check did not work" into one of the named states — the setting is off, the port is held,
@@ -276,3 +335,23 @@ retry budget, which is the last known overshoot in the check path; (2) ~~wire `s
 named npm script~~ **done in round 2 — it is `npm run test:panel`**; (3) run `node test/browser.test.js` and
 `npm run test:host` on a host that has Playwright and `VSCODE_EXECUTABLE_PATH`, and record them as a new evidence
 folder.
+
+
+## Next highest-value action (0.3.13, current)
+
+**On the operator's Windows machine, and nowhere else in this container.** Two runs, in this order:
+
+1. `python scripts\zotero_library_audit.py` against their Zotero 10.0.8 — it is the instrument that turns the
+   brief's numbers into a repeatable report (counts, records with no DOI/ISBN/URL, `journalArticle` titles that read
+   as legal or magisterial texts, access labels in `extra`, `AUDIT SCOPE: complete|truncated`).
+2. Then the write path, once, on a library they have backed up: **Research Toolkit: Store the Zotero Write Key**,
+   `zotero_write(preview)`, `zotero_write(snapshot)`, `zotero_write(apply)` with `write-to-zotero`, and
+   `zotero_write(undo)`. That is **T14-20**, the only requirement of this phase that cannot be produced here, and
+   until it is run no sentence in this repository may describe the write path as verified against a live library.
+
+Inside the repository, in order: (1) close **F-01** (`extension/runtime.js:216-225` runs the current checker with
+the candidate's interpreter) and **F-02** (`records.py:155` `CLAIM_STATUSES` lacks `draft`); (2) show on the Zotero
+integration card whether a write key is stored, so the card matches the command that stores it; (3) run
+`node test/browser.test.js` and `npm run test:host` on a host that has Playwright and `VSCODE_EXECUTABLE_PATH` and
+record them as a new evidence folder — G2 cannot close without them; (4) decide G3 explicitly: its named candidates
+(Qdrant, embeddings, DuckDB) are unimplemented, so G3 is either re-specified or recorded as not closable.

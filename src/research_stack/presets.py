@@ -19,7 +19,10 @@ PRESET_ENV = "RESEARCH_STACK_TOOL_PRESET"
 DEFAULT_PRESET = "all"
 
 DOCUMENT_TOOLS = frozenset({"read_document", "read_text_source", "search_local_text", "write_markdown", "write_docx"})
-RESEARCH_TOOLS = frozenset({"search_literature", "check_citation", "zotero_collections", "zotero_item", "prepare_zotero_import"})
+# 0.3.13: the Zotero work is two verbs, not three. `zotero_write` is the only destructive Zotero verb and
+# it is deliberately kept out of every package default preset (DD14-03).
+RESEARCH_TOOLS = frozenset({"search_literature", "check_citation", "zotero_library", "zotero_write", "prepare_zotero_import"})
+RESEARCH_READ_TOOLS = RESEARCH_TOOLS - frozenset({"zotero_write"})
 LAB_TOOLS = frozenset({"index_corpus", "unindex_corpus", "search_corpus", "evidence_read", "verify_sources", "claims_read", "claims_write", "claims_export", "store_status", "store_maintenance"})
 ALL_TOOLS = DOCUMENT_TOOLS | RESEARCH_TOOLS | LAB_TOOLS
 
@@ -29,10 +32,12 @@ TOOL_PRESETS: dict[str, frozenset[str]] = {
     "read-and-cite": frozenset({"read_document", "read_text_source", "write_markdown", "write_docx"}),
     "find-in-notes": frozenset({"search_local_text", "read_text_source", "read_document"}),
     "verify-citations": frozenset({"search_literature", "check_citation"}),
+    # The one goal whose whole point is the Zotero handoff, and therefore the only managed preset that
+    # ever sees a Zotero write.
     "zotero-handoff": RESEARCH_TOOLS,
-    "research-core": DOCUMENT_TOOLS | RESEARCH_TOOLS,
-    "research-lab": DOCUMENT_TOOLS | RESEARCH_TOOLS,
-    "research-lab-max": DOCUMENT_TOOLS | RESEARCH_TOOLS,
+    "research-core": DOCUMENT_TOOLS | RESEARCH_READ_TOOLS,
+    "research-lab": DOCUMENT_TOOLS | RESEARCH_READ_TOOLS,
+    "research-lab-max": DOCUMENT_TOOLS | RESEARCH_READ_TOOLS,
     # The continuous Full journey: read a source, index it, retrieve a passage, resolve the
     # evidence, record a claim and export a report. 11 toolkit tools, inside the C-13 budget.
     "research-workflow": frozenset({

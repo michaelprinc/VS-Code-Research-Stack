@@ -87,7 +87,7 @@ test("measured tool schemas replace the vendor estimate once a setup receipt exi
   const preset = extension.PRESETS_BY_ID.get("research-core");
   const vendor = extension.presetEstimate(preset, undefined);
   assert.equal(vendor.measured, false);
-  assert.equal(vendor.tokensEstimate, 10 * catalog.budget.vendorTokensPerTool);
+  assert.equal(vendor.tokensEstimate, 9 * catalog.budget.vendorTokensPerTool);
   assert.equal(vendor.basis, "estimated");
   const surface = {
     toolCount: 9,
@@ -100,14 +100,14 @@ test("measured tool schemas replace the vendor estimate once a setup receipt exi
   const measured = extension.presetEstimate(preset, surface);
   assert.equal(measured.measured, true);
   assert.equal(measured.basis, "measured");
-  assert.equal(measured.measuredTools, 10);
-  assert.equal(measured.tokensEstimate, 10 * 140);
+  assert.equal(measured.measuredTools, 9);
+  assert.equal(measured.tokensEstimate, 9 * 140);
   assert.equal(measured.totalTools, vendor.totalTools);
   const partial = extension.presetEstimate(preset, { servers: [{ module: "research_stack.mcp_server", tools: [{ name: "read_document", tokensEstimate: 150 }] }] });
   assert.equal(partial.measured, true);
   assert.equal(partial.basis, "partial");
   assert.equal(partial.measuredTools, 1);
-  assert.equal(partial.tokensEstimate, 150 + 9 * catalog.budget.vendorTokensPerTool);
+  assert.equal(partial.tokensEstimate, 150 + 8 * catalog.budget.vendorTokensPerTool);
 });
 
 test("a preset only offered by another package falls back to the package default", () => {
@@ -165,7 +165,7 @@ test("Quick Pick lists only presets the package offers and keeps the choice in t
   const harness = makeHarness({ initial: { selectedPackage: "full" }, pickedId: "research-lab-max" });
   const status = await harness.registered.get("researchToolkit.selectToolsPreset")();
   assert.equal(harness.values.get("toolsPreset"), "research-lab-max");
-  assert.match(status, /Selected tools preset: Maximum research lab \(128-tool budget\) · 10 toolkit tools \+ 91 configured external tools \(vendor estimates\)/);
+  assert.match(status, /Selected tools preset: Maximum research lab \(128-tool budget\) · 9 toolkit tools \+ 91 configured external tools \(vendor estimates\)/);
   const narrow = makeHarness({ initial: { selectedPackage: "basic" } });
   await assert.rejects(narrow.registered.get("researchToolkit.selectToolsPreset")("research-lab-max"), /Unknown tools preset for the selected package/);
   assert.equal(narrow.values.get("toolsPreset"), undefined);
@@ -182,7 +182,7 @@ test("sidebar and readiness report the effective preset", async () => {
   assert.equal(rows[2].label, "Tools preset: Read, search, cite and write");
   assert.match(rows[2].tooltip, /goal-shaped tools preset/);
   await harness.registered.get("researchToolkit.copyReadiness")();
-  assert.match(harness.events.clipboard, /Selected tools preset: Read, search, cite and write · 10 toolkit tools/);
+  assert.match(harness.events.clipboard, /Selected tools preset: Read, search, cite and write · 9 toolkit tools/);
 });
 
 test("recently used presets are offered first and labelled as recent (T5-35)", async () => {

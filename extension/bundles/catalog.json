@@ -46,9 +46,9 @@
           "sha256": "0998116a9cd7590b8d733d8f99a3d2b1796ca6d7a36dc43bf3d5dc09efebda44"
         },
         {
-          "bytes": 9895,
+          "bytes": 11532,
           "path": "theological-research/SKILL.md",
-          "sha256": "5f4f9d205f19091038d6f6039982aed4c154a60086cdf15150a3f4ffed2718d3"
+          "sha256": "18fe2fe26f30c76c35da58f109d83b3523165c044e41cb7e75ec997fde05f5c3"
         },
         {
           "bytes": 3224,
@@ -86,6 +86,11 @@
           "sha256": "7bc0ed6c0a4ee264fb9ed92330199bbe928cdd6940086f787b6e88b2a4b3b3c9"
         },
         {
+          "bytes": 4348,
+          "path": "theological-research/references/zotero-vocabulary.md",
+          "sha256": "7b50e856de94a0e25e19ea728e1924ff4f8fa38f381bf6b6a53754b959b30234"
+        },
+        {
           "bytes": 10701,
           "path": "theological-research/scripts/crossref_lookup.py",
           "sha256": "eb5ae6556ed6942107fbecf23d6086fcd682fdc7396d8c3558a578e48979b032"
@@ -94,6 +99,11 @@
           "bytes": 7192,
           "path": "theological-research/scripts/dedupe_records.py",
           "sha256": "8bd24daca1679503e45ce6588eec2aa7f1fde1b9a5513a8747d14be2b7dc3e34"
+        },
+        {
+          "bytes": 8350,
+          "path": "theological-research/scripts/validate_ris.py",
+          "sha256": "4a75ef24a7f122536d5186cc761431744f2ec8a29ccd033cb80bf0efe4b4d092"
         }
       ],
       "id": "theological-research",

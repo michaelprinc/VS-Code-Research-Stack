@@ -122,7 +122,10 @@ def test_ris_is_user_reviewable_and_keeps_doi() -> None:
     assert "AU  - Ada Author" in text
     assert "DO  - 10.1234/abc" in text
     assert "UR  - https://www.semanticscholar.org/paper/paper-id?utm_source=api" in text
-    assert text.endswith("ER  -\n")
+    # The terminator is `ER  - ` with its trailing space, the form Zotero's own RIS export writes. Until
+    # 0.3.13 the generator rstripped it away and this test pinned the stripped form, so the file the tool
+    # wrote failed the tool's own validator.
+    assert text.endswith("ER  - \n")
 
 
 def test_zotero_item_key_validation_precedes_network(monkeypatch: pytest.MonkeyPatch) -> None:

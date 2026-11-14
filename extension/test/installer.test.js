@@ -65,7 +65,7 @@ function services(root, { fail = false, failProject = null } = {}) {
       return JSON.stringify({
         ok: true, pdfRead: true, docxRead: true, lexicalSearch: true, researchAdapter: true, corpusIndex: true, recordStore: true, externalProvidersChecked: false,
         toolSurface: { basis: "measured", servers: [surface("research_stack.mcp_server", ["read_document", "read_text_source", "search_local_text", "write_markdown", "write_docx"]),
-          surface("research_stack.recommended_server", ["search_literature", "check_citation", "zotero_collections", "zotero_item", "prepare_zotero_import"]),
+          surface("research_stack.recommended_server", ["search_literature", "check_citation", "zotero_library", "zotero_write", "prepare_zotero_import"]),
           surface("research_stack.lab_server", ["index_corpus", "unindex_corpus", "search_corpus", "evidence_read", "claims_read", "claims_write", "claims_export", "store_status", "store_maintenance"])], toolCount: 20, characters: 8000, tokensEstimate: 2800 },
       });
     },
@@ -315,7 +315,7 @@ test("GUI setup, update and component actions drive the plan and report componen
   await harness.registered.get("researchToolkit.checkComponents")();
   await harness.registered.get("researchToolkit.copyReadiness")();
   assert.match(harness.events.clipboard, new RegExp(`Component setup \\(recommended, toolkit ${TOOLKIT_VERSION}\\): worker installed at ${TOOLKIT_VERSION} · research-overlay installed at ${TOOLKIT_VERSION}`));
-  assert.match(harness.events.clipboard, /preset research-core \(10 toolkit tools, ≈1400 tokens measured\)/, "the receipt's preset and measured surface appear in the copied inventory");
+  assert.match(harness.events.clipboard, /preset research-core \(9 toolkit tools, ≈1260 tokens measured\)/, "the receipt's preset and measured surface appear in the copied inventory");
   const status = await harness.registered.get("researchToolkit.updateComponents")();
   assert.match(status.message, /nothing is recorded by an earlier toolkit release, and every recorded step's files are present/, "with a current receipt and present artifacts there is nothing to update");
   assert.deepEqual(status.ran, []);
@@ -325,9 +325,9 @@ test("GUI setup, update and component actions drive the plan and report componen
   assert.match(refreshed, /The functional MCP reading check was not run by this refresh/, "a status refresh is not presented as a functional check");
   await harness.registered.get("researchToolkit.diagnoseToolLimit")();
   assert.match(harness.output.lines.join("\n"), /Client ceiling: 128 tools/);
-  assert.match(harness.output.lines.join("\n"), /Toolkit contribution now: 10 toolkit tools from 2 managed MCP server/);
+  assert.match(harness.output.lines.join("\n"), /Toolkit contribution now: 9 toolkit tools from 2 managed MCP server/);
   await harness.registered.get("researchToolkit.copyPresetSummary")();
-  assert.match(harness.events.clipboard, /Toolkit tools \(10\):/);
+  assert.match(harness.events.clipboard, /Toolkit tools \(9\):/);
   panel.dispose();
 });
 

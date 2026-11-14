@@ -3,25 +3,50 @@
 Run this on the computer where Zotero is installed. It is not packaged, not installed, and not
 imported by the Toolkit. It asks the same loopback port the Toolkit asks, prints exactly what came
 back, and says what each answer means. Nothing here writes anything, and nothing here leaves the
-computer: every address below is loopback.
+computer: every address below is loopback, and every request below is a GET or a HEAD.
 
     python scripts/zotero_local_check.py
+    python scripts/zotero_local_check.py --probe "gratia"     # a different full-text probe word
+
+On top of the five staged questions, the script prints an endpoint inventory: one line per endpoint the
+Toolkit may want from a running Zotero, with the status or the error class and the Zotero-Total-Results
+value when Zotero sent one. The inventory is the endpoint list an operator measured against a real
+Zotero 10.0.8 on 14 November 2026.
 
 Exit code 0 means the Toolkit's own check would succeed. Exit code 1 means it would fail, and the
-lines above the summary say why.
+lines above the summary say why. The inventory does not change the verdict or the exit code.
 """
 
+import argparse
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
-# Loopback only. These are the only two addresses this script can contact.
+# Loopback only. Every URL this script can build is on 127.0.0.1:23119, and only GET and HEAD are sent.
 API_ROOT = "http://127.0.0.1:23119/api/"
 COLLECTIONS_WITH_FORMAT = "http://127.0.0.1:23119/api/users/0/collections?limit=100&format=json"
 COLLECTIONS_PLAIN = "http://127.0.0.1:23119/api/users/0/collections?limit=100"
 COLLECTIONS_HEAD = "http://127.0.0.1:23119/api/users/0/collections"
 CONNECTOR_PING = "http://127.0.0.1:23119/connector/ping"
+
+# The endpoints the operator measured on a real Zotero 10.0.8 on 14 November 2026.
+ITEMS_ONE = "http://127.0.0.1:23119/api/users/0/items?limit=1&format=json"
+TAGS = "http://127.0.0.1:23119/api/users/0/tags?limit=100&format=json"
+SEARCHES = "http://127.0.0.1:23119/api/users/0/searches?limit=100&format=json"
+ITEM_TYPES = "http://127.0.0.1:23119/api/itemTypes"
+EXPORT_FORMATS = ("csljson", "bibtex", "biblatex", "csv")
+DEFAULT_PROBE = "canon law"
+
+
+def export_url(fmt):
+    return f"http://127.0.0.1:23119/api/users/0/items?format={fmt}&limit=1"
+
+
+def fulltext_url(probe):
+    # `since` is not optional: Zotero answers 400 for a full-text query without it.
+    return "http://127.0.0.1:23119/api/users/0/fulltext?since=0&q=" + urllib.parse.quote(probe)
 
 MEANINGS = {
     200: "Zotero answered this request.",
@@ -68,9 +93,10 @@ def ask(url, *, expect_json, method="GET"):
         reason = getattr(exc, "reason", exc)
         refused = isinstance(reason, ConnectionRefusedError)
         return {"url": url, "status": None, "headers": {}, "body": str(reason)[:240],
-                "json": None, "refused": refused}
+                "json": None, "refused": refused, "error_class": type(reason).__name__}
     except Exception as exc:  # a closed connection, a reset, a timeout — all reported, never raised
-        return {"url": url, "status": None, "headers": {}, "body": f"{type(exc).__name__}: {exc}"[:240], "json": None}
+        return {"url": url, "status": None, "headers": {}, "body": f"{type(exc).__name__}: {exc}"[:240],
+                "json": None, "error_class": type(exc).__name__}
 
 
 def _maybe_json(raw):
@@ -96,7 +122,74 @@ def report(record):
     return record
 
 
-def main():
+def _total_results(record):
+    """The Zotero-Total-Results value, if Zotero sent one. Case-insensitive, because headers are."""
+    for key, value in (record.get("headers") or {}).items():
+        if key.lower() == "zotero-total-results":
+            return str(value)
+    return None
+
+
+def inventory_rows(probe, reused):
+    """The measured endpoint list, in the order an operator would ask it. GET and HEAD only.
+
+    Three of these were already asked in steps 2, 4 and 5, so they are reused rather than asked twice.
+    """
+    rows = [
+        ("GET", "/api/", reused["root"]),
+        ("HEAD", "/api/users/0/collections", reused["head"]),
+        ("GET", "/api/users/0/collections", reused["plain"]),
+        ("GET", "/api/users/0/items?limit=1&format=json", ask(ITEMS_ONE, expect_json=True)),
+        ("GET", "/api/users/0/tags?limit=100&format=json", ask(TAGS, expect_json=True)),
+        ("GET", "/api/users/0/searches?limit=100&format=json", ask(SEARCHES, expect_json=True)),
+        ("GET", f"/api/users/0/fulltext?since=0&q={probe}", ask(fulltext_url(probe), expect_json=True)),
+        ("GET", "/api/itemTypes", ask(ITEM_TYPES, expect_json=True)),
+    ]
+    for fmt in EXPORT_FORMATS:
+        rows.append(("GET", f"/api/users/0/items?format={fmt}&limit=1", ask(export_url(fmt), expect_json=False)))
+    return rows
+
+
+def report_inventory(rows):
+    print("\n6. Endpoint inventory — what this Zotero answers, one line per endpoint.")
+    print("   GET and HEAD only. A read needs no key, and no key is sent. Nothing here is written anywhere.")
+    print(f"   {'endpoint':<52} {'answered/refused':<16} {'status or error':<26} Zotero-Total-Results")
+    answered = 0
+    refused = 0
+    for method, label, record in rows:
+        if record["status"] is None:
+            outcome = "refused"
+            detail = record.get("error_class") or "no HTTP answer"
+            refused += 1
+        else:
+            outcome = "answered"
+            detail = f"HTTP {record['status']}"
+            answered += 1
+        total = _total_results(record)
+        print(f"   {method + ' ' + label:<52} {outcome:<16} {detail:<26} "
+              + (total if total is not None else "(header not sent)"))
+    print(f"   {answered} of {len(rows)} endpoints answered; {refused} gave no HTTP answer.")
+    print("   The full-text line is asked with since=0. Without `since` Zotero answers 400, so a 400 there")
+    print("   usually means the parameter was missing, not that full text is unavailable.")
+    print("   Zotero 10.0.8 measured on 14 November 2026 answered format=markdown with 400, and format=counts")
+    print("   with 400. They are not asked here. Say it plainly: Zotero's local API does not produce a")
+    print("   Markdown bibliography. A Markdown bibliography is generated from the records the Toolkit reads")
+    print("   (csljson is the format to read; the Markdown is rendered from it), not asked of Zotero.")
+    return answered, refused
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        prog="zotero_local_check.py",
+        description="Ask the Zotero local API on 127.0.0.1:23119 what it answers, and say what each answer means.",
+        epilog="Read-only: GET and HEAD only. No POST, PUT or DELETE, no /api/local/authorize, no write key, "
+               "and Zotero's localAPIKeys.json is never read. Nothing is written to disk. "
+               "Exit 0: the Toolkit's own check would succeed. Exit 1: it would fail, and the lines above say why.",
+    )
+    parser.add_argument("--probe", default=DEFAULT_PROBE, metavar="WORD",
+                        help="probe word for the full-text endpoint (default: %(default)s)")
+    args = parser.parse_args(argv)
+
     print("Zotero local API check — loopback only, nothing is written, nothing is sent off this computer.")
     print(f"Python {sys.version.split()[0]} on {sys.platform}")
     print("Zotero answers slowly when it is still loading your library, so each request here waits up to 15 s.")
@@ -116,6 +209,8 @@ def main():
 
     print("\n5. The documented root, which Zotero says to ask first.")
     root = report(ask(API_ROOT, expect_json=True))
+
+    report_inventory(inventory_rows(args.probe, {"root": root, "head": head, "plain": plain}))
 
     all_of = (ping, head, with_format, plain, root)
     answered = [r for r in all_of if r["status"] is not None]

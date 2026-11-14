@@ -23,14 +23,16 @@ TOKENS_PER_CHAR = 4
 TOOL_SCHEMA_OVERHEAD_TOKENS = 40
 
 # C-13: the enabled tool surface is budgeted per server and recorded from real discovery.
+# 0.3.13: the research server registers five preset tools plus three deprecated aliases (`search`,
+# `zotero_collections`, `zotero_item`); only the unmanaged `all` preset ever registers an alias.
 SERVER_BUDGETS = {
     'research_stack.mcp_server': 5,
-    'research_stack.recommended_server': 6,
+    'research_stack.recommended_server': 8,
     'research_stack.lab_server': 10,
 }
 EXPECTED_TOOLS = {
     'research_stack.mcp_server': {'read_document', 'read_text_source', 'search_local_text', 'write_docx', 'write_markdown'},
-    'research_stack.recommended_server': {'check_citation', 'prepare_zotero_import', 'search_literature', 'zotero_collections', 'zotero_item', 'search'},
+    'research_stack.recommended_server': {'check_citation', 'prepare_zotero_import', 'search_literature', 'zotero_library', 'zotero_write', 'search', 'zotero_collections', 'zotero_item'},
     'research_stack.lab_server': {'claims_export', 'claims_read', 'claims_write', 'evidence_read', 'index_corpus',
                                   'search_corpus', 'store_maintenance', 'store_status', 'unindex_corpus', 'verify_sources'},
 }

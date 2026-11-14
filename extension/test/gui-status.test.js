@@ -52,7 +52,7 @@ function services(root, { fail = false } = {}) {
       return JSON.stringify({
         ok: true, pdfRead: true, docxRead: true, lexicalSearch: true, researchAdapter: true, corpusIndex: false, recordStore: false, externalProvidersChecked: false,
         toolSurface: { basis: "measured", servers: [surface("research_stack.mcp_server", ["read_document", "read_text_source", "search_local_text", "write_markdown", "write_docx"]),
-          surface("research_stack.recommended_server", ["search_literature", "check_citation", "zotero_collections", "zotero_item", "prepare_zotero_import"])], toolCount: 11, characters: 4400, tokensEstimate: 1540 },
+          surface("research_stack.recommended_server", ["search_literature", "check_citation", "zotero_library", "zotero_write", "prepare_zotero_import"])], toolCount: 11, characters: 4400, tokensEstimate: 1540 },
       });
     },
   };

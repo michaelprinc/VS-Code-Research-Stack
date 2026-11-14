@@ -192,3 +192,40 @@ def test_the_deprecated_search_alias_is_registered_only_for_unmanaged_configurat
     monkeypatch.setattr(module, 'server', managed)
     module.main()
     assert 'search' not in [name for name, _, _ in managed.registered], 'a managed goal-shaped preset gets no duplicate tool'
+
+
+def test_the_zotero_write_verb_is_offered_only_by_the_zotero_goal(monkeypatch):
+    """DD14-03: a destructive verb never appears in a package default preset.
+
+    `zotero_write` is the only Zotero verb that changes the operator's library. It is offered by the one
+    preset whose stated goal is the Zotero handoff, and by the unmanaged `all`. The default preset of every
+    package — read-and-cite, research-core, research-workflow — is checked by name, not by count.
+    """
+    assert 'zotero_write' in TOOL_PRESETS['zotero-handoff']
+    assert 'zotero_write' in ALL_TOOLS
+    for preset_id in ('read-and-cite', 'find-in-notes', 'verify-citations', 'research-core', 'research-lab', 'research-lab-max', 'research-workflow', 'corpus-lab'):
+        assert 'zotero_write' not in TOOL_PRESETS[preset_id], f"{preset_id} would hand a library write to a goal that never asked for one"
+    defaults = {preset['id'] for preset in REGISTRY['presets'] if preset.get('defaultFor')}
+    for preset_id in defaults:
+        assert 'zotero_write' not in TOOL_PRESETS[preset_id], f"{preset_id} is a package default"
+
+
+def test_the_replaced_zotero_read_verbs_stay_as_aliases_only_for_unmanaged_configurations(monkeypatch):
+    from research_stack import recommended_server as module
+
+    assert 'zotero_collections' not in ALL_TOOLS and 'zotero_item' not in ALL_TOOLS
+    shipped = {name for server in REGISTRY['servers'] for name in server['tools']}
+    assert 'zotero_collections' not in shipped and 'zotero_item' not in shipped, 'the registry advertises the real verbs only'
+    assert 'zotero_library' in shipped and 'zotero_write' in shipped
+    monkeypatch.setenv(PRESET_ENV, DEFAULT_PRESET)
+    recorder = Recorder()
+    monkeypatch.setattr(module, 'server', recorder)
+    module.main()
+    registered = [name for name, _, _ in recorder.registered]
+    assert {'zotero_collections', 'zotero_item'} <= set(registered), 'a 0.3.12 hand-written MCP entry keeps working'
+    assert all(annotations.read_only_hint is True for name, _, annotations in recorder.registered if name in ('zotero_collections', 'zotero_item')), 'an alias keeps the annotation of the verb it aliases'
+    monkeypatch.setenv(PRESET_ENV, 'zotero-handoff')
+    managed = Recorder()
+    monkeypatch.setattr(module, 'server', managed)
+    module.main()
+    assert sorted(name for name, _, _ in managed.registered) == ['check_citation', 'prepare_zotero_import', 'search_literature', 'zotero_library', 'zotero_write']

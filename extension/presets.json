@@ -28,8 +28,8 @@
       "tools": [
         "search_literature",
         "check_citation",
-        "zotero_collections",
-        "zotero_item",
+        "zotero_library",
+        "zotero_write",
         "prepare_zotero_import"
       ]
     },
@@ -141,8 +141,8 @@
       "tools": [
         "search_literature",
         "check_citation",
-        "zotero_collections",
-        "zotero_item",
+        "zotero_library",
+        "zotero_write",
         "prepare_zotero_import"
       ],
       "thirdParty": [],
@@ -174,8 +174,7 @@
         "write_docx",
         "search_literature",
         "check_citation",
-        "zotero_collections",
-        "zotero_item",
+        "zotero_library",
         "prepare_zotero_import"
       ],
       "thirdParty": [],
@@ -240,8 +239,7 @@
         "write_docx",
         "search_literature",
         "check_citation",
-        "zotero_collections",
-        "zotero_item",
+        "zotero_library",
         "prepare_zotero_import"
       ],
       "thirdParty": [
@@ -283,8 +281,7 @@
         "write_docx",
         "search_literature",
         "check_citation",
-        "zotero_collections",
-        "zotero_item",
+        "zotero_library",
         "prepare_zotero_import"
       ],
       "thirdParty": [

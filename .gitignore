@@ -12,3 +12,7 @@ build/
 
 # Workspace data written by the extension's component setup.
 .research-toolkit/
+
+# The operator's own Copilot conversation history, copied into the tree for reference.
+# It holds personal research notes and is not a repository artifact.
+.specstory/

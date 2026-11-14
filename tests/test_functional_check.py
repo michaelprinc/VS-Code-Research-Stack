@@ -27,7 +27,10 @@ def test_real_mcp_fixture_reading_reports_search_and_research_adapter():
     assert result['externalProvidersChecked'] is False
     surface = result['toolSurface']
     assert surface['basis'] == 'measured from real tools/list responses'
-    assert surface['toolCount'] == 21
+    # 0.3.13: 5 document + 5 research + 3 deprecated research aliases (`search`, `zotero_collections`,
+    # `zotero_item`) + 10 record-store verbs. The aliases are registered only under the unmanaged `all`
+    # preset, which is the only preset this check discovers.
+    assert surface['toolCount'] == 23
     assert {server['module'] for server in surface['servers']} == {'research_stack.mcp_server', 'research_stack.recommended_server', 'research_stack.lab_server'}
     assert sorted(result['tools']) == ['read_document', 'read_text_source', 'search_local_text', 'write_docx', 'write_markdown']
     assert sorted(result['labTools']) == ['claims_export', 'claims_read', 'claims_write', 'evidence_read', 'index_corpus',
@@ -39,7 +42,7 @@ def test_real_mcp_fixture_reading_reports_search_and_research_adapter():
     for server in surface['servers']:
         assert server['toolCount'] <= server['budget'], server['module']
     destructive = {tool['name'] for server in surface['servers'] for tool in server['tools'] if tool['destructiveHint'] is True}
-    assert destructive == {'store_maintenance', 'unindex_corpus'}, "annotations must match what the verbs really do"
+    assert destructive == {'store_maintenance', 'unindex_corpus', 'zotero_write'}, "annotations must match what the verbs really do"
     measured = [tool for server in surface['servers'] for tool in server['tools']]
     assert all(tool['characters'] > 0 and tool['tokensEstimate'] > 0 and tool['title'] for tool in measured)
     assert surface['tokensEstimate'] == sum(tool['tokensEstimate'] for tool in measured)
@@ -50,7 +53,7 @@ def test_check_discovers_the_full_surface_even_when_a_narrow_preset_is_selected(
     # The check must measure the whole surface whatever goal the operator selected.
     code, result = invoke(preset='read-and-cite')
     assert code == 0
-    assert result['toolSurface']['toolCount'] == 21
+    assert result['toolSurface']['toolCount'] == 23
     assert sorted(result['tools']) == ['read_document', 'read_text_source', 'search_local_text', 'write_docx', 'write_markdown']
 
 

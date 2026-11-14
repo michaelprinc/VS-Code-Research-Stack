@@ -11,6 +11,7 @@ const { runProcess } = require("../runner");
 // The Python argv shape comes from the shipped runner, not from a fixture's memory of it (0.3.8).
 const { pythonArgv, hasPythonFlags, afterPythonFlags, isPythonCall, runsPythonFile } = require("./python-argv");
 const { checkInventory } = require("../diagnostics");
+const integrationStore = require("../integrationstore");
 
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-setup-test-"));
@@ -54,10 +55,10 @@ function services(root, { fail = false, failCheck = false, block } = {}) {
         return { module, toolCount: tools.length, characters: 400 * tools.length, tokensEstimate: 140 * tools.length, tools };
       };
       const servers = [surface("research_stack.mcp_server", ["read_document", "read_text_source", "search_local_text", "write_markdown", "write_docx"]),
-        surface("research_stack.recommended_server", ["search_literature", "search", "check_citation", "zotero_collections", "zotero_item", "prepare_zotero_import"]),
-        surface("research_stack.lab_server", ["index_corpus", "unindex_corpus", "search_corpus", "evidence_read", "claims_read", "claims_write", "claims_export", "store_status", "store_maintenance"])];
+        surface("research_stack.recommended_server", ["search_literature", "search", "check_citation", "zotero_library", "zotero_write", "prepare_zotero_import", "zotero_collections", "zotero_item"]),
+        surface("research_stack.lab_server", ["index_corpus", "unindex_corpus", "search_corpus", "evidence_read", "verify_sources", "claims_read", "claims_write", "claims_export", "store_status", "store_maintenance"])];
       return JSON.stringify({ ok: true, pdfRead: true, docxRead: true, lexicalSearch: true, researchAdapter: true, corpusIndex: true, recordStore: true, externalProvidersChecked: false,
-        toolSurface: { basis: "measured from real tools/list responses", servers, toolCount: 20, characters: 8000, tokensEstimate: 2800 },
+        toolSurface: { basis: "measured from real tools/list responses", servers, toolCount: 23, characters: 9200, tokensEstimate: 3220 },
         ...(args.includes("--document") ? { document: args.at(-1), preview: "Selected fixture text", detail: "Source unchanged." } : {}) });
     },
   };
@@ -155,9 +156,9 @@ test("provider and selected-document reading use only the verified managed worke
   assert.equal(definitions[0].env.RESEARCH_STACK_TOOL_PRESET, "research-core");
   assert.equal(definitions[1].env.RESEARCH_STACK_TOOL_PRESET, "research-core");
   const measured = harness.api.state();
-  assert.equal(measured.toolSurface.toolCount, 20);
+  assert.equal(measured.toolSurface.toolCount, 23);
   assert.equal(measured.presets.find((item) => item.id === "research-core").estimate.measured, true);
-  assert.equal(measured.presets.find((item) => item.id === "research-core").estimate.tokensEstimate, 1400);
+  assert.equal(measured.presets.find((item) => item.id === "research-core").estimate.tokensEstimate, 1260, "research-core is nine measured tools at 140 tokens each");
   assert.equal(measured.presets.find((item) => item.id === "research-core").estimate.basis, "measured");
   assert.equal(measured.appliedToolsPreset, "research-core", "the panel can show which preset the assistant actually has");
   assert.equal(measured.presetApplied, true);
@@ -491,4 +492,25 @@ test("a failed lockfile fallback never repeats the success wording, and names th
   assert.equal(error.attempts, 2, "two uv processes ran and the record says two");
   assert.equal(error.exitCode, 2, "the exit code of the attempt that stopped the install");
   await assert.rejects(fs.stat(path.join(managed, `worker-${WORKER_VERSION}`, ".venv")), /ENOENT/, "the failed fallback created no environment");
+});
+
+test("a Zotero write key reaches the worker environment only when the operator stored one (0.3.13, DD14-07)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const backend = services(root);
+  const harness = makeHarness({ folders: [folder], diagnosticServices: backend });
+  await harness.registered.get("researchToolkit.setupLocalComponents")();
+  const withoutKey = await harness.api.mcpProvider.provideMcpServerDefinitions();
+  assert.ok(withoutKey.length > 0);
+  assert.ok(withoutKey.every((server) => !("RESEARCH_STACK_ZOTERO_WRITE_KEY" in server.env)), "no key stored means no key in any child environment");
+  harness.secrets.set(integrationStore.secretKey("zotero"), "fixture-zotero-write-key");
+  const withKey = await harness.api.mcpProvider.provideMcpServerDefinitions();
+  const researchServers = withKey.filter((server) => server.args.includes("research_stack.recommended_server"));
+  assert.ok(researchServers.length > 0, "the goal that reads and cites gets the server that knows Zotero");
+  assert.ok(researchServers.every((server) => server.env.RESEARCH_STACK_ZOTERO_WRITE_KEY === "fixture-zotero-write-key"), "the stored key is handed to the worker that serves zotero_write");
+  assert.ok(withKey.filter((server) => !server.args.includes("research_stack.recommended_server")).every((server) => !("RESEARCH_STACK_ZOTERO_WRITE_KEY" in server.env)), "and to no other server");
+  assert.notEqual(withKey[0].version, withoutKey[0].version, "the surface signature names whether a write credential exists, so a client re-reads the tool surface when it appears");
+  const named = withKey.filter((server) => "RESEARCH_STACK_ZOTERO_WRITE_KEY" in server.env);
+  assert.equal(named.length, researchServers.length, "the key appears once per server that serves Zotero, under its own name, and nowhere else");
+  assert.ok(!JSON.stringify(harness.events.messages).includes("fixture-zotero-write-key"), "the key is never shown back to the operator");
+  assert.ok(!JSON.stringify(harness.events.writtenFiles).includes("fixture-zotero-write-key"), "and it is never written into a workspace file");
 });
