@@ -411,7 +411,7 @@
     "updates.js",
     "worker"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "icon": "media/toolkit.png",
   "bugs": {
     "url": "https://github.com/michaelprinc/VS-Code-Research-Stack/issues",

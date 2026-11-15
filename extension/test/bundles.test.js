@@ -599,7 +599,8 @@ test("the document bridge ships as a reviewed bundle and no longer tells the ope
   const bridge = catalog.bundles.find((item) => item.id === "document-corpus-bridge");
   assert.ok(bridge, "the bridge is a reviewed bundle, not an unwired template");
   assert.deepEqual(bridge.skills, ["document-corpus-bridge"]);
-  assert.equal(bridge.publishable, false, "the toolkit repository is UNLICENSED, so packaging is not publication");
+  assert.equal(bridge.publishable, true, "the toolkit-authored bridge is covered by the repository's MIT licence");
+  assert.match(bridge.license, /^MIT/);
 
   const receipt = await installBundle({ workspaceRoot: root, catalog, bundleId: "document-corpus-bridge" });
   assert.equal(receipt.filesInstalled, 1);

@@ -297,8 +297,10 @@ by the same staged, hash-verified installer as the theological bundle. Its text 
 - The closing section states what must not be claimed: that `complete` means correct, that the store judged
   whether a page supports a claim, or that the host discovered the skill.
 
-**Licence.** `toolkit-authored; the Research Stack Toolkit repository is UNLICENSED — publication requires an
-explicit licence decision`, `publishable: false`. Packaging is not publication.
+**Licence.** `MIT — toolkit-authored, covered by the MIT licence recorded in the repository's LICENSE file`,
+`publishable: true`. This changed on 2026-11-15, when the repository adopted the MIT licence recorded in
+`LICENSE`; until then it declared `UNLICENSED` and the bundle was packaged but not publishable. Packaging is
+still not publication: the `.vsix` has never been published on the Marketplace.
 
 **The gate that was missing.** `scripts/build_worker_bundle.py` now compares the overlay tree with its own
 allowlist and refuses the build when a template is not named (`assert_overlay_tree_is_reviewed`, tested in

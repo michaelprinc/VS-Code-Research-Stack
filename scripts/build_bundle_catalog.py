@@ -84,7 +84,8 @@ BUNDLES: list[dict[str, object]] = [
     },
     # DD9-23: the 0.3.8 workaround skill is brought under this catalog, rewritten for 0.3.9 direct
     # ingestion, so one workspace does not carry two competing instructions for the same job. It is
-    # toolkit-authored, and the toolkit repository is UNLICENSED, so it is packaged but not publishable.
+    # toolkit-authored, and the repository carries the MIT licence recorded in LICENSE, so it is
+    # packaged and publishable.
     {
         "id": "document-corpus-bridge",
         "version": "2.0",
@@ -123,8 +124,8 @@ BUNDLES: list[dict[str, object]] = [
             "and writes nothing there. No bundle ever removes a skill, and no bundle removes a skill "
             "owned by another bundle."
         ),
-        "license": "toolkit-authored; the Research Stack Toolkit repository is UNLICENSED — publication requires an explicit licence decision",
-        "publishable": False,
+        "license": "MIT — toolkit-authored, covered by the MIT licence recorded in the repository's LICENSE file",
+        "publishable": True,
     },
 ]
 
@@ -266,7 +267,7 @@ def main() -> int:
                   "python scripts/build_bundle_catalog.py", file=sys.stderr)
             return 1
     elif existing != payload:
-        CATALOG_PATH.write_text(payload, encoding="utf-8")
+        CATALOG_PATH.write_text(payload, encoding="utf-8", newline="\n")
 
     file_count = sum(len(bundle["files"]) for bundle in catalog["bundles"])
     byte_count = sum(int(item["bytes"]) for bundle in catalog["bundles"] for item in bundle["files"])
