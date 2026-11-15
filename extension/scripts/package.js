@@ -75,6 +75,61 @@ function normalizeStagedModes(stageRoot) {
   walk(stageRoot);
 }
 
+/**
+ * Rewrite the permission bits recorded in the finished artifact's central directory.
+ *
+ * `normalizeStagedModes` is the intent, but on Windows it cannot be expressed: `fs.chmodSync(target,
+ * 0o644)` succeeds and the file still reports 0o666, because NTFS has no owner/group/other bits. vsce
+ * passes `f.mode` to yazl, that is `undefined` for every file it collected from the staged tree, so yazl
+ * falls back to `stats.mode` (yazl/index.js:34) and writes 0o666 for all 109 copied members where a POSIX
+ * host writes 0o644. `scripts/verify_vsix.py` refuses those bits, so the same tag produced a publishable
+ * artifact on Linux and an unpublishable one here.
+ *
+ * The bits live only in the central directory header (the local file header has no such field), at a fixed
+ * offset, and no CRC covers them. Rewriting them in place therefore changes the mode without touching a
+ * single content byte, a member order, a timestamp or a compressed size — which is exactly what the gate
+ * asks for, and it makes the artifact identical on every host instead of dependent on one.
+ *
+ * The values are the ones a POSIX build already produces: vsce's three generated members are packed with
+ * `addBuffer` and no mode, so yazl defaults them to 0o664; everything copied from the staged tree is
+ * 0o644. This function states that outcome rather than inheriting it from the build host.
+ */
+const GENERATED_VSIX_MEMBERS = new Set(["[Content_Types].xml", "extension.vsixmanifest", "extension/readme.md"]);
+const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
+const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
+
+function normalizePackagedModes(archivePath) {
+  const buffer = fs.readFileSync(archivePath);
+  let end = -1;
+  for (let offset = buffer.length - 22; offset >= 0 && offset >= buffer.length - 65557; offset--) {
+    if (buffer.readUInt32LE(offset) === END_OF_CENTRAL_DIRECTORY_SIGNATURE) { end = offset; break; }
+  }
+  if (end === -1) throw new Error(`Refusing to package: no end-of-central-directory record in ${archivePath}`);
+  const memberCount = buffer.readUInt16LE(end + 10);
+  let cursor = buffer.readUInt32LE(end + 16);
+  if (cursor === 0xffffffff || memberCount === 0xffff) {
+    throw new Error("Refusing to package: this packager does not rewrite modes in a ZIP64 central directory");
+  }
+  const before = [];
+  const after = [];
+  for (let seen = 0; seen < memberCount; seen++) {
+    if (cursor + 46 > buffer.length || buffer.readUInt32LE(cursor) !== CENTRAL_DIRECTORY_SIGNATURE) {
+      throw new Error(`Refusing to package: corrupt central directory entry ${seen} in ${archivePath}`);
+    }
+    const nameLength = buffer.readUInt16LE(cursor + 28);
+    const extraLength = buffer.readUInt16LE(cursor + 30);
+    const commentLength = buffer.readUInt16LE(cursor + 32);
+    const name = buffer.subarray(cursor + 46, cursor + 46 + nameLength).toString("utf8");
+    before.push((buffer.readUInt32LE(cursor + 38) >> 16) & 0o777);
+    buffer.writeUInt32LE((0o100000 | (GENERATED_VSIX_MEMBERS.has(name) ? 0o664 : 0o644)) << 16 >>> 0, cursor + 38);
+    after.push((buffer.readUInt32LE(cursor + 38) >> 16) & 0o777);
+    cursor += 46 + nameLength + extraLength + commentLength;
+  }
+  if (cursor !== end) throw new Error(`Refusing to package: central directory length does not match ${archivePath}`);
+  fs.writeFileSync(archivePath, buffer);
+  return { memberCount, before, after };
+}
+
 async function main() {
   const projectRoot = path.resolve(__dirname, "..");
   assertWorkerPairCurrent(projectRoot);
@@ -114,6 +169,12 @@ async function main() {
     // the members by path), so the build is stamped with 1980-01-01T00:00:00Z, the earliest date the
     // ZIP format can record.
     process.env.SOURCE_DATE_EPOCH = "315532800";
+    // The epoch is an instant, but the ZIP local header stores a *local* date and time. vsce converts
+    // the epoch to a Date and yazl writes it in the host's zone, so a host at UTC+1 stamped every member
+    // 1980-01-01 01:00 and scripts/verify_vsix.py refused the artifact as unstamped. Node reads
+    // process.env.TZ when it resolves a Date, so pinning it here makes the stamped members identical on
+    // every host and every zone.
+    process.env.TZ = "UTC";
     await createVSIX({
       cwd: stageRoot,
       packagePath: outputPath,
@@ -121,6 +182,7 @@ async function main() {
       rewriteRelativeLinks: false,
       skipLicense: true,
     });
+    normalizePackagedModes(outputPath);
     const stats = fs.statSync(outputPath);
     process.stdout.write(JSON.stringify({
       packagePath: outputPath,
