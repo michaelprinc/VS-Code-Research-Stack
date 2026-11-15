@@ -94,7 +94,7 @@ function normalizeStagedModes(stageRoot) {
  * `addBuffer` and no mode, so yazl defaults them to 0o664; everything copied from the staged tree is
  * 0o644. This function states that outcome rather than inheriting it from the build host.
  */
-const GENERATED_VSIX_MEMBERS = new Set(["[Content_Types].xml", "extension.vsixmanifest", "extension/readme.md"]);
+const GENERATED_VSIX_MEMBERS = new Set(["[Content_Types].xml", "extension.vsixmanifest", "extension/readme.md", "extension/changelog.md"]);
 const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
 const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
 
@@ -160,6 +160,10 @@ async function main() {
     // it packs and with the staged template tree the catalog was generated from.
     fs.cpSync(path.join(projectRoot, "bundles"), path.join(stageRoot, "bundles"), { recursive: true });
     fs.copyFileSync(path.join(projectRoot, "README.md"), path.join(stageRoot, "README.md"));
+    // The Marketplace Changelog tab is filled from `extension/changelog.md`, which vsce's ChangelogProcessor
+    // reads from the staged root (out/package.js: `options.changelogPath ?? 'changelog.md'`). Without the
+    // staged copy the listing ships a Details page that links to a changelog the Marketplace does not have.
+    fs.copyFileSync(path.join(projectRoot, "CHANGELOG.md"), path.join(stageRoot, "CHANGELOG.md"));
     normalizeStagedLineEndings(stageRoot);
     normalizeStagedModes(stageRoot);
     // Line endings are only half of a reproducible artifact. vsce writes the copy time of each staged

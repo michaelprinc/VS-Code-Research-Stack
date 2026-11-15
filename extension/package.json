@@ -382,6 +382,7 @@
     }
   },
   "files": [
+    "CHANGELOG.md",
     "README.md",
     "bundles",
     "bundles.js",

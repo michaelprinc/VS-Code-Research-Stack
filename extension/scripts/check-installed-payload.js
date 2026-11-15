@@ -336,11 +336,16 @@ async function main() {
     report.gui = { presets: state.presets.length, measuredToolkitTokens: state.toolSurface.tokensEstimate, widestPresetTokens: widest.estimate.tokensEstimate, widestPresetContextPercent: widest.estimate.contextPercent };
 
     await registered.get("researchToolkit.openHelp")();
-    for (const file of ["guides/index.md", "guides/onboarding.md", "presets.json", "installer.js", "runner.js", "hosttools.js", "preflight.js", "setuplog.js", "steps.js", "status.js", "components.json", "worker/overlay/notebooks/analysis/uv.lock", "worker/overlay/.github/skills/literature-search/SKILL.md", "functional_check.py", "probe.py", "readme.md", "media/controls.js", "media/controls.css"]) {
+    for (const file of ["guides/index.md", "guides/onboarding.md", "presets.json", "installer.js", "runner.js", "hosttools.js", "preflight.js", "setuplog.js", "steps.js", "status.js", "components.json", "worker/overlay/notebooks/analysis/uv.lock", "worker/overlay/.github/skills/literature-search/SKILL.md", "functional_check.py", "probe.py", "readme.md", "changelog.md", "media/controls.js", "media/controls.css"]) {
       assert.ok(fs.existsSync(path.join(packageRoot, file)), `packaged ${file} resolves`);
     }
     assert.ok(fs.readFileSync(path.join(packageRoot, "guides", "onboarding.md"), "utf8").includes("Choose a tools preset for the task"));
     assert.ok(fs.readFileSync(path.join(packageRoot, "readme.md"), "utf8").includes(version));
+    const packagedChangelog = fs.readFileSync(path.join(packageRoot, "changelog.md"), "utf8");
+    assert.ok(packagedChangelog.includes(`## ${version} —`), `packaged changelog opens with release ${version}`);
+    assert.ok(packagedChangelog.includes("CHANGELOG-archive.md"), "packaged changelog points at the archived earlier releases");
+    const earlierReleases = packagedChangelog.match(/^## \d+\.\d+\.\d+ —/gm) ?? [];
+    assert.equal(earlierReleases.length, 1, `packaged changelog carries only the ${version} entry, found: ${earlierReleases.join(", ")}`);
     const refreshed = await registered.get("researchToolkit.refreshComponentStatus")();
     assert.match(refreshed, /Component status refresh · toolkit /);
     assert.match(refreshed, /No recorded step is missing its produced files\./);

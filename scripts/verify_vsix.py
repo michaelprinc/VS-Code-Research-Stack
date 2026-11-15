@@ -17,6 +17,12 @@ EXPECTED = {
     "[Content_Types].xml",
     "extension.vsixmanifest",
     "extension/readme.md",
+    # 0.3.13: the release notes the Marketplace Changelog tab is built from, and the file the packaged
+    # Details page links to three times. vsce's ChangelogProcessor reads it from the staged root and
+    # rewrites it into `extension/changelog.md` with a Microsoft.VisualStudio.Services.Content.Changelog
+    # asset, exactly as it does for the readme, so it is audited as a generated member rather than as a
+    # copy of a staged file.
+    "extension/changelog.md",
     "extension/extension.js",
     "extension/ui.js",
     # 0.3.9: the bundle installer module. `extension/extension.js` requires './bundles', so a package
@@ -61,8 +67,8 @@ EXPECTED = {
 _TEXT_SUFFIXES = {".md", ".js", ".cjs", ".mjs", ".json", ".py", ".toml", ".txt", ".svg", ".css", ".html", ".yml", ".yaml"}
 # The ZIP format cannot record a date before 1980-01-01, so the build stamps every entry to it.
 BUILD_EPOCH = (1980, 1, 1, 0, 0, 0)
-# vsce writes these three itself; every other member is copied from the staged tree.
-GENERATED_MEMBERS = frozenset({"[Content_Types].xml", "extension.vsixmanifest", "extension/readme.md"})
+# vsce writes these four itself; every other member is copied from the staged tree.
+GENERATED_MEMBERS = frozenset({"[Content_Types].xml", "extension.vsixmanifest", "extension/readme.md", "extension/changelog.md"})
 
 
 
@@ -186,6 +192,27 @@ MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 # reviewed file was dropped, so the option this comment names is the one taken: re-measure. The ceiling becomes
 # 1 572 864 (1.5 MiB) — 45 410 bytes of headroom, 3.0 % of the payload, still exactly one 1/16 MiB step (65 536)
 # above the previous ceiling, not a round number chosen to make a build pass.
+# 0.3.13 presentation corrections re-measure it a second time in the same release, and this time the payload
+# shrinks. Measured: 1 484 462 bytes across the same 113 members — 42 992 bytes less than the build above.
+# Attribution, member by member, and it accounts for the whole 42 992 bytes exactly: extension/readme.md
+# 57 872 → 9 187 (−48 685 — the packaged Details page was rewritten so every claim matches the shipped build,
+# and the 0.2.0–0.3.12 release history it carried now lives in extension/CHANGELOG-archive.md, which is not
+# packaged); extension/worker/README.md 16 066 → 21 796 (+5 730 — the repository README, which
+# scripts/build_worker_bundle.py byte-copies into the worker bundle, was corrected: the four gate reports
+# quoted verbatim, the 0.3.4/0.3.9 corpus-index attribution, the measured 28-command headroom, the in-repo
+# versus out-of-repo evidence ranges, and the licence and publishability section); extension/bundles/catalog.json
+# 8 701 → 8 671 (−30 — the document-corpus-bridge licence string); packaged extension/package.json 13 120 →
+# 13 113 (−7 — "license": "MIT"). Nothing was moved out and no reviewed file was dropped, so the ceiling is
+# not lowered: it stays 1 572 864 (1.5 MiB). The headroom is a consequence of the rewrite, not a relaxation
+# of the gate.
+# Packaging the changelog is the third re-measurement in this release, because the packaged Details page links
+# to CHANGELOG.md three times and the Marketplace Changelog tab was empty. Measured: 1 492 505 bytes across 114
+# members — 8 043 bytes more than the build above, and the three changed members account for it exactly:
+# extension/changelog.md +7 907 (a new member: the 0.3.13 entry the Marketplace Changelog tab renders, the
+# 0.2.0–0.3.12 archive staying out of the package), extension.vsixmanifest +116 (the
+# Microsoft.VisualStudio.Services.Content.Changelog asset vsce adds for it) and packaged extension/package.json
+# +20 (the "CHANGELOG.md" entry in "files", without which vsce's collectFiles never stages it). The ceiling is
+# still not lowered: 1 572 864 (1.5 MiB), now 80 359 bytes of headroom, 5.4 % of the payload.
 MAX_UNPACKED_BYTES = 1_572_864
 SENSITIVE_NAMES = re.compile(r"(^|/)(\.env(\.|$)|\.venv|node_modules|\.git|corpus|models?|secrets?)(/|$)", re.I)
 # The capability scan is about starting a process or opening a socket. A method call on an object
@@ -518,6 +545,9 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
         expected_source = {member: source_root / member.removeprefix("extension/") for member in EXPECTED if member.startswith("extension/")}
         expected_source["extension/package.json"] = source_root / "vsix-manifest.json"
         expected_source["extension/readme.md"] = source_root / "README.md"
+        # vsce's ReadmeProcessor and ChangelogProcessor both read from the staged root and rename the
+        # member, so the member name is not the source name on a case-sensitive host either.
+        expected_source["extension/changelog.md"] = source_root / "CHANGELOG.md"
         for member, source in expected_source.items():
             packaged_bytes = archive.read(member)
             source_bytes = source.read_bytes()
@@ -552,8 +582,12 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
             )
         # The same headers also carry the permission bits of the file that was packed. A maintainer's
         # tree and a fresh clone of the same tag disagree there — 32 members of the 0.3.7 build were 0664
-        # here and 0644 in a clone, with identical content and different digests. vsce's own three
+        # here and 0644 in a clone, with identical content and different digests. vsce's own four
         # generated members are 0664 on every build; everything copied from the tree is 0644.
+        # `extension/scripts/package.js` states both values in the artifact's central directory, because
+        # Windows cannot express 0644 at all: `fs.chmodSync(target, 0o644)` succeeds there and the file
+        # still reports 0666, so a build from this tree used to be refused by this gate while the same tag
+        # built cleanly on a POSIX host.
         loose_modes = sorted(
             info.filename for info in archive.infolist()
             if info.filename not in GENERATED_MEMBERS and (info.external_attr >> 16) & 0o777 != 0o644
