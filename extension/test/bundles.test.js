@@ -125,8 +125,8 @@ test("the shipped catalog is the reviewed catalog for the shipped bundle tree", 
   assert.equal(bundle.id, "theological-research");
   assert.equal(bundle.version, "2.0", "the bundle version is the PoC's own metadata.version");
   assert.deepEqual(bundle.skills, ["theological-research"]);
-  assert.equal(bundle.publishable, false, "an unresolved license cannot be packaged as publishable");
-  assert.match(bundle.license, /^unresolved/);
+  assert.equal(bundle.publishable, true, "the bundle carries its own MIT licence, so it is publishable (supersedes DD9-24)");
+  assert.match(bundle.license, /^MIT/, "the licence names MIT rather than an unresolved consent question");
   assert.ok(bundle.prerequisites.length >= 4, "the prerequisites are stated, not implied");
   assert.ok(bundle.prerequisites.some((line) => /crossref\.org/.test(line) && /openalex\.org/.test(line)), "the two hosts the optional script contacts are named");
   assert.ok(bundle.prerequisites.some((line) => /installer and the control panel never run it/.test(line)), "the install path is stated as never running the network script");
@@ -143,6 +143,15 @@ test("the shipped catalog is the reviewed catalog for the shipped bundle tree", 
   assert.ok(bundle.files.some((entry) => entry.path === "theological-research/SKILL.md"));
   assert.ok(bundle.files.some((entry) => entry.path === "theological-research/scripts/dedupe_records.py"));
   assert.ok(bundle.files.some((entry) => entry.path === "theological-research/references/my-library.md"));
+  // Supersedes DD9-24: the bundle answers its own licence question by shipping the licence text.
+  assert.ok(bundle.files.some((entry) => entry.path === "theological-research/LICENSE"),
+    "the bundle ships its own licence file, as the 0.3.9 review required");
+  const shippedLicense = await read(path.join(PAYLOAD_PATH, "theological-research", "LICENSE"));
+  assert.match(shippedLicense, /^MIT License\n/);
+  assert.match(shippedLicense, /Copyright \(c\) 2026 s\. Denisa \+ Michael/);
+  const skillFrontmatter = await read(path.join(PAYLOAD_PATH, "theological-research", "SKILL.md"));
+  assert.match(skillFrontmatter.slice(0, 1200), /^---\nname: theological-research\n/);
+  assert.match(skillFrontmatter.slice(0, 1200), /metadata:\n(?:.*\n)*?\s+license: MIT\n/, "the frontmatter declares the licence");
 });
 
 test("the shipped bundle carries the disclosed script behaviour", async () => {
@@ -568,18 +577,19 @@ test("the shipped theological bundle installs into a disposable workspace and re
   const root = await workspace(t);
   const catalog = await readCatalog(CATALOG_PATH);
   const plan = await planInstall({ workspaceRoot: root, catalog, bundleId: "theological-research" });
-  // 13 files: the 11 the bundle shipped with through 0.3.12, plus `scripts/validate_ris.py` and
-  // `references/zotero-vocabulary.md`, which 0.3.13 adds so a RIS file is checked before Zotero sees it.
-  assert.equal(plan.files.length, 13);
+  // 14 files: the 13 the bundle shipped with through 0.3.12 (including `scripts/validate_ris.py` and
+  // `references/zotero-vocabulary.md`, added in 0.3.13), plus `LICENSE`, which the bundle carries from
+  // 0.3.13 so its licence is resolved rather than outstanding.
+  assert.equal(plan.files.length, 14);
   assert.ok(plan.files.every((file) => file.absolute.startsWith(path.join(root, ".github", "skills", "theological-research", ""))));
 
   const receipt = await installBundle({ workspaceRoot: root, catalog, bundleId: "theological-research" });
-  assert.equal(receipt.filesInstalled, 13);
-  assert.equal(receipt.filesWritten, 13);
+  assert.equal(receipt.filesInstalled, 14);
+  assert.equal(receipt.filesWritten, 14);
   assert.equal(receipt.hostDiscoveryVerified, false);
   assert.equal(receipt.workflowTested, false);
   const installed = await treeOf(path.join(root, ".github", "skills", "theological-research"));
-  assert.equal(installed.size, 13);
+  assert.equal(installed.size, 14);
   for (const entry of catalog.bundles.find((item) => item.id === "theological-research").files) {
     const relative = entry.path.replace(/^theological-research\//, "");
     assert.equal(installed.get(relative), entry.sha256, `${entry.path} is not the reviewed file after install`);
@@ -587,7 +597,7 @@ test("the shipped theological bundle installs into a disposable workspace and re
   const repaired = await repairBundle({ workspaceRoot: root, catalog, bundleId: "theological-research" });
   assert.deepEqual(repaired.repair.drift, []);
   assert.deepEqual(repaired.repair.reinstalled, []);
-  assert.equal(repaired.filesInstalled, 13);
+  assert.equal(repaired.filesInstalled, 14);
 });
 
 test("the document bridge ships as a reviewed bundle and no longer tells the operator PDF and DOCX are unsupported", async (t) => {

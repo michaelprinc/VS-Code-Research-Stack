@@ -213,6 +213,16 @@ MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 # Microsoft.VisualStudio.Services.Content.Changelog asset vsce adds for it) and packaged extension/package.json
 # +20 (the "CHANGELOG.md" entry in "files", without which vsce's collectFiles never stages it). The ceiling is
 # still not lowered: 1 572 864 (1.5 MiB), now 80 359 bytes of headroom, 5.4 % of the payload.
+# The theological-research MIT licence is the fourth re-measurement in this release. Measured: 1 496 331 bytes
+# across 115 members — 3 826 bytes more than the build above, and the seven changed members account for it
+# exactly: extension/bundles/theological-research/LICENSE +1 815 (a new member: the bundle's own MIT licence,
+# Copyright (c) 2026 s. Denisa + Michael, which is what makes the bundle publishable), extension/changelog.md
+# +1 086 (the licence paragraph added to the 0.3.13 entry), extension/worker/README.md +376 (the corrected
+# licence and publishability section), extension/bundles/catalog.json +270 (the MIT licence string and the
+# emptied unresolvedLicenses list), extension/readme.md +165, extension/guides/onboarding.md +99 and
+# extension/bundles/theological-research/SKILL.md +15 (`license: MIT` in the frontmatter). Nothing was moved
+# out and no reviewed file was dropped, so the ceiling is still 1 572 864 (1.5 MiB): 76 533 bytes of headroom,
+# 5.1 % of the payload.
 MAX_UNPACKED_BYTES = 1_572_864
 SENSITIVE_NAMES = re.compile(r"(^|/)(\.env(\.|$)|\.venv|node_modules|\.git|corpus|models?|secrets?)(/|$)", re.I)
 # The capability scan is about starting a process or opening a socket. A method call on an object

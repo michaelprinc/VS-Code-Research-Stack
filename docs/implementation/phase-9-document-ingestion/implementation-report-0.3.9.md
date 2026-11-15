@@ -25,7 +25,7 @@ Bundle record: [bundle-notes.md](bundle-notes.md)
 | Transactional reindex | One `index_corpus` call is one transaction and leaves exactly one `index_runs` row — including a cancelled run. A partial or failed read never replaces an indexed version unless the operator passes `accept_partial: true`. |
 | Migration | Schema 3, reached from 1 or 2 by additive `ALTER`s only. Migrated rows are labelled `legacy` / `unchecked` and never back-filled. Backup works on an unmigrated store; restore stages a candidate and only `confirm: true` activates it. |
 | Topic skill bundles | A generated catalog (`extension/bundles/catalog.json`), a staged hash-verified installer (`extension/bundles.js`), receipts under `.research-toolkit/bundles/`, conflict and user-edit preservation, an upgrade path, and five new control-panel / Command Palette commands. |
-| First bundle | `theological-research` 2.0 — 11 files, 60 825 bytes, packaged, installable, **not publishable** (licence unresolved). |
+| First bundle | `theological-research` 2.0 — 11 files, 60 825 bytes, packaged, installable, **not publishable** (licence unresolved). *(0.3.9 state. Superseded 2026-11-15: the bundle now carries its own MIT licence and is publishable — see `bundle-notes.md` §7 item 1.)* |
 | Second bundle | `document-corpus-bridge` 2.0 — 1 file, 6 972 bytes: the PDF/DOCX indexing workflow, replacing the 0.3.8 derived-Markdown workaround (DD9-23). Toolkit-authored, repository UNLICENSED, so packaged but not publishable. |
 
 ## 2. Contracts that were held fixed
@@ -75,6 +75,8 @@ Bundle record: [bundle-notes.md](bundle-notes.md)
   requests when a user runs it; the audit lists it under `outboundNetworkMembers`.
 - **The licence of the theological bundle is unresolved.** `publishable: false` is enforced by the catalog
   generator, the catalog reader and the VSIX audit. Author consent is a human decision, not a code fix.
+  *(Closed 2026-11-15 by that human decision: the bundle ships its own MIT `LICENSE`. The enforcement is
+  unchanged.)*
 - **G1–G4 remain open**, and the 0.3.8 field re-run (T8-18) is still outstanding.
 
 ## 5. Defects found by the gates during this release

@@ -25,10 +25,18 @@ SOFTWARE.
 Scope note for this repository
 
 This licence applies to the toolkit source, its documentation and the
-toolkit-authored payload. It does not grant rights over third-party material
-held in this repository whose own licence is still unresolved. The
-`theological-research` topic skill bundle is staged from another author's
-working copy; its licence is recorded as `unresolved — author consent required
-before publication` in `extension/bundles/catalog.json`, and it is packaged
-but marked `publishable: false` until that consent is given. See
+toolkit-authored payload. The `document-corpus-bridge` topic skill bundle is
+toolkit-authored and is covered by it directly.
+
+The `theological-research` topic skill bundle is the work of s. Denisa and
+Michal, staged into the toolkit from their working copy. It is also under the
+MIT licence, but under its own copyright line: the bundle carries its own
+`LICENSE` file (`Copyright (c) 2026 s. Denisa + Michael`) inside
+`extension/bundles/theological-research/`, and that file, not this one, is the
+licence that travels with the installed skill. Both bundles are therefore
+publishable. See
 `docs/implementation/phase-9-document-ingestion/bundle-notes.md`.
+
+Neither licence grants rights over anything the toolkit only refers to: the
+works a user cites, the Crossref, OpenAlex or Zotero records a user retrieves,
+or a licensed database such as ATLA.

@@ -63,7 +63,7 @@ Full now ships a real slice: a persistent workspace corpus index and a standard-
 
 ### Gate status and publication state
 
-G1–G4 all remain open. The built `.vsix` is a **local deliverable**: `npm run package`, `npm run verify-package` and `npm run check:payload` each complete with `result: passed`, while `scripts/verify_vsix.py` reports `publishable: false` because a bundle licence is unresolved — and the publisher `michaelprinc` has no published extensions on the VS Code Marketplace, as [marketplace-probe.json](evidence/quality-v0.3.10-2026-11-07/marketplace-probe.json) records. There is nothing to install from the Marketplace yet.
+G1–G4 all remain open. The built `.vsix` is a **local deliverable**: `npm run package`, `npm run verify-package` and `npm run check:payload` each complete with `result: passed`, and `scripts/verify_vsix.py` reports `publishable: true` because both topic skill bundles now carry a resolved MIT licence — but publication still waits on the four open gates, and the publisher `michaelprinc` has no published extensions on the VS Code Marketplace, as [marketplace-probe.json](evidence/quality-v0.3.10-2026-11-07/marketplace-probe.json) records. There is nothing to install from the Marketplace yet.
 
 ### Install and build the 0.3.13 VSIX
 
@@ -92,7 +92,7 @@ The second command should report `michaelprinc.research-stack-toolkit@0.3.13`. T
 
 The repository is licensed under the **MIT licence**; the full text is in [LICENSE](LICENSE), and `extension/package.json` and `extension/vsix-manifest.json` both declare `MIT`.
 
-The `document-corpus-bridge` bundle is toolkit-authored and is covered by that licence, so it is packaged and publishable. The `theological-research` bundle is **not**: its licence is recorded as `unresolved — author consent required before publication`, its `publishable` flag is `false`, and both `scripts/build_bundle_catalog.py` and `extension/bundles.js` refuse to package a publishable bundle whose licence is unresolved. Until its author consents, `npm run verify-package` reports `publishable: false` and the `.vsix` must not be published on the Marketplace.
+Both topic skill bundles are under the MIT licence and both are publishable. The `document-corpus-bridge` bundle is toolkit-authored and is covered directly by the repository's [LICENSE](LICENSE). The `theological-research` bundle is the work of s. Denisa and Michal, and it carries **its own** MIT licence: `extension/bundles/theological-research/LICENSE`, `Copyright (c) 2026 s. Denisa + Michael`, with `license: MIT` declared in the bundle's `SKILL.md` frontmatter, so the licence that travels with the installed skill is the bundle's own. `scripts/build_bundle_catalog.py` and `extension/bundles.js` still refuse to package any bundle marked `publishable: true` whose `license` field is unresolved, and `npm run verify-package` now reports `publishable: true` with `unresolvedLicenses: []`. Publication is still blocked by the open gates G1–G4, not by a licence.
 
 ## Evidence and records
 

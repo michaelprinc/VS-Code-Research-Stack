@@ -26,7 +26,7 @@ container can prove today; nothing here stands for a Windows or live VS Code res
 | 19 | Version identity across the seven sources; both locks re-resolved with uv 0.13.6 | R10-11 | `pyproject.toml`, `src/research_stack/__init__.py`, `extension/*`, `extension/worker/*`, `runtime.js` | done, `lockintegrity-cli.json`, `uv-lock-check.txt` |
 | 20 | Packaged documentation brought to 0.3.10 at its source | finding 3 | `README.md`, `extension/README.md`, `extension/guides/*`, `extension/worker/README.md` (generated) | done |
 | 21 | Publication runbook with the decisions named | DD10-14 | `docs/implementation/phase-10-marketplace-release/implementation-report-0.3.10.md` | done |
-| 22 | Publish the release | §3 decisions | Marketplace | **open — needs the maintainer**: publisher, credential, licence, channel |
+| 22 | Publish the release | §3 decisions | Marketplace | **open — needs the maintainer**: publisher, credential, channel (the licence half closed 2026-11-15) |
 | 23 | Bump `@vscode/vsce` to ≥ 4.1.0 when trusted publishing is chosen | P-04 | `extension/package.json` devDependency | open — deliberately not done here, so the pinned toolchain stays what the receipts describe |
-| 24 | Resolve the two skill-bundle licences | P-06 | `templates/recommended-overlay/.github/skills/`, `extension/bundles/catalog.json` | open — `publishable: false` enforced by generator, reader and audit |
+| 24 | Resolve the two skill-bundle licences | P-06 | `templates/recommended-overlay/.github/skills/`, `extension/bundles/catalog.json` | **done 2026-11-15** — both bundles are MIT and `publishable: true`; the generator, reader and audit still enforce the refusal rule for an unresolved licence |
 | 25 | Windows 11 install, live Extension Host, Copilot attachment, a real mail client receiving the draft | — | — | open — not reachable from this container |

@@ -42,7 +42,7 @@ container ran says so; nothing here stands for a Windows or live VS Code result.
 | T10-35 | The packaged payload carries the new modules, the icon and the manifest fields | `updates.js`, `reports.js`, `media/toolkit.png` (256 × 256 PNG), `bugs.email`, `homepage`, 33 commands, 25 allowlist entries | `scripts/verify_vsix.py`, `extension/scripts/check-installed-payload.js` |
 | T10-36 | Release identity | 0.3.10 across the seven identity sources; both locks re-resolve with uv 0.13.6 | `tests/test_lock_consistency.py` / `test_release_identity.py`, `evidence/quality-v0.3.10-2026-11-07/lockintegrity-cli.json`, `uv-lock-check.txt` |
 | T10-37 | The artifact is buildable from the tag | `git archive v0.3.10` → build → audit `passed`, `sourceFilesMatch: true`, 104 members | `evidence/quality-v0.3.10-2026-11-07/vsix-audit-from-tag.json` |
-| T10-38 | Publication state | the publisher and extension do not exist; the pinned vsce has no `--oidc`; the bundles are `publishable: false` | `evidence/quality-v0.3.10-2026-11-07/marketplace-probe.json`, `vsce-publish-help.txt`, `vsce-4.1.0-publish-help.txt`, `bundle-catalog-check.txt` |
+| T10-38 | Publication state | the publisher and extension do not exist; the pinned vsce has no `--oidc`; the bundles are `publishable: false` | `evidence/quality-v0.3.10-2026-11-07/marketplace-probe.json`, `vsce-publish-help.txt`, `vsce-4.1.0-publish-help.txt`, `bundle-catalog-check.txt` — **the licence half is superseded 2026-11-15** (both bundles now MIT, `publishable: true`); the receipts above stand as the 0.3.10 state |
 
 ## Open, by design
 
@@ -50,7 +50,7 @@ container ran says so; nothing here stands for a Windows or live VS Code result.
 |---|---|
 | Publisher `michaelprinc` exists and is verified | Requires a human account at `https://marketplace.visualstudio.com/manage/createpublisher?managePageRedirect=true`. |
 | A credential is chosen (PAT or Entra/OIDC trusted publishing) | Requires a human to create and hold a secret; nothing in this repository may hold one. |
-| The repository licence | `UNLICENSED` today; publishing needs an explicit decision. |
-| The two skill bundles | `document-corpus-bridge` is toolkit-authored but the repository is unlicensed; `theological-research` needs author consent. Both are `publishable: false` and the generator, the reader and the audit enforce it. |
+| The repository licence | **Closed 2026-11-15** — the repository is MIT, the licence recorded in `LICENSE`. It was `UNLICENSED` at 0.3.10. |
+| The two skill bundles | **Closed 2026-11-15.** `document-corpus-bridge` is toolkit-authored and covered by the repository's MIT licence; `theological-research` carries its own MIT licence in `theological-research/LICENSE`, `Copyright (c) 2026 s. Denisa + Michael`, with `license: MIT` in its `SKILL.md` frontmatter. Both are `publishable: true`, and the generator, the reader and the audit still enforce the refusal rule for any bundle whose licence is unresolved. |
 | Whether 0.3.10 ships as `--pre-release` | A Marketplace presentation decision; the extension accepts either. |
 | Windows 11 install, live Extension Host, Copilot attachment, a real mail client receiving the draft | Not reachable from this container. |

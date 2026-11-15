@@ -76,7 +76,7 @@ The package is a local deliverable. It is not published on the Marketplace, and 
 
 ## Licence
 
-The toolkit is under the MIT licence recorded in the `LICENSE` file at the root of its source repository. The `document-corpus-bridge` topic skill bundle is toolkit-authored and covered by it. The `theological-research` bundle is third-party work whose licence is recorded as `unresolved — author consent required before publication`; it is packaged for local use and is not publishable.
+The toolkit is under the MIT licence recorded in the `LICENSE` file at the root of its source repository. The `document-corpus-bridge` topic skill bundle is toolkit-authored and covered by it. The `theological-research` bundle is the work of s. Denisa and Michal and carries its own MIT licence inside the bundle — `bundles/theological-research/LICENSE`, `Copyright (c) 2026 s. Denisa + Michael`, with `license: MIT` in the skill's frontmatter — so both bundles are publishable. Publication is still gated on the open gates G1–G4, not on a licence.
 
 ## Build and verify
 

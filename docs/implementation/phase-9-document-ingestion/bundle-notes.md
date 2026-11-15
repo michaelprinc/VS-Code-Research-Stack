@@ -47,8 +47,9 @@ Decisions that the design left open:
   compares the file on disk byte-for-byte with the regenerated one, so a catalog that no longer matches
   its payload fails the build instead of shipping.
 - **License gate.** `publishable: true` while `license` starts with `unresolved` is refused by the
-  generator, by `readCatalog`/`validateCatalog`, and by `scripts/verify_vsix.py`. The theological bundle
-  is `publishable: false`.
+  generator, by `readCatalog`/`validateCatalog`, and by `scripts/verify_vsix.py`. At 0.3.9 the
+  theological bundle was `publishable: false`; it became publishable on 2026-11-15 (§7 item 1). The gate
+  itself is unchanged and still refuses any bundle that calls an unresolved licence publishable.
 
 Run: `.venv/bin/python scripts/build_bundle_catalog.py` →
 `bundles/catalog.json unchanged: 1 bundle(s), 11 files, 60825 bytes, 1 unresolved license(s), publishable=False`
@@ -213,10 +214,15 @@ made from this work, and the container's outbound access was not assumed.
 
 ## 7. Unresolved
 
-1. **License (blocks publication, not installation).** `license: "unresolved — author consent required
-   before publication"`, `publishable: false`. No license was invented. The bundle is packaged and
-   audited, and three separate gates refuse to call it publishable. A decision from s. Denisa and Michal
-   is needed before 0.3.9 is published anywhere outside this repository.
+1. **License (blocks publication, not installation).** Closed on 2026-11-15. At 0.3.9 the catalog read
+   `license: "unresolved — author consent required before publication"`, `publishable: false`, and no
+   licence was invented; the bundle was packaged and audited, and three separate gates refused to call it
+   publishable. The bundle now carries its own MIT licence — `theological-research/LICENSE`,
+   `Copyright (c) 2026 s. Denisa + Michael`, with `license: MIT` in its `SKILL.md` frontmatter — so the
+   catalog records `publishable: true` and `unresolvedLicenses: []`. The licence is the authors' own
+   decision recorded in the bundle's licence file; the three gates are untouched and still refuse any
+   bundle that calls an unresolved licence publishable. Packaging is still not publication: the `.vsix`
+   has never been published on the Marketplace, and G1–G4 remain open.
 2. **Host discovery and workflow truth.** Both receipt fields are always false with a reason. No VS
    Code or Copilot host is reachable from this container, so nothing here can say a host read the skill
    or that the seven-stage workflow produced a better report. That is a host-side follow-up (R9-22).

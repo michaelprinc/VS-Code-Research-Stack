@@ -34,10 +34,16 @@ SKILL_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # The same shape `extension/runtime.js` enforces for the overlay: one skill directory, one level.
 BUNDLE_PATH_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*$")
 
-LICENSE_UNRESOLVED = "unresolved — author consent required before publication"
+# A bundle licence is only publishable when it names a licence the repository actually carries.
+# `unresolved` is the sentinel the gate in `build_catalog` refuses: a bundle whose consent is still
+# outstanding must say so in its `license` field and must never be marked publishable.
+UNRESOLVED_LICENSE_PREFIX = "unresolved"
 
 # Authored bundle metadata. `files` is filled in by measurement below, never by hand.
 BUNDLES: list[dict[str, object]] = [
+    # Supersedes DD9-24 (2026-11-15): the bundle now carries its own MIT licence in
+    # `theological-research/LICENSE` and `metadata.license: MIT` in its SKILL.md frontmatter, so the
+    # licence question is answered and the bundle is publishable. The refusal gate below is unchanged.
     {
         "id": "theological-research",
         "version": "2.0",
@@ -79,8 +85,10 @@ BUNDLES: list[dict[str, object]] = [
             "and writes nothing there. No bundle ever removes a skill, and no bundle removes a skill "
             "owned by another bundle."
         ),
-        "license": LICENSE_UNRESOLVED,
-        "publishable": False,
+        "license": "MIT — the bundle carries its own MIT licence in theological-research/LICENSE, "
+                   "Copyright (c) 2026 s. Denisa + Michael, and declares `license: MIT` in its "
+                   "SKILL.md frontmatter",
+        "publishable": True,
     },
     # DD9-23: the 0.3.8 workaround skill is brought under this catalog, rewritten for 0.3.9 direct
     # ingestion, so one workspace does not carry two competing instructions for the same job. It is
@@ -227,9 +235,10 @@ def build_catalog() -> dict[str, object]:
             if owner != bundle["id"] and not any(str(other["id"]) == owner for other in bundles):
                 raise ValueError(f"bundle {bundle['id']}: skill {skill} is owned by unknown bundle {owner}")
 
-    unresolved = [str(bundle["id"]) for bundle in bundles if str(bundle["license"]).startswith("unresolved")]
+    unresolved = [str(bundle["id"]) for bundle in bundles
+                  if str(bundle["license"]).startswith(UNRESOLVED_LICENSE_PREFIX)]
     for bundle in bundles:
-        if bundle["publishable"] and str(bundle["license"]).startswith("unresolved"):
+        if bundle["publishable"] and str(bundle["license"]).startswith(UNRESOLVED_LICENSE_PREFIX):
             raise ValueError(f"bundle {bundle['id']}: license is unresolved, so it cannot be marked publishable")
 
     return {

@@ -41,14 +41,19 @@
     {
       "files": [
         {
+          "bytes": 1815,
+          "path": "theological-research/LICENSE",
+          "sha256": "9fe117007b757c4978e1ac235a7690a0d593605b41a95d6c1ec814d505951641"
+        },
+        {
           "bytes": 5070,
           "path": "theological-research/README.md",
           "sha256": "0998116a9cd7590b8d733d8f99a3d2b1796ca6d7a36dc43bf3d5dc09efebda44"
         },
         {
-          "bytes": 11532,
+          "bytes": 11547,
           "path": "theological-research/SKILL.md",
-          "sha256": "18fe2fe26f30c76c35da58f109d83b3523165c044e41cb7e75ec997fde05f5c3"
+          "sha256": "dca3ff92d31530f0f78245444b9972fe17dc9e24af472aa65efce6ea927b1a0c"
         },
         {
           "bytes": 3224,
@@ -107,7 +112,7 @@
         }
       ],
       "id": "theological-research",
-      "license": "unresolved — author consent required before publication",
+      "license": "MIT — the bundle carries its own MIT licence in theological-research/LICENSE, Copyright (c) 2026 s. Denisa + Michael, and declares `license: MIT` in its SKILL.md frontmatter",
       "owners": {
         "theological-research": "theological-research"
       },
@@ -128,7 +133,7 @@
         "sourceSnapshot": "Aplikovaná umělá inteligence pro sestry karmelitky/theological-research/ (author working directory, 2026-10-29)",
         "stagedTree": "templates/skill-bundles/theology/theological-research/"
       },
-      "publishable": false,
+      "publishable": true,
       "purpose": "Scholarly theological research: frame the question, search in the languages the field is published in, keep bibliographic records reviewable, label access status and confidence, and write a report whose limits are stated. Version 2.0 of the PoC written by s. Denisa and Michal, packaged with the adaptations recorded in docs/implementation/phase-9-document-ingestion/bundle-notes.md.",
       "sharedSkillRule": "Every skill in `skills` has exactly one owner bundle in `owners`. Only the owner bundle writes that skill's files; another bundle that lists the same skill reports it as shared and writes nothing there. No bundle ever removes a skill, and no bundle removes a skill owned by another bundle.",
       "skills": [
@@ -142,7 +147,5 @@
   "generatedBy": "scripts/build_bundle_catalog.py",
   "schemaVersion": 1,
   "sharedSkillRule": "Only the owner bundle named in `owners` writes a skill's files; a non-owner reports it as shared and writes nothing. No bundle removes a skill, and never one owned by another bundle.",
-  "unresolvedLicenses": [
-    "theological-research"
-  ]
+  "unresolvedLicenses": []
 }

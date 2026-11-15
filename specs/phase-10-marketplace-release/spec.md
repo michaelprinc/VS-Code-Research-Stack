@@ -22,7 +22,7 @@ Extension Host are **not reachable from this container**; no case below claims o
 | vsce 4.0.0 has no `create-publisher` command; it has `ls-publishers`, `login`, `logout`, `delete-publisher`, `verify-pat`, `unpublish`, `generate-manifest`, `verify-signature`. | `vsce --help`. Receipt: [vsce-commands-help.txt](../../evidence/quality-v0.3.10-2026-11-07/vsce-commands-help.txt). |
 | What vsce would actually ship for this manifest: **102 files**, and the packaged VSIX holds **104 members** — the two extras are `extension.vsixmanifest` and `[Content_Types].xml`, added by the packager. | `vsce ls` (no prompt, no warning) beside `scripts/verify_vsix.py` member inventory. Receipts: [vsce-ls.txt](../../evidence/quality-v0.3.10-2026-11-07/vsce-ls.txt), [vsix-audit.json](../../evidence/quality-v0.3.10-2026-11-07/vsix-audit.json). |
 | VS Code does not update an extension installed from a file. | Documented behaviour of `extensions.autoUpdate` plus the fact that a VSIX install has no gallery identity to update. This is the reason 0.3.10 exists. |
-| The repository is `UNLICENSED` and the two skill bundles are **not publishable** as they stand. | `scripts/build_bundle_catalog.py --check` → `2 bundles, 12 files, 67797 bytes, 1 unresolved license(s), publishable=False`. Receipt: [bundle-catalog-check.txt](../../evidence/quality-v0.3.10-2026-11-07/bundle-catalog-check.txt). |
+| The repository is `UNLICENSED` and the two skill bundles are **not publishable** as they stand. | `scripts/build_bundle_catalog.py --check` → `2 bundles, 12 files, 67797 bytes, 1 unresolved license(s), publishable=False`. Receipt: [bundle-catalog-check.txt](../../evidence/quality-v0.3.10-2026-11-07/bundle-catalog-check.txt). **Superseded 2026-11-15:** the repository is MIT and both bundles are publishable — see the 0.3.13 changelog entry and `docs/implementation/phase-9-document-ingestion/bundle-notes.md` §7 item 1. This row and its receipt stand as the 0.3.10 state. |
 | The package has no icon today, and the Marketplace requires a **PNG** icon of at least 128 × 128 (an SVG is refused). | `extension/package.json` had no `icon` field; `extension/media/toolkit.png` was authored for this release (256 × 256 RGBA, 6 875 bytes, SHA-256 `dbe4f22b…c4c7a`) and `scripts/make_icon.js --verify` re-measures it. |
 | The Toolkit already records everything a useful bug report needs, locally: component inventory, setup verdict, setup log, tool surface, host inventory. | `extension/diagnostics.js`, `extension/extension.js` (`state()`), the setup log path used by `researchToolkit.openSetupLog`. |
 | Nothing in the shipped JavaScript could reach the network, and the audit enforced that with a byte scan. | `scripts/verify_vsix.py` `FORBIDDEN_ENTRY` list and `extension/test/module-boundaries.test.js`. 0.3.10 changes this deliberately, under review — see §3 R10-02. |
@@ -60,7 +60,9 @@ requirement that had to be measured because the documentation and the tool disag
 8. **Publication is blocked by facts, not by effort.** The publisher does not exist; the pinned vsce cannot do trusted
    publishing; the bundles are not publishable; the repository declares no licence. Each one is a decision for the
    maintainer, listed in [docs/implementation/phase-10-marketplace-release/implementation-report-0.3.10.md](../../docs/implementation/phase-10-marketplace-release/implementation-report-0.3.10.md)
-   with the command that resolves it.
+   with the command that resolves it. *(Recorded as of 0.3.10. The licence half of this list was resolved on
+   2026-11-15: the repository is MIT and both bundles carry a resolved MIT licence, so `publishable: true`. The
+   publisher, the vsce pin and the open gates remain.)*
 
 ## 3. Requirements
 

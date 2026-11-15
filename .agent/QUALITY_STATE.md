@@ -112,11 +112,12 @@ under the unchanged ceiling **1 572 864** (headroom 80 359, 5.4 %), sha256
 0644 ×110 and 0664 ×4. `npm run verify-package` and `npm run check:payload` both `result: passed` on this Windows
 host. The payload delta across the round is attributed member by member in the comment above `MAX_UNPACKED_BYTES`.
 
-**Publication verdict, unchanged by this round.** The listing is not publishable. `theological-research` is still
+**Publication verdict at the end of this round.** The listing is not publishable. `theological-research` was still
 `publishable: false` — its licence needs its author's consent, which no amount of editing here can supply, so the
-catalog's `publishable: false` is correct and stays. `@vscode/vsce` remains pinned at 4.0.0. G1–G4 remain open.
+catalog's `publishable: false` was correct at this point. `@vscode/vsce` remains pinned at 4.0.0. G1–G4 remain open.
 0.3.13 has no tag. A live Marketplace probe returns `TotalCount 0` for the extension id and 404 for the listing, the
-changelog and the publish endpoint.
+changelog and the publish endpoint. *(The licence half of this verdict is superseded by the licence round below, same
+date; the rest stands.)*
 
 **Open items from the 0.3.10/0.3.11 rounds that this round closes.** The list under "Open items and risks" in the
 0.3.12 section below is kept as written at the time, and three of its entries no longer hold: the **repository
@@ -124,7 +125,54 @@ licence** decision is taken (MIT, holder Michael Princ, recorded in `LICENSE` an
 note that it does not cover `theological-research`); the packaged artifact **does** carry a Changelog asset from
 `bcbf6fe`; and there is **one** `publishable: false` skill bundle, not two, because `document-corpus-bridge` is
 toolkit-authored and covered by the recorded licence. The publisher, credential and pre-release decisions and the
-vsce pin are untouched by this round.
+vsce pin are untouched by this round. The last of those licence entries closes in the round below.
+
+---
+
+## 0.3.13 theological-research licence round (15 November 2026)
+
+The licence blocker the presentation round above left open is closed. The `theological-research` bundle is the work of
+s. Denisa and Michal, staged from their working copy, and it has been substantially updated since that initial
+cooperation. Its holders chose **MIT** for it, so the bundle now answers its own licence question instead of
+inheriting one from the repository:
+
+- **`theological-research/LICENSE`** in both trees — `MIT License`, `Copyright (c) 2026 s. Denisa + Michael`, plus a
+  scope note stating that it covers the bundle (the skill instruction, seven references, three scripts, `evals.json`)
+  and grants nothing over the works, provider records or licensed databases the bundle only refers to. LF-only,
+  1 815 bytes, byte-identical in `templates/skill-bundles/theology/theological-research/` and
+  `extension/bundles/theological-research/`.
+- **`license: MIT`** added to the `metadata` block of the bundle's `SKILL.md` frontmatter (11 532 → 11 547 bytes).
+  `author: s. Denisa + Michal` and `version: "2.0"` are unchanged — the bundle's own version was not bumped.
+- **`scripts/build_bundle_catalog.py`** records the MIT licence string and `publishable: True` for the bundle. The
+  now-unused `LICENSE_UNRESOLVED` constant became `UNRESOLVED_LICENSE_PREFIX = "unresolved"`, which the refusal gate
+  still tests. **All three gates are untouched**: the generator, `extension/bundles.js` and `scripts/verify_vsix.py`
+  each still refuse a bundle marked `publishable: true` whose `license` starts with `unresolved`.
+- **Catalog regenerated**: `2 bundle(s), 15 files, 83962 bytes, 0 unresolved license(s), publishable=True`, and
+  `--check` agrees. The bundle is 14 files / 76 990 bytes; the bridge is unchanged at 1 file / 6 972 bytes.
+- **Tests**: `extension/test/bundles.test.js` now asserts `publishable: true` and `/^MIT/` on the shipped catalog,
+  that the bundle ships a `LICENSE` member carrying the MIT text and its copyright line, and that the frontmatter
+  declares the licence; the five shipped-bundle file counts go 13 → 14. The synthetic fixtures that test the refusal
+  rule (an unresolved licence marked publishable, a 13-file synthetic bundle) are deliberately unchanged — the rule
+  stays under test.
+- **Records superseded, not deleted**: D9-17 closed, DD9-24 marked superseded, T9-47 and phase-9 task 15 annotated,
+  phase-10 P-05/P-06, T10-38, the "Open, by design" rows and tasks 22/24 annotated, and `bundle-notes.md` §7 item 1
+  closed. Each carries a dated note and keeps the 0.3.9/0.3.10 wording and receipts as written.
+  `extension/CHANGELOG-archive.md` and everything under `evidence/` were not touched.
+
+**What is deliberately not recorded.** No catalog field or document names who decided or documents any individual's
+consent. The bundle's own licence file is the record, and nothing here claims consent on anyone's behalf.
+
+**Artifact after this round.** `research-stack-toolkit-0.3.13.vsix`, **115 members, 499 223 packed, 1 496 331
+unpacked** under the unchanged ceiling **1 572 864** (headroom 76 533, 5.1 %), sha256
+`c4f249c8837c68c7d8b697a73bf76b9ef404f45121b02b308083cad64ba77738`. The +3 826 unpacked bytes are attributed member
+by member in the comment above `MAX_UNPACKED_BYTES`. `npm run verify-package` reports `publishable: true` with
+`unresolvedLicenses: []`, and `npm run check:payload` reports `result: passed`, both on this Windows host.
+
+**Publication verdict, changed in one respect only.** The licence blocker is gone: both bundles are MIT and
+publishable, and `scripts/verify_vsix.py` no longer reports `publishable: false`. 0.3.13 is **still not
+publishable**: G1–G4 remain open, 0.3.13 has no tag, `@vscode/vsce` remains pinned at 4.0.0, the reference-host,
+Extension Host and rendered-window receipts are still outstanding, and a live Marketplace probe returns
+`TotalCount 0` for the extension id and 404 for the listing, the changelog and the publish endpoint.
 
 ---
 
