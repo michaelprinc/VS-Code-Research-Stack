@@ -1,6 +1,8 @@
 # Quality state — Research Stack Toolkit 0.3.13 (Zotero work internalized into the Toolkit's own worker)
 
-> **PHASE 14 IMPLEMENTED, VERIFIED AND COMMITTED — 14 November 2026, commit `a42af03`, no tag.** An operator's brief about their own
+> **PHASE 14 IMPLEMENTED, VERIFIED AND COMMITTED — 14 November 2026, commit `a42af03`; the presentation-correction
+> round that follows it is committed as `56a990f`, `6607db9`, `c4f8816`, `39cb936`, `650416f` and `bcbf6fe`. No tag
+> on 0.3.13.** An operator's brief about their own
 > **Zotero 10.0.8** library (93 items = 43 top-level + 50 child notes, 37 with a DOI, **0 collections, 0 tags,
 > 0 saved searches**, full-text index answering no match) drove the phase. Its claims are labelled by the operator
 > themselves — [ZMĚŘENO] measured, [NAJDO] found in Zotero's source, [ZÁMĚR] deliberately not done — and the brief
@@ -28,10 +30,10 @@
 > **unfilterable child note**; `TY - GEN` → `journalArticle`; an import that returned HTTP success created
 > **156 items, 61 of them empty**.
 >
-> **0.3.13 measured, current.** Node **482 tests, 482 pass, 0 fail, 0 skipped**. Python **413 passed, 0 failed**
-> (25 of them in the new `tests/test_zotero_library.py`). Panel check **7 assertions, 7 pass**. Artifact
-> **`research-stack-toolkit-0.3.13.vsix`, 113 members, 508 994 packed, 1 527 454 unpacked** under the re-measured
-> ceiling **1 572 864** (headroom 45 410, 3.0 %), sha256
+> **0.3.13 measured on the Linux development host that built it.** Node **482 tests, 482 pass, 0 fail, 0 skipped**.
+> Python **413 passed, 0 failed** (25 of them in the new `tests/test_zotero_library.py`). Panel check **7 assertions,
+> 7 pass**. Artifact **`research-stack-toolkit-0.3.13.vsix`, 113 members, 508 994 packed, 1 527 454 unpacked** under
+> the re-measured ceiling **1 572 864** (headroom 45 410, 3.0 %), sha256
 > `30fc220b372afac58ace0f1f8c9f11c9a5e1c8ff092d833ebb104a0fb553dd77`; `verify-package` and `check:payload` both
 > `result: passed`. The +76 822 bytes over 0.3.12 are attributed member by member in the comment above
 > `MAX_UNPACKED_BYTES` and the attribution **sums to the measured delta exactly**. `uv.lock` was re-resolved with
@@ -39,6 +41,20 @@
 > tools, widest preset `research-lab-max` now **9 toolkit + 91 external = 100** (was 101), 28 tools of headroom
 > under the 128-tool ceiling; `zotero_write` appears in exactly one goal preset (`zotero-handoff`) and in no package
 > default.
+>
+> **The same suites on the Windows host used for the 0.3.13 presentation corrections (15 November 2026).** Node
+> **482 tests, 450 pass, 26 fail, 6 skipped**; Python **407 passed, 6 failed**; panel check **7 assertions, 7 pass**.
+> Every one of the 32 failures is a property of this host, not of the code, and each is named: **26 node + 4 python
+> failures are link creation** — an unprivileged Windows session cannot create a symlink or a junction (`EPERM` /
+> `WinError 1314`), so the tests that prove a link, a junction or a reparse point cannot redirect a workspace file
+> cannot run here (`extension/test/hosttools.test.js` probes a POSIX-mode fixture that Windows does not carry, which
+> is why its tool-resolution assertions answer `null`); **1 python failure** is `tests/test_stdio.py::test_isolated_mode_ignores_PYTHONIOENCODING`,
+> which this host's interpreter honours `PYTHONIOENCODING` even under `-I`; **1 python failure** is
+> `tests/test_zotero_library.py::test_snapshot_is_a_new_file_in_the_workspace_and_says_when_it_is_truncated`, whose
+> assertion compares a POSIX-relative member path against the `\\`-joined path Windows produced. **No failure
+> reproduces a defect in the shipped behaviour, and both release gates pass on this host** (see the round below).
+> The 482/482 and 413/0 figures above are therefore **host-scoped to the Linux build host**, and a maintainer
+> reproducing them on Windows must expect exactly these 32 refusals.
 >
 > **Defects closed in this phase.** **F-04** — `scripts/verify_recommended_mcp.py` hard-coded five tool names and
 > omitted `search_literature`; it now expects the real eight and also proves over the MCP transport that
@@ -50,10 +66,65 @@
 >
 > **Still open, unchanged by this phase.** **F-01** (`extension/runtime.js:216-225` runs the current checker with
 > the candidate's interpreter), **F-02** (`records.py:155` `CLAIM_STATUSES` lacks `draft` against
-> `specs/phase-3/spec.md:42`). **G1–G4 remain open**: `evidence/gates-2026-11-07/final-validation.json` records
-> `"gatesApproved": []`, the newest G1–G4 receipts are 0.3.9-era and live outside tracked evidence, and G3's named
-> candidates (Qdrant, embeddings, DuckDB) are unimplemented. The 14 November real-host run is the strongest real-host
-> evidence in this repository and it is a **report, not a gate receipt**.
+> `specs/phase-3/spec.md:42`). **G1–G4 remain open**: the four gate reports versioned in this repository say so in
+> their own words — `evidence/phase-1/gate-report.md` "G1 not passed", `evidence/phase-2/gate-report.md` "G2 not
+> passed" and "G1 remains open", `evidence/phase-3/gate-report.md` "G3 not passed", `evidence/phase-4/gate-report.md`
+> "0.3.2 local document workflow passed; full G4 remains open". The `evidence/gates-2026-11-07/final-validation.json`
+> that earlier rounds of this file cited, with `"gatesApproved": []`, is **not in this repository** — it was a
+> host-local run, so it is named as out-of-repo evidence and no reader should go looking for it in `evidence/`.
+> G3's named candidates (Qdrant, embeddings, DuckDB) are unimplemented. The 14 November real-host run is the
+> strongest real-host evidence in this repository and it is a **report, not a gate receipt**.
+
+## 0.3.13 presentation-correction round (15 November 2026)
+
+A publication-readiness check of 0.3.13 for the VS Code Marketplace found that the presentation files claimed more
+than the build delivers. Six commits followed, each its own stage:
+
+| Commit | What it changed |
+| --- | --- |
+| `56a990f` | Records the **MIT** licence (holder Michael Princ) in a new `LICENSE`, in `extension/package.json` and `extension/vsix-manifest.json` (`"license": "MIT"`), in the catalog generator and in the bundle test. `document-corpus-bridge` becomes `publishable: true`; `theological-research` stays `publishable: false` because only its author can grant that consent. |
+| `6607db9` | `extension/CHANGELOG.md` now carries **only the 0.3.13 entry**; 0.2.0–0.3.12 moved to the new `extension/CHANGELOG-archive.md`. Reconstruction of the old 111 622-byte file from the two parts is byte-identical. |
+| `c4f8816` | The packaged Details page (`extension/README.md`, 9 187 B) rewritten so every claim matches the shipped build. |
+| `39cb936` | The repository `README.md` corrected (21 796 B, 102 lines) and the artifacts derived from it regenerated: `extension/bundles/catalog.json`, `extension/worker/README.md` (byte-copied from the root README), `extension/worker/bundle.json`, `scripts/build_guide_index.py`, `scripts/build_worker_bundle.py`. |
+| `650416f` | `extension/scripts/package.js` stamps and normalizes the artifact: `process.env.TZ = "UTC"` and `normalizePackagedModes()`. |
+| `bcbf6fe` | The release notes are packaged as `extension/changelog.md`, so the Marketplace Changelog tab exists. |
+
+**Claims corrected.** The gate status was the serious one: an earlier draft of this round's README said G2, G3 and G4
+had passed. All four gate reports say they have not, and the corrected README quotes them. Also corrected: the
+0.3.4/0.3.9 corpus-index attribution, the measured 28-command headroom under the 128-tool ceiling, the licence and
+publishability section, and the range of evidence that is versioned in this repository versus evidence that was only
+ever produced on a development host.
+
+**Two packaging defects found while rebuilding, both closed rather than gated around.**
+1. **Timestamps.** vsce sets every entry's mtime from `SOURCE_DATE_EPOCH` (1980-01-01) but yazl writes it in the
+   host's local zone; this host is UTC+1, so every member was stamped `1980-01-01 01:00:00` and `scripts/verify_vsix.py`
+   refused the artifact as unstamped. `process.env.TZ = "UTC"` in the packager fixes it.
+2. **Permission bits.** Windows cannot express 0644: `fs.chmodSync(target, 0o644)` succeeds and the file still reports
+   0666, so a build from this tree was refused by the gate while the same tag built cleanly on a POSIX host. vsce
+   collects staged files without a mode, so yazl inherits the host's. `normalizePackagedModes()` now states the two
+   values the gate expects in the finished artifact's central directory — 0644 for members copied from the tree, 0664
+   for vsce's four generated members — refusing ZIP64 and validating its cursor rather than writing blindly.
+   Content, order, timestamps and compressed sizes are untouched.
+
+**Artifact after this round.** `research-stack-toolkit-0.3.13.vsix`, **114 members, 497 185 packed, 1 492 505 unpacked**
+under the unchanged ceiling **1 572 864** (headroom 80 359, 5.4 %), sha256
+`f3108128275106df4707504d07f1a7f560e7eb846bca6582d4b66a529b0e34f0`, every member stamped 1980-01-01 00:00:00, modes
+0644 ×110 and 0664 ×4. `npm run verify-package` and `npm run check:payload` both `result: passed` on this Windows
+host. The payload delta across the round is attributed member by member in the comment above `MAX_UNPACKED_BYTES`.
+
+**Publication verdict, unchanged by this round.** The listing is not publishable. `theological-research` is still
+`publishable: false` — its licence needs its author's consent, which no amount of editing here can supply, so the
+catalog's `publishable: false` is correct and stays. `@vscode/vsce` remains pinned at 4.0.0. G1–G4 remain open.
+0.3.13 has no tag. A live Marketplace probe returns `TotalCount 0` for the extension id and 404 for the listing, the
+changelog and the publish endpoint.
+
+**Open items from the 0.3.10/0.3.11 rounds that this round closes.** The list under "Open items and risks" in the
+0.3.12 section below is kept as written at the time, and three of its entries no longer hold: the **repository
+licence** decision is taken (MIT, holder Michael Princ, recorded in `LICENSE` and in both manifests, with the scope
+note that it does not cover `theological-research`); the packaged artifact **does** carry a Changelog asset from
+`bcbf6fe`; and there is **one** `publishable: false` skill bundle, not two, because `document-corpus-bridge` is
+toolkit-authored and covered by the recorded licence. The publisher, credential and pre-release decisions and the
+vsce pin are untouched by this round.
 
 ---
 
