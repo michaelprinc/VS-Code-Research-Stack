@@ -56,7 +56,7 @@ Each component has an independent guide. Guide opens its bundled snapshot; Lates
 | Component guide | Group | Who installs it | Purpose | Current official source |
 |---|---|---|---|---|
 """
-    (ROOT / "guides" / "index.md").write_text(prefix + "\n".join(rows) + "\n\n[Documentation maintenance](maintenance.md) · [Toolkit controls](toolkit.md)\n", encoding="utf-8")
+    (ROOT / "guides" / "index.md").write_text(prefix + "\n".join(rows) + "\n\n[Documentation maintenance](maintenance.md) · [Toolkit controls](toolkit.md)\n", encoding="utf-8", newline="\n")
     print(f"Guide hub built from {len(components)} component guides.")
 
 

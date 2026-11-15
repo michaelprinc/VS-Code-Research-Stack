@@ -117,7 +117,7 @@ def build():
     built_version = re.search(r'^version = "([^"]+)"', (target / 'pyproject.toml').read_text(encoding='utf-8'), re.M).group(1)
     if built_version != version:
         raise ValueError(f'worker bundle version mismatch: bundle {version} vs bundled pyproject {built_version}')
-    (target / 'bundle.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+    (target / 'bundle.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8', newline='\n')
     print(f'Worker bundle built: {len(entries)} reviewed source/lock files and {len(overlay_entries)} overlay templates for worker {version}.')
 
 
