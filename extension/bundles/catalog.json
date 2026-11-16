@@ -3,6 +3,11 @@
     {
       "files": [
         {
+          "bytes": 1070,
+          "path": "document-corpus-bridge/LICENSE.txt",
+          "sha256": "7492019de670d5f6f833a005f64645c943715a6c86afefdda67fbeacf3243e4f"
+        },
+        {
           "bytes": 6972,
           "path": "document-corpus-bridge/SKILL.md",
           "sha256": "c9e7299b40b7df512cc47c27b9a7919259076904207521aebfb457f4fb9b6adc"

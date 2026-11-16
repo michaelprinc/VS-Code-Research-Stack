@@ -160,10 +160,18 @@ async function main() {
     // it packs and with the staged template tree the catalog was generated from.
     fs.cpSync(path.join(projectRoot, "bundles"), path.join(stageRoot, "bundles"), { recursive: true });
     fs.copyFileSync(path.join(projectRoot, "README.md"), path.join(stageRoot, "README.md"));
+    // 0.3.10: the licence, support and security notices the Marketplace listing and the Details page
+    // point at. vsce's LicenseProcessor claims the first `extension/LICENSE(.md|.txt)` member it sees
+    // and records it as the package's licence asset, so `skipLicense` is no longer passed.
+    fs.copyFileSync(path.join(projectRoot, "LICENSE.txt"), path.join(stageRoot, "LICENSE.txt"));
+    for (const file of ["SUPPORT.md", "SECURITY.md"]) fs.copyFileSync(path.join(projectRoot, file), path.join(stageRoot, file));
     // The Marketplace Changelog tab is filled from `extension/changelog.md`, which vsce's ChangelogProcessor
     // reads from the staged root (out/package.js: `options.changelogPath ?? 'changelog.md'`). Without the
     // staged copy the listing ships a Details page that links to a changelog the Marketplace does not have.
-    fs.copyFileSync(path.join(projectRoot, "CHANGELOG.md"), path.join(stageRoot, "CHANGELOG.md"));
+    // The staged source is MARKETPLACE-CHANGELOG.md, not CHANGELOG.md: the Marketplace tab carries the
+    // curated notes for the release being published, while `extension/CHANGELOG.md` stays the full
+    // release history in the source repository.
+    fs.copyFileSync(path.join(projectRoot, "MARKETPLACE-CHANGELOG.md"), path.join(stageRoot, "CHANGELOG.md"));
     normalizeStagedLineEndings(stageRoot);
     normalizeStagedModes(stageRoot);
     // Line endings are only half of a reproducible artifact. vsce writes the copy time of each staged
@@ -184,7 +192,6 @@ async function main() {
       packagePath: outputPath,
       dependencies: false,
       rewriteRelativeLinks: false,
-      skipLicense: true,
     });
     normalizePackagedModes(outputPath);
     const stats = fs.statSync(outputPath);

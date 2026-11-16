@@ -2,6 +2,10 @@
 
 Research Stack Toolkit helps you set up a research workspace in VS Code. Use its control panel to install the components your chosen package needs, check their readiness, and give your assistant a focused set of research tools.
 
+> **Public preview:** This release is experimental. Gates G1–G4 remain open and the complete onboarding, Copilot, external-provider and data-recovery workflows have not been accepted. Back up your research documents and configuration before trying setup or indexing. Validate citations against their sources. Report problems through the extension or the links below.
+
+Requires VS Code Desktop 1.140.0 or later. Version 1.145.2 was tested with an isolated Windows Extension Host; the minimum version, other platforms, remote hosts and a live Copilot workflow remain unverified. Some components require separately installed software, accounts, provider terms or internet access. Qdrant, vector and embedding search are planned rather than implemented. See [SUPPORT.md](SUPPORT.md) and [SECURITY.md](SECURITY.md) for how to report a problem or a vulnerability.
+
 **Version 0.3.13 · Phase 4 Preview**
 
 ## What you can do

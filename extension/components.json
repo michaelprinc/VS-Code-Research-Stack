@@ -361,7 +361,7 @@
         "recommended",
         "full"
       ],
-      "summary": "Search Academic Graph metadata with no account, after you confirm the API licence once.",
+      "summary": "Use optional Academic Graph metadata search.",
       "guide": "guides/semantic-scholar-academic-graph.md",
       "officialUrl": "https://api.semanticscholar.org/api-docs/",
       "reviewedAt": "2026-11-08",

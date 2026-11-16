@@ -613,8 +613,8 @@ test("the document bridge ships as a reviewed bundle and no longer tells the ope
   assert.match(bridge.license, /^MIT/);
 
   const receipt = await installBundle({ workspaceRoot: root, catalog, bundleId: "document-corpus-bridge" });
-  assert.equal(receipt.filesInstalled, 1);
-  assert.equal(receipt.filesWritten, 1);
+  assert.equal(receipt.filesInstalled, 2);
+  assert.equal(receipt.filesWritten, 2);
   const target = path.join(root, ".github", "skills", "document-corpus-bridge", "SKILL.md");
   const text = await fs.readFile(target, "utf8");
   assert.match(text, /^---\nname: document-corpus-bridge\n/, "the skill keeps its frontmatter identity");

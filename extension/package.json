@@ -383,7 +383,10 @@
   },
   "files": [
     "CHANGELOG.md",
+    "LICENSE.txt",
     "README.md",
+    "SECURITY.md",
+    "SUPPORT.md",
     "bundles",
     "bundles.js",
     "components.json",
@@ -431,5 +434,6 @@
     "url": "https://github.com/michaelprinc/VS-Code-Research-Stack/issues",
     "email": "princ.michael@gmail.com"
   },
-  "homepage": "https://github.com/michaelprinc/VS-Code-Research-Stack"
+  "homepage": "https://github.com/michaelprinc/VS-Code-Research-Stack",
+  "preview": true
 }

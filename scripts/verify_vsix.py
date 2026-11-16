@@ -23,6 +23,13 @@ EXPECTED = {
     # asset, exactly as it does for the readme, so it is audited as a generated member rather than as a
     # copy of a staged file.
     "extension/changelog.md",
+    # 0.3.10: the licence, support and security notices the Marketplace listing needs. vsce's
+    # LicenseProcessor claims the first `extension/licen[cs]e(\.md|\.txt)` member it finds and records it
+    # as the package's licence asset; with no licence member it warns and prompts, which hangs a CI build.
+    # SUPPORT.md and SECURITY.md are ordinary staged copies audited like every other shipped file.
+    "extension/LICENSE.txt",
+    "extension/SUPPORT.md",
+    "extension/SECURITY.md",
     "extension/extension.js",
     "extension/ui.js",
     # 0.3.9: the bundle installer module. `extension/extension.js` requires './bundles', so a package
@@ -68,6 +75,9 @@ _TEXT_SUFFIXES = {".md", ".js", ".cjs", ".mjs", ".json", ".py", ".toml", ".txt",
 # The ZIP format cannot record a date before 1980-01-01, so the build stamps every entry to it.
 BUILD_EPOCH = (1980, 1, 1, 0, 0, 0)
 # vsce writes these four itself; every other member is copied from the staged tree.
+# `extension/changelog.md` is generated in the sense that vsce's ChangelogProcessor renames the staged
+# `changelog.md` copy into it and adds its asset entry; the bytes still come from a source file, which
+# `expected_source` below maps explicitly.
 GENERATED_MEMBERS = frozenset({"[Content_Types].xml", "extension.vsixmanifest", "extension/readme.md", "extension/changelog.md"})
 
 
@@ -556,8 +566,11 @@ def verify(path: Path, source_root: Path | None = None) -> dict[str, object]:
         expected_source["extension/package.json"] = source_root / "vsix-manifest.json"
         expected_source["extension/readme.md"] = source_root / "README.md"
         # vsce's ReadmeProcessor and ChangelogProcessor both read from the staged root and rename the
-        # member, so the member name is not the source name on a case-sensitive host either.
-        expected_source["extension/changelog.md"] = source_root / "CHANGELOG.md"
+        # member, so the member name is not the source name on a case-sensitive host either. The
+        # changelog staged by `extension/scripts/package.js` is MARKETPLACE-CHANGELOG.md: the Marketplace
+        # tab carries the curated notes for the release being published, while `extension/CHANGELOG.md`
+        # stays the full release history in the source repository.
+        expected_source["extension/changelog.md"] = source_root / "MARKETPLACE-CHANGELOG.md"
         for member, source in expected_source.items():
             packaged_bytes = archive.read(member)
             source_bytes = source.read_bytes()
