@@ -233,6 +233,19 @@ MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 # extension/bundles/theological-research/SKILL.md +15 (`license: MIT` in the frontmatter). Nothing was moved
 # out and no reviewed file was dropped, so the ceiling is still 1 572 864 (1.5 MiB): 76 533 bytes of headroom,
 # 5.1 % of the payload.
+# Merging the 0.3.10 Marketplace-packaging line into this release is the fifth measurement in it, and the payload
+# shrinks. Measured: 1 494 073 bytes across 119 members — 2 258 bytes less than the build above, and the eleven
+# changed members account for it exactly. Four new members: extension/LICENSE.txt +1 070, extension/SUPPORT.md
+# +662, extension/SECURITY.md +337 and extension/bundles/document-corpus-bridge/LICENSE.txt +1 070 (the bridge's
+# own licence, so the bundle states its licence rather than relying on the repository one). extension/changelog.md
+# 8 993 → 2 306 (−6 687 — the staged source is now MARKETPLACE-CHANGELOG.md, the curated notes for the release
+# being published; extension/CHANGELOG.md, the full release history the packaged Details page links to, stays a
+# source-repository file and is no longer a package member). extension/readme.md 9 352 → 10 213 (+861 — the
+# preview notice, the 1.140.0 floor and the SUPPORT.md/SECURITY.md links), extension/bundles/catalog.json +189
+# (the bridge licence entry), extension/components.json −43, extension/guides/onboarding.md +38, packaged
+# extension/package.json +75 (the files allowlist) and extension.vsixmanifest +170 (the licence and support assets
+# vsce records). Nothing was moved out and no reviewed file was dropped, so the ceiling is not lowered: it stays
+# 1 572 864 (1.5 MiB) — 78 791 bytes of headroom, 5.3 % of the payload.
 MAX_UNPACKED_BYTES = 1_572_864
 SENSITIVE_NAMES = re.compile(r"(^|/)(\.env(\.|$)|\.venv|node_modules|\.git|corpus|models?|secrets?)(/|$)", re.I)
 # The capability scan is about starting a process or opening a socket. A method call on an object
