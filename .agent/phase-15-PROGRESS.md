@@ -116,6 +116,6 @@ An independent read-only audit of `45a3b0b` found nine statement-level contradic
 toolset list did not cover a tool it selected, panel comments and two READMEs describing the build as it was
 before the buttons and the artifact existed, three guides with 0.3.13 or incomplete counts, an archive path
 missing its sequence, an ellipsis standing in for a value, and retired presets whose goal text named servers
-they no longer provide. All nine are fixed in the follow-up commit; the table is in
+they no longer provide. All nine are fixed in the follow-up commit `ec47fbd`; the table is in
 `QUALITY_STATE.md` under "Independent audit of the committed release". No behavioural defect in retrieval,
 the archive or the settings was found, and the audit re-ran the five gates independently to the same numbers. After the fixes: **526 node tests / 526 pass**, panel **9 / 9**, **444 python tests passed in 152.51 s**, `verify-package` and `check:payload` both `result: passed` against the re-cut artifact (121 members, 561 509 packed, 1 710 211 unpacked).

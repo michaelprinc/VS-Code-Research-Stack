@@ -1,6 +1,6 @@
 # Quality state — Research Stack Toolkit 0.3.14 (retrieval in the store, presets that name their tools, bundles that can be overwritten safely)
 
-> **PHASE 15 IMPLEMENTED AND VERIFIED ON THE BUILD HOST — 17/18 November 2026, committed as `45a3b0b` on `main`; **no tag on 0.3.14**.** The release was
+> **PHASE 15 IMPLEMENTED AND VERIFIED ON THE BUILD HOST — 17/18 November 2026, committed as `45a3b0b` on `main` with the independent audit's corrections in `ec47fbd`; **no tag on 0.3.14**.** The release was
 > driven by an operator's 0.3.13 report (Czech, sections ⚠1–5 and §8 "Co 0.3.13 nedělá"): retrieval planned but not
 > implemented, `lab-state.json` not refreshed by the store's own writes, `researchStack.integrationTimeoutMs` named in
 > the worker README but absent from Settings, the changelog describing a preset surface that was never shipped, the
@@ -74,7 +74,7 @@
 | F-01 rollback proof was weaker than its wording | A rollback verified the checker, not the runtime it replaced, and said only "verified". | `rollbackRuntime` returns `checkerVersion`, `checkerMatchesRuntime` and a `verificationNote` that states which of the two was checked. |
 | F-02 a retired preset could still be chosen | The Quick Pick and the settings enum carried `research-lab` / `research-lab-max` with estimates that no longer held. | Retired presets are filtered out of every picker, marked in the settings enum labels, refused on a new choice, and still resolvable for an existing saved value. |
 
-## Independent audit of the committed release (18 November 2026, commit `45a3b0b`)
+## Independent audit of the committed release (18 November 2026; audited `45a3b0b`, corrected in `ec47fbd`)
 
 A fresh agent audited the committed release read-only against the shipped build and found five real
 contradictions. All five are corrected in the follow-up commit; each is listed with what the audit measured
