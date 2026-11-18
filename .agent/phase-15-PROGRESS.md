@@ -53,7 +53,7 @@ claims were confirmed verbatim and one was located in a different file than the 
 | P5 presets rework (three max presets, exact tool lists, cap 20) | main agent, after P1+P2 land | not started |
 | P6 F-01 rollback honesty | main agent | **done 2026-11-17**: `extension/runtime.js` `rollbackRuntime` now returns `checkerVersion`, `checkerMatchesRuntime` and a `verificationNote` naming both releases and stating what the weaker proof proves; new test in `extension/test/runtime.test.js` proves the mismatch case and the matching case. `node --test test/runtime.test.js` → **19 tests, 19 pass, exit 0** |
 | P7 documentation consistency | main agent | not started |
-| P8 0.3.14 identity, gates, artifact, quality state | main agent | not started |
+| P8 0.3.14 identity, gates, artifact, quality state | main agent | done: 0.3.14 identity, all five gates green, artifact built and audited, committed as `45a3b0b` on `main` with no tag (2026-11-18). |
 
 ## Next highest-value action
 
@@ -95,7 +95,7 @@ started this release).
 ### Decisions taken during the cut
 
 - **DD15-09.** `research-max-github-limited` names 42 of the 57 published read-only names and excludes all 35 write names; 14 of the remaining 15 read-only names follow from the seven toolsets the preset does not enable, and `ui_get` is left out **by choice**. The preset's `note` now says this plainly instead of letting the count imply completeness. Adding `ui_get` (43) was rejected: it would move a number that guides, tests and two implementation notes already state, to gain nothing the operator asked for.
-- **DD15-10.** Payload ceiling raised rather than the payload trimmed. Measured mid-cut at 121 members / 560 362 packed / 1 706 385 unpacked and re-measured on the final artifact at **121 members / 560 523 packed / 1 707 234 unpacked** (headroom 62 238, 3.6 %); the figures in `scripts/verify_vsix.py` and in `QUALITY_STATE.md` are the final ones; the two new members are `extension/presetselect.js` (+24 450) and `extension/worker/src/research_stack/vectors.py` (+9 936), the rest is named in the comment at `scripts/verify_vsix.py`.
+- **DD15-10.** Payload ceiling raised rather than the payload trimmed. Measured three times before it settled (121 members / 560 362 packed / 1 706 385 unpacked; then 560 523 / 1 707 234; then 561 483 / 1 710 106 — each after a documentation change that moved packaged bytes) and finally on the artifact now in `dist/`: **121 members / 561 509 packed / 1 710 211 unpacked** (headroom 59 261, 3.4 %). The READMEs no longer carry byte or hash figures, which is what stops this measurement from drifting again; the figures in `scripts/verify_vsix.py` and in `QUALITY_STATE.md` are the final ones; the two new members are `extension/presetselect.js` (+24 450) and `extension/worker/src/research_stack/vectors.py` (+9 936), the rest is named in the comment at `scripts/verify_vsix.py`.
 - **DD15-11.** `scripts/verify_vsix.py` scans packaged **bytes** for transport and process names and cannot tell prose from code. The `presetselect.js` boundary paragraph therefore says "opens no outbound connection" rather than naming a transport; the reason is written in that same paragraph.
 - **DD15-12.** `researchStack.toolsPreset` keeps the two retired ids in its `enum`, so a saved preference stays valid; they are removed from what the panel and the Quick Pick **offer**. Both doors refuse a new choice of a retired preset and name the three replacements.
 
@@ -109,3 +109,13 @@ started this release).
 - Ranking quality of `rsk-hashing-v1` on the operator's own corpus is unmeasured; no cosine threshold exists anywhere.
 - `extension/bundles/theological-research/references/my-library.md` still states the toolkit "provides no vector store". It is a hashed bundle payload file pinned by `bundles/catalog.json`; changing it means a catalog re-hash and a bundle version move, which was not done in this cut. Recorded as the one shipped file whose 0.3.13 retrieval claim is now stale.
 - Qdrant, DuckDB, a learned embedding model, Playwright and the institutional adapters stay `kind: "planned"`. No OCR, no automatic download, no notebook kernel, no Zotero delete or merge.
+
+## Audit round after the release commit (18 November 2026)
+
+An independent read-only audit of `45a3b0b` found nine statement-level contradictions — a preset whose
+toolset list did not cover a tool it selected, panel comments and two READMEs describing the build as it was
+before the buttons and the artifact existed, three guides with 0.3.13 or incomplete counts, an archive path
+missing its sequence, an ellipsis standing in for a value, and retired presets whose goal text named servers
+they no longer provide. All nine are fixed in the follow-up commit; the table is in
+`QUALITY_STATE.md` under "Independent audit of the committed release". No behavioural defect in retrieval,
+the archive or the settings was found, and the audit re-ran the five gates independently to the same numbers. After the fixes: **526 node tests / 526 pass**, panel **9 / 9**, **444 python tests passed in 152.51 s**, `verify-package` and `check:payload` both `result: passed` against the re-cut artifact (121 members, 561 509 packed, 1 710 211 unpacked).

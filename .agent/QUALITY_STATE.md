@@ -1,6 +1,6 @@
 # Quality state — Research Stack Toolkit 0.3.14 (retrieval in the store, presets that name their tools, bundles that can be overwritten safely)
 
-> **PHASE 15 IMPLEMENTED AND VERIFIED ON THE BUILD HOST — 17/18 November 2026. No tag on 0.3.14.** The release was
+> **PHASE 15 IMPLEMENTED AND VERIFIED ON THE BUILD HOST — 17/18 November 2026, committed as `45a3b0b` on `main`; **no tag on 0.3.14**.** The release was
 > driven by an operator's 0.3.13 report (Czech, sections ⚠1–5 and §8 "Co 0.3.13 nedělá"): retrieval planned but not
 > implemented, `lab-state.json` not refreshed by the store's own writes, `researchStack.integrationTimeoutMs` named in
 > the worker README but absent from Settings, the changelog describing a preset surface that was never shipped, the
@@ -37,13 +37,13 @@
 > (`integrationprobe.probeBounds()`) and reported as the bound actually in force. (6) F-01: a rollback now names the
 > checker version and the runtime version and says what the weaker proof proves.
 >
-> **0.3.14 measured on the Linux development host that built it.** Node **525 tests, 525 pass, 0 fail, 0 skipped**.
+> **0.3.14 measured on the Linux development host that built it.** Node **526 tests, 526 pass, 0 fail, 0 skipped**.
 > Python **444 passed, 0 failed** across 22 files. Panel renderer check **9 assertions, 9 pass, 0 not proven** (rows H
 > and I added for the four new panel controls and the retirement text). Artifact
-> **`research-stack-toolkit-0.3.14.vsix`, 121 members, 560 523 packed, 1 707 234 unpacked** under the re-measured
-> ceiling **1 769 472** (headroom 62 238, 3.6 %), sha256
-> `82cf6b8274df87b039b1b85bbf5740bebed2e1c7995476f2dc2da17e667fbae0`; `verify-package` and `check:payload` both
-> `result: passed`. The +213 161 bytes over 0.3.13 are attributed member by member above `MAX_UNPACKED_BYTES`.
+> **`research-stack-toolkit-0.3.14.vsix`, 121 members, 561 509 packed, 1 710 211 unpacked** under the re-measured
+> ceiling **1 769 472** (headroom 59 261, 3.4 %), sha256
+> `dba2c8040aa607e4d3aa4940e4fbd5760502729efba59d69c7eb95e17305f1dc`; `verify-package` and `check:payload` both
+> `result: passed`. The +216 138 bytes over 0.3.13 are attributed member by member above `MAX_UNPACKED_BYTES`.
 > `uv.lock` was re-resolved with uv 0.13.6, never hand-edited. **Tool budget:** 21
 > preset-selectable verbs (5 documents + 5 research + 11 store; `all` publishes 24 with the three reviewed aliases),
 > every preset ≤ 20 toolkit tools, widest total 108 of 128.
@@ -74,6 +74,43 @@
 | F-01 rollback proof was weaker than its wording | A rollback verified the checker, not the runtime it replaced, and said only "verified". | `rollbackRuntime` returns `checkerVersion`, `checkerMatchesRuntime` and a `verificationNote` that states which of the two was checked. |
 | F-02 a retired preset could still be chosen | The Quick Pick and the settings enum carried `research-lab` / `research-lab-max` with estimates that no longer held. | Retired presets are filtered out of every picker, marked in the settings enum labels, refused on a new choice, and still resolvable for an existing saved value. |
 
+## Independent audit of the committed release (18 November 2026, commit `45a3b0b`)
+
+A fresh agent audited the committed release read-only against the shipped build and found five real
+contradictions. All five are corrected in the follow-up commit; each is listed with what the audit measured
+and what changed, because the point of the audit was to catch what a self-review had already accepted.
+
+| Audit finding | Evidence it stood on | What the follow-up commit does |
+| --- | --- | --- |
+| `research-max-github-full` selected `assign_copilot_to_issue_with_intent` while its `toolsets` list omitted `copilot_issue_intents`, the toolset that publishes that name; the label claimed "every published toolset". | `extension/presets.json` third-party entry; `research/github-mcp-tool-map-2026-11-17.md:197` (1 published name) and `:17-19` (23 local toolsets). | The toolset is named, so the 22 toolsets listed cover all 92 selected names. The label now reads "every local toolset that publishes a catalog tool" and the note states that 22 of 23 are named, that only `copilot_automations` is left out because it publishes no catalog tool, and that `copilot_spaces` and `github_support_docs_search` are remote endpoints, not local toolsets. |
+| `extension/extension.js` panel-allowlist comments still asserted "no such button is shipped yet" for the four 0.3.14 commands. | Refuted by `extension/ui.js:38`, by `extension/README.md` and `extension/worker/README.md`, and by panel assertion H. | Both comments now state the shipped truth: button plus Command Palette entry, the same review modal behind both, panel check asserting the row. |
+| `extension/guides/research-record-store.md` described schema 3, eight tables, ten verbs and a five-verb `research-workflow`. | `src/research_stack/records.py:63` is SCHEMA_VERSION 4 with nine tables incl. `chunk_vectors`; `lab_server.py:273` serves eleven verbs; `research-workflow` carries nine store verbs. | The guide states schema 4, the nine tables, the eleven verbs, the nine verbs `research-workflow` carries and the two it does not, and that a migrated store reports `not-built` until `embed_corpus` runs. The 0.3.13 figures are annotated in place, not deleted. |
+| `extension/guides/research-corpus-index.md` claimed the read-only max preset carries all eleven store verbs, and enumerated only seven of `research-workflow`'s nine. | `research-max-github-limited` drops `store_maintenance` (10 of 11); `research-max-no-github` carries 11; `research-max-github-full` and `research-workflow` carry 9. | The sentence now enumerates all nine `research-workflow` store verbs and states 11 / 10 / 9 for the three max presets. |
+| `extension/guides/mcp-config.md` listed nine preset ids, missing the three shipped 0.3.14 ids. | `src/research_stack/presets.py:60-70`. | The guide lists the ten offered ids, the two retired-but-resolvable ids, `package-default`, and says `all` is not a preset id. |
+| Guide and module-header path string omitted the archive sequence. | `extension/bundles.js:57-59, :577-583` mints `<stamp>-<sequence>`, which is what keeps two archives made in the same second apart. | `extension/guides/toolkit.md` and the `extension/bundles.js` header now write `<bundleId>/<stamp>-<sequence>/`. |
+| Retired presets kept goal text naming GitHub, Playwright and a Zotero server while `thirdParty` is empty. | `extension/presets.json` `research-lab` and `research-lab-max`. | A tip on each says plainly that the servers its goal names are not a surface 0.3.14 ships for it and that `thirdParty` is empty. The goal text is kept as the historical intent. |
+| `localToolsets` for the read-only max preset was `GITHUB_TOOLSETS=… plus GITHUB_READ_ONLY=true` — an ellipsis where a value was expected. | The value actually written is built at `extension/presetselect.js:296-305`. | The field names both variables and points at the `toolsets` list above it as what fills the first. |
+| Root README and `extension/README.md` said the 0.3.14 VSIX had not been built, packaged or audited. | False at the time of the audit: `dist/research-stack-toolkit-0.3.14.vsix` existed and verified as passed. | Both now say it was built and audited on the host that cut it, with what that does and does not prove (no run in a real Extension Host on another machine). |
+
+One guard was added rather than only fixing the number: `extension/test/presets.test.js` now parses the
+toolset table of `research/github-mcp-tool-map-2026-11-17.md` and asserts that every GitHub name a preset
+selects is published by a toolset that preset enables, that the full preset names 22 of the 23 local
+toolsets, and that the map's own totals still add up (23 toolsets, 93 entries, 92 unique names, 57 read-only,
+35 write; `get_label` is published by both `issues` and `labels`). Mutation-proven: deleting
+`copilot_issue_intents` from the preset fails that test (`18 tests / 17 pass / 1 fail`), restoring it returns
+18/18. The map's §4 candidate arithmetic (all three presets carrying 20 verbs, full preset headroom 16) is
+annotated in place as the design candidate it was, with the shipped shape beside it.
+
+One audit observation is recorded as **not** a defect, with its own figure corrected. `npm run verify-package`
+in a shell that has no `uv` on `PATH` does not report a pass: it prints "What this gate needs: uv on the PATH of
+the shell that runs this npm script" and **exits 1** (`scripts/with-artifact.js`) — reproduced in this round and
+re-run with `~/.local/bin` on `PATH`, where it reports `result: passed`. The audit's own note that it "still exits
+0" is not what this build does: the same command in this session exited 1. What matters is that the gate
+refuses to certify what it could not audit. And the audit's report that
+`scripts/verify_vsix.py` rewrites `.agent/QUALITY_STATE.md` is a misattribution: the two `.agent` files were
+modified by the maintainer's own record update before the audit ran, and `verify_vsix.py` mentions
+`.agent/QUALITY_STATE.md` only inside a comment (`scripts/verify_vsix.py:274`); it writes no file.
+
 ## Open items and risks carried into the next round (0.3.14)
 
 1. **No `tools/list` receipt.** 92 published GitHub names (57 read-only, 35 write), the 42-name limited subset and the
@@ -93,7 +130,7 @@
    renderer receipts are outstanding since 0.3.9, `extension/test/browser.test.js` has never executed here (the panel
    renderer check is the substitute), `scripts/verify_mcp.py:46` names a Windows executable and cannot run on POSIX, and
    `npm run test:host` was not run.
-6. **Payload headroom is thin:** 62 238 bytes, 3.6 % of 1 769 472. A further guide expansion or another preset with a
+6. **Payload headroom is thin:** 59 261 bytes, 3.4 % of 1 769 472. A further guide expansion or another preset with a
    full name list needs the ceiling re-measured before it lands, not after.
 
 ## Next highest-value action (0.3.14, current)

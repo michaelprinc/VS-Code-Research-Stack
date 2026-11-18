@@ -6,7 +6,7 @@
     "pyproject.toml": "2edc8bb9f70494162fce7a2cba7adba753047acb322b9fc9d92a1e2b872771d4",
     "uv.lock": "f547941a4aed380ca99aaf068b15ff6d68b964315f9fa339b161f1257019d08f",
     ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
-    "README.md": "8184b9da0551cc3e9f189541aed2873a2a6ff0390ce696dfdf962e3a0c2f3018",
+    "README.md": "dbd37ec38bb0a623d44219f4f38a38ec387b687eb4a1087d148cb26ea67f3ceb",
     "src/research_stack/__init__.py": "974e1b3f22eeb7edb934732ff383113cf3f45933a27a24f67364e7817589b3f5",
     "src/research_stack/bundle.py": "d2af7d187210ca68cfd535dad83f0951d505f5b2e9417e5f94c65a82910da349",
     "src/research_stack/cli.py": "64c07eda00e384f82acb5d5b6e8210c37079fb377bc5c984ea1e3dd42e6e1d70",

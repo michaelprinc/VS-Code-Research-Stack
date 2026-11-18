@@ -119,7 +119,7 @@ pin, the retired-preset label drift between `extension/presets.json` and `vsix-m
 the artifact's member count / packed bytes / unpacked bytes against the ceiling, and its sha256 — none of
 these have been produced for 0.3.14 in this tree. `extension/package.json` and `extension/vsix-manifest.json`
 now carry the **0.3.14** stamp and declare **43** commands, but no `research-stack-toolkit-0.3.14.vsix` exists
-in `dist/`: `research-stack-toolkit-0.3.14.vsix` was built and audited after this draft was written — 121 members, 560 523 bytes packed, 1 707 234 unpacked, sha256 `82cf6b8274df87b039b1b85bbf5740bebed2e1c7995476f2dc2da17e667fbae0`, `verify-package` and `check:payload` both `result: passed`
+in `dist/`: `research-stack-toolkit-0.3.14.vsix` was built and audited after this draft was written — 121 members, 561 509 bytes packed, 1 710 211 unpacked, sha256 `dba2c8040aa607e4d3aa4940e4fbd5760502729efba59d69c7eb95e17305f1dc`, `verify-package` and `check:payload` both `result: passed`
 new commands, so `check:payload` can only agree with the 43-command pin once the 0.3.14 artifact is built. A
 built artifact and its audit are the release package's work; until they exist, the figures above are
 host-scoped package measurements and not release evidence.

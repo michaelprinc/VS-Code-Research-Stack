@@ -22,7 +22,7 @@ GUI setup registers Basic documents/local search and Research metadata/RIS serve
 }
 ```
 
-Valid preset ids are `read-and-cite`, `find-in-notes`, `verify-citations`, `zotero-handoff`, `research-core`, `research-workflow`, `research-lab`, `research-lab-max` and `corpus-lab`. An unknown id stops the worker with `TOOL_PRESET_UNKNOWN` instead of exposing every tool.
+Valid preset ids are `read-and-cite`, `find-in-notes`, `verify-citations`, `zotero-handoff`, `research-core`, `research-workflow`, `corpus-lab`, `research-max-github-full`, `research-max-github-limited` and `research-max-no-github`, plus the two ids retired in 0.3.14 that a saved preference can still resolve — `research-lab` and `research-lab-max` — and `package-default`, which means “whatever this package offers by default”. The panel offers the ten that are not retired and never offers a retired one for a new choice. `all` is not a preset id: it exposes every published verb including the three deprecated aliases, and only the unmanaged worker path accepts it. An unknown id stops the worker with `TOOL_PRESET_UNKNOWN` instead of exposing every tool.
 
 ## First task and readiness
 

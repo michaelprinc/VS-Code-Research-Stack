@@ -230,6 +230,7 @@
       "goal": "The document and citation surface plus the GitHub and Playwright servers many research workflows use for repository and browser evidence. No corpus index or record store.",
       "tips": [
         "Retired in 0.3.14: its third-party surface was an unnamed estimate, and 0.3.14 names exact tools instead.",
+        "The GitHub, Playwright and Zotero servers its goal names are not a surface 0.3.14 ships for it: `thirdParty` is empty, and 0.3.14 names exact tools only where it has a reviewed inventory.",
         "A saved preference for this preset still resolves; the panel names the preset that replaces it."
       ],
       "packages": [
@@ -264,6 +265,7 @@
       "goal": "Widest supported surface: the document and citation toolkit plus GitHub, Playwright and a Zotero community server, kept under the 128-tool client ceiling with headroom for future tools.",
       "tips": [
         "Retired in 0.3.14: its third-party surface was an unnamed estimate, and 0.3.14 names exact tools instead.",
+        "The GitHub, Playwright and Zotero servers its goal names are not a surface 0.3.14 ships for it: `thirdParty` is empty, and 0.3.14 names exact tools only where it has a reviewed inventory.",
         "A saved preference for this preset still resolves; the panel names the preset that replaces it."
       ],
       "packages": [
@@ -362,7 +364,7 @@
       "thirdParty": [
         {
           "id": "github-full",
-          "label": "GitHub MCP, every published toolset",
+          "label": "GitHub MCP, every local toolset that publishes a catalog tool",
           "toolsets": [
             "context",
             "repos",
@@ -370,6 +372,7 @@
             "pull_requests",
             "users",
             "copilot",
+            "copilot_issue_intents",
             "actions",
             "code_quality",
             "code_security",
@@ -486,7 +489,7 @@
             "update_pull_request_branch"
           ],
           "toolsEstimate": 92,
-          "note": "Names every tool in GitHub's published local catalog on 2026-11-17; the count is the length of this list. Vendor-documented names, not measured by this extension: no tools/list was captured here, and GitHub publishes no toolset counts."
+          "note": "22 of GitHub's 23 local toolsets are named here; only `copilot_automations` is left out, because it publishes no catalog tool (its 11 names exist in source and snapshots only), and `copilot_spaces` and `github_support_docs_search` are remote endpoints rather than local toolsets. The tools list names every tool those 22 toolsets publish in GitHub's catalog on 2026-11-17; the count is the length of this list. Vendor-documented names, not measured by this extension: no tools/list was captured here, and GitHub publishes no toolset counts."
         }
       ],
       "requires": [
@@ -554,7 +557,7 @@
           "readOnly": true,
           "server": {
             "remoteUrl": "https://api.githubcopilot.com/mcp/readonly",
-            "localToolsets": "GITHUB_TOOLSETS=… plus GITHUB_READ_ONLY=true",
+            "localToolsets": "GITHUB_TOOLSETS=<the 14 toolsets listed above, comma-separated>, GITHUB_READ_ONLY=true — the two variables presetselect.localEntry writes",
             "excludeTools": [
               "actions_run_trigger",
               "add_comment_to_pending_review",

@@ -207,6 +207,20 @@ verify_sources, claims_read, claims_write, claims_export, store_status, store_ma
 **[HR-13]**; `zotero_write`, `unindex_corpus` and `store_maintenance` stay behind their confirmation flows.
 Tool-budget arithmetic (128-tool client ceiling **[V]**, `minimumHeadroom: 20` from `extension/presets.json`):
 
+**What shipped in 0.3.14 (annotated 2026-11-18 after the release cut, in place of the candidate figures
+below).** All three max presets do **not** carry the same 20 verbs. `research-max-github-full` carries **16
+toolkit verbs + 92 GitHub names = 108 of 128, headroom exactly 20** — it gives up `search_local_text`,
+`zotero_write`, `unindex_corpus` and `store_maintenance` for the GitHub surface, which is decision **DD15-06**
+and is why the 79-name variant below was not shipped: trimming GitHub names was the wrong lever when toolkit
+verbs were the ones the preset's objective did not need. `research-max-github-limited` carries **20 verbs +
+42 read-only names = 62, headroom 66**, and `research-max-no-github` carries **20 verbs + 0 = headroom 108**.
+The full preset names **22 of the 23 local toolsets**: only `copilot_automations` is left out, because it
+publishes no catalog tool, and `assign_copilot_to_issue_with_intent` is a selected name, so
+`copilot_issue_intents` is one of the toolsets it must name — a coverage property
+`extension/test/presets.test.js` now checks against this table rather than against name counts alone.
+
+
+
 | Preset | Toolkit verbs | GitHub tools | Enabled | Headroom |
 | --- | --- | --- | --- | --- |
 | max-github-full | 20 | 92 (all local toolsets) | 112 | 16 — **below the 20-tool headroom rule** |
@@ -217,7 +231,7 @@ Tool-budget arithmetic (128-tool client ceiling **[V]**, `minimumHeadroom: 20` f
 ### 4.1 `research-max-github-full`
 
 Objective: complete repository, issue and PR surface for work that lives on GitHub, plus the full local research store.
-Toolkit verbs: all 20. GitHub selection: every locally published toolset — the 92 names of §3, equivalently
+Toolkit verbs: all 20 (the shipped preset carries 16 — see the annotation above). GitHub selection: every locally published toolset except `copilot_automations`, which publishes no catalog tool — the 92 names of §3 across 22 toolsets, equivalently
 `--toolsets=all` / `GITHUB_TOOLSETS=all` or the remote `/x/all` URL. Recommended shipped default is the 79-name variant
 above so the headroom rule is not broken; which variant ships is a maintainer decision.
 

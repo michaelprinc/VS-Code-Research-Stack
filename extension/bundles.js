@@ -16,7 +16,7 @@
  *   - nothing is ever deleted, and a skill owned by another bundle is never written or removed
  *     (R9-18, DD9-21);
  *   - 0.3.14 (HR-20…HR-23, DD15-04): an overwrite is allowed only after the bytes it replaces are
- *     copied into an immutable archive under `.research-toolkit/bundles/archive/<bundleId>/<stamp>/`,
+ *     copied into an immutable archive under `.research-toolkit/bundles/archive/<bundleId>/<stamp>-<sequence>/`,
  *     recorded in `archive/index.json` and in the plain-text `archive/archive.log`. A force update is
  *     explicit at the call site (`force: true`); ownership by another bundle is not a force question
  *     and stays refused. No archive is ever rewritten or removed, so every version of every bundle

@@ -18,6 +18,8 @@
  */
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const fs = require("node:fs");
+const path = require("node:path");
 const extension = require("../extension");
 
 const catalog = extension.presetCatalog;
@@ -425,7 +427,12 @@ test("the copied preset summary states the named tools and the retirement, if an
   const harness = makeHarness({ initial: { selectedPackage: "full", toolsPreset: "research-max-github-full" } });
   const summary = await harness.registered.get("researchToolkit.copyPresetSummary")();
   assert.match(summary, /Toolkit tools \(16\): read_document, read_text_source/);
-  assert.match(summary, /GitHub MCP, every published toolset — 92 tools this preset names by name/, "the summary uses the preset's own names");
+  // Renegotiated in the audit round of 0.3.14, not deleted. The third-party entry's label claimed
+  // "every published toolset" while its `toolsets` list omitted `copilot_issue_intents`, the toolset
+  // that publishes `assign_copilot_to_issue_with_intent` — a name this preset selects. The label now
+  // says what the list actually is: every local toolset that publishes a catalog tool, 22 of GitHub's
+  // 23. The figure the summary quotes, 92 names, did not move; only the claim about toolsets did.
+  assert.match(summary, /GitHub MCP, every local toolset that publishes a catalog tool — 92 tools this preset names by name/, "the summary uses the preset's own names");
   assert.match(summary, /vendor-published names, not measured by this extension/, "and states the basis of those names");
   assert.match(summary, /Total against the client ceiling: 108 of 128 · headroom 20/);
   assert.ok(!summary.includes("retired in 0.3.14"), "a shipped preset carries no retirement text");
@@ -435,6 +442,55 @@ test("the copied preset summary states the named tools and the retirement, if an
   assert.match(retiredSummary, /research-lab/, "a summary of the retired preset names it");
   assert.match(retiredSummary, /retired in 0\.3\.14/, "and says it is retired before the operator pastes it somewhere as current");
   assert.ok(retiredSummary.includes("research-max-github-limited"), "naming the successor is part of the summary");
+});
+
+test("every GitHub tool a preset names is published by a toolset that preset enables (HR-11)", () => {
+  // The reviewed inventory is the toolset table of research/github-mcp-tool-map-2026-11-17.md — the only
+  // source this repository has for GitHub's published names, because no `tools/list` was ever captured on
+  // this host. The independent audit of `45a3b0b` found `research-max-github-full` selecting
+  // `assign_copilot_to_issue_with_intent`, the only published name of `copilot_issue_intents`, while its
+  // `toolsets` list omitted that toolset. Counting names is not enough to catch that; coverage is, so the
+  // names are checked against the toolsets that publish them, in both directions.
+  const mapPath = path.join(__dirname, "..", "..", "research", "github-mcp-tool-map-2026-11-17.md");
+  const names = (cell) => (cell.match(/`([a-z0-9_]+)`/g) || []).map((token) => token.replace(/`/g, ""));
+  const toolsets = new Map();
+  for (const line of fs.readFileSync(mapPath, "utf8").split(/\r?\n/)) {
+    const row = line.match(/^\| ([a-z_]+) \| (\d+|0 published) \| (.+?) \| (.+?) \|\s*$/);
+    if (!row) continue;
+    toolsets.set(row[1], { readOnly: names(row[3]), write: names(row[4]) });
+  }
+  assert.equal(toolsets.size, 23, "the reviewed table lists 23 local toolsets");
+  const allNames = (kind) => new Set([...toolsets.values()].flatMap((entry) => entry[kind]));
+  const publishedEntries = [...toolsets.values()].flatMap((entry) => [...entry.readOnly, ...entry.write]);
+  assert.equal(allNames("readOnly").size, 57, "57 unique read-only names");
+  assert.equal(allNames("write").size, 35, "35 unique write names");
+  assert.equal(publishedEntries.length, 93, "93 published entries");
+  assert.equal(new Set(publishedEntries).size, 92, "92 unique published names: `get_label` is published by both `issues` and `labels`");
+
+  const full = presetById("research-max-github-full").thirdParty[0];
+  const limited = presetById("research-max-github-limited").thirdParty[0];
+  assert.deepEqual([...toolsets.keys()].filter((id) => !full.toolsets.includes(id)), ["copilot_automations"],
+    "the full preset names 22 of the 23 local toolsets, and the one it leaves out publishes no catalog tool");
+
+  const publishedBy = (entry) => new Set(entry.toolsets.flatMap((id) => {
+    const reviewed = toolsets.get(id);
+    assert.ok(reviewed, `${entry.id}: ${id} is not a reviewed local toolset`);
+    return [...reviewed.readOnly, ...reviewed.write];
+  }));
+  for (const name of full.tools) {
+    assert.ok(publishedBy(full).has(name), `${full.id}: ${name} is selected without the toolset that publishes it`);
+  }
+  assert.equal(new Set(full.tools).size, full.tools.length, `${full.id}: no tool is named twice`);
+  assert.equal(publishedBy(full).size, 92, `${full.id}: the 22 toolsets it enables publish exactly the 92 names it selects`);
+
+  const readOnlyBy = new Set(limited.toolsets.flatMap((id) => toolsets.get(id).readOnly));
+  for (const name of limited.tools) {
+    assert.ok(readOnlyBy.has(name), `${limited.id}: ${name} is not published read-only by a toolset this preset enables`);
+  }
+  for (const name of limited.server.excludeTools) {
+    assert.ok(allNames("write").has(name), `${limited.id}: ${name} is excluded but is not a published write name`);
+    assert.ok(!limited.tools.includes(name), `${limited.id}: a name cannot be selected and excluded at once`);
+  }
 });
 
 test("measured tool schemas replace the vendor estimate once a setup receipt exists", () => {

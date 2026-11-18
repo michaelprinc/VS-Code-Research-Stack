@@ -1895,13 +1895,14 @@ function activateWith(vscode, context, diagnosticServices) {
       retry: "researchToolkit.retryFailedSteps", clearLock: "researchToolkit.clearSetupLock", setupLog: "researchToolkit.openSetupLog", copySetup: "researchToolkit.copyInstallationDiagnostics",
       indexCorpus: "researchToolkit.indexSelectedSources", verifySources: "researchToolkit.verifySourceFreshness",
       installBundle: "researchToolkit.installTopicBundle", repairBundle: "researchToolkit.repairTopicBundle", bundleStatus: "researchToolkit.showBundleStatus",
-      // 0.3.14: accepted here so a panel control for them is one button in `ui.js` away, not a controller
-      // change. No such button is shipped yet: the three commands are reachable from the Command Palette, and
-      // an allowlist entry with no control is a route, not an offer.
+      // 0.3.14: accepted here as the route the panel control takes. The three bundle commands are offered
+      // both ways now — a button in `ui.js` and a Command Palette entry — and the panel check names the row.
+      // An allowlist entry with no control would be a route, not an offer; that was true when this line was
+      // written and `ui.js` changed it.
       forceBundleUpdate: "researchToolkit.forceUpdateTopicBundle", bundleArchives: "researchToolkit.showBundleArchiveHistory", restoreBundleArchive: "researchToolkit.restoreBundleArchive",
-      // 0.3.14 (HR-12): accepted here for the same reason and with the same caveat — the command writes a
-      // file, so it reaches the operator through the Command Palette until a control for it is reviewed.
-      // An allowlist entry with no button is a route, not an offer; no button is shipped for it yet.
+      // 0.3.14 (HR-12): accepted here on the same terms. The command writes a file, so the button and the
+      // Command Palette entry both open the same review modal before anything is written; `ui.js` offers it
+      // in the corpus-and-bundle row and the panel check asserts that row.
       configurePresetTools: "researchToolkit.configurePresetTools",
       report: "researchToolkit.reportProblem", checkUpdates: "researchToolkit.checkForUpdates", updateNow: "researchToolkit.updateExtension",
       integrations: "researchToolkit.manageIntegrations", checkIntegrations: "researchToolkit.checkIntegrations",
