@@ -6,8 +6,8 @@
     "ceilingWarning": 96,
     "vendorTokensPerTool": 640,
     "contextWindowReference": 128000,
-    "note": "128 is the number of tools the Copilot agent-mode client can enable at once. Tool definitions are loaded into every request, so the token estimate below is a recurring cost, not a one-off cost. Counts marked estimated are vendor-documented figures, not measurements taken by this extension. Every shipped preset stays at or below 12 toolkit tools and leaves at least 20 tools of headroom.",
-    "toolkitCeilingPerPreset": 12,
+    "note": "128 is the number of tools the Copilot agent-mode client can enable at once. Tool definitions are loaded into every request, so the token estimate below is a recurring cost, not a one-off cost. Counts marked estimated are vendor-documented figures, not measurements taken by this extension. Every shipped preset stays at or below 20 toolkit tools and leaves at least 20 tools of headroom. A third-party entry names the exact tools it selects and its count is the length of that list; a preset may not offer a surface whose tools the toolkit cannot name from a reviewed source.",
+    "toolkitCeilingPerPreset": 20,
     "minimumHeadroom": 20
   },
   "servers": [
@@ -38,6 +38,7 @@
       "label": "Corpus index & record store",
       "tools": [
         "index_corpus",
+        "embed_corpus",
         "unindex_corpus",
         "search_corpus",
         "evidence_read",
@@ -189,9 +190,10 @@
       "label": "Full research workflow (index, evidence, claims)",
       "goal": "The continuous Full journey in one preset: read a source, index the sources you select, retrieve a passage, resolve the evidence behind it, record a claim linked to that evidence, and write a cited report.",
       "tips": [
-        "Full default: eleven toolkit tools, inside the 12-tool release budget and far below the 128-tool client ceiling.",
-        "The index and claims live in .research-toolkit/store/research.sqlite3 in this workspace; source files are never modified.",
-        "Lexical BM25 only: no embeddings, no vector search and no third-party database are installed by this preset."
+        "Full default: fifteen toolkit tools, inside the 20-tool release budget and far below the 128-tool client ceiling.",
+        "The index, the retrieval vectors and the claims live in .research-toolkit/store/research.sqlite3 in this workspace; source files are never modified.",
+        "search_corpus takes mode lexical | vector | hybrid. hybrid fuses the stored BM25 ranking with the toolkit's own lexical-signature vectors; it is not an embedding model and installs no third-party database.",
+        "embed_corpus builds the stored vectors from the chunk text already in the store, on CPU, with no model download and no network call."
       ],
       "packages": [
         "full"
@@ -207,10 +209,14 @@
         "search_literature",
         "check_citation",
         "index_corpus",
+        "embed_corpus",
         "search_corpus",
         "evidence_read",
+        "verify_sources",
         "claims_read",
-        "claims_write"
+        "claims_write",
+        "claims_export",
+        "store_status"
       ],
       "thirdParty": [],
       "requires": [
@@ -220,12 +226,11 @@
     },
     {
       "id": "research-lab",
-      "label": "Documents, citations and third-party evidence",
+      "label": "Documents + third-party evidence (retired)",
       "goal": "The document and citation surface plus the GitHub and Playwright servers many research workflows use for repository and browser evidence. No corpus index or record store.",
       "tips": [
-        "Third-party counts are vendor-published estimates, not measurements taken by this extension.",
-        "Above about 50 enabled tools, assistants start choosing less reliably.",
-        "For the stored index and claims use research-workflow or corpus-lab instead."
+        "Retired in 0.3.14: its third-party surface was an unnamed estimate, and 0.3.14 names exact tools instead.",
+        "A saved preference for this preset still resolves; the panel names the preset that replaces it."
       ],
       "packages": [
         "full"
@@ -242,32 +247,24 @@
         "zotero_library",
         "prepare_zotero_import"
       ],
-      "thirdParty": [
-        {
-          "id": "github-readonly",
-          "label": "GitHub MCP, read-only toolsets",
-          "toolsEstimate": 12,
-          "note": "GITHUB_TOOLSETS=context,repos,issues,pull_requests,users with --read-only."
-        },
-        {
-          "id": "playwright-core",
-          "label": "Playwright MCP, core toolset",
-          "toolsEstimate": 24,
-          "note": "Core browser toolset without network, storage, testing, vision or devtools caps."
-        }
-      ],
+      "thirdParty": [],
       "requires": [
         "Managed worker installed in this workspace",
         "GitHub and Playwright MCP servers configured by you"
+      ],
+      "retired": true,
+      "successor": [
+        "research-max-github-limited",
+        "research-max-no-github"
       ]
     },
     {
       "id": "research-lab-max",
-      "label": "Maximum research lab (128-tool budget)",
+      "label": "Maximum research lab (retired)",
       "goal": "Widest supported surface: the document and citation toolkit plus GitHub, Playwright and a Zotero community server, kept under the 128-tool client ceiling with headroom for future tools.",
       "tips": [
-        "This preset is close to the client ceiling; prefer a narrower preset for routine tasks.",
-        "Headroom is deliberate: new toolkit verbs in 0.3.5 must not push the surface over 128."
+        "Retired in 0.3.14: its third-party surface was an unnamed estimate, and 0.3.14 names exact tools instead.",
+        "A saved preference for this preset still resolves; the panel names the preset that replaces it."
       ],
       "packages": [
         "full"
@@ -284,29 +281,16 @@
         "zotero_library",
         "prepare_zotero_import"
       ],
-      "thirdParty": [
-        {
-          "id": "github-default",
-          "label": "GitHub MCP, default toolsets",
-          "toolsEstimate": 52,
-          "note": "Default toolsets context, repos, issues, pull_requests and users."
-        },
-        {
-          "id": "playwright-core",
-          "label": "Playwright MCP, core toolset",
-          "toolsEstimate": 24,
-          "note": "Core browser toolset without optional caps."
-        },
-        {
-          "id": "zotero-community",
-          "label": "Zotero community MCP server",
-          "toolsEstimate": 15,
-          "note": "Community server; count varies with its release."
-        }
-      ],
+      "thirdParty": [],
       "requires": [
         "Managed worker installed in this workspace",
         "GitHub, Playwright and Zotero MCP servers configured by you"
+      ],
+      "retired": true,
+      "successor": [
+        "research-max-github-full",
+        "research-max-github-limited",
+        "research-max-no-github"
       ]
     },
     {
@@ -316,8 +300,8 @@
       "tips": [
         "The index and claims live in .research-toolkit/store/research.sqlite3 in this workspace; source files are never modified.",
         "A PDF chunk carries its original page number and offsets in that page's extracted text; a DOCX chunk carries its ordered paragraph or table-row item. A chunk never crosses a page or an item.",
-        "verify_sources is the only verb that may call a source verified: it re-hashes the present file. A source nobody checked stays 'unchecked'. unindex_corpus and store_maintenance are destructive: a restore is staged as a candidate first and vacuum needs confirmation.",
-        "Lexical BM25 only: no embeddings, no vector search and no third-party database are installed by this preset."
+        "search_corpus takes mode lexical | vector | hybrid; embed_corpus builds or rebuilds the stored vectors. The vector ranker is a lexical signature over the stored text, not a semantic model, and every hit says which ranker contributed.",
+        "Lexical and vector retrieval are local. No embedding model is downloaded and no third-party database is installed by this preset."
       ],
       "packages": [
         "full"
@@ -325,6 +309,7 @@
       "defaultFor": [],
       "tools": [
         "index_corpus",
+        "embed_corpus",
         "unindex_corpus",
         "search_corpus",
         "evidence_read",
@@ -340,6 +325,369 @@
       "requires": [
         "Managed worker installed in this workspace",
         "Corpus index and record store step completed"
+      ]
+    },
+    {
+      "id": "research-max-github-full",
+      "label": "Maximum research: GitHub full plus the whole store",
+      "goal": "Work that lives in repositories — code, commits, issues, pull requests, releases, alerts — read and acted on through the full GitHub surface, while every finding is indexed, retrieved, cited and recorded in this workspace's research store.",
+      "tips": [
+        "Widest shipped surface: 16 toolkit tools + 92 named GitHub tools = 108, exactly the 20 tools of headroom the budget keeps.",
+        "The five toolkit verbs this goal leaves out are named: search_local_text (the stored index is its search surface), zotero_write and prepare_zotero_import (a repository-centred goal does not write a reference library), unindex_corpus and store_maintenance (the destructive pair lives in corpus-lab and research-max-no-github).",
+        "The GitHub numbers are vendor catalog names, not measurements: no GitHub MCP server was started here. Confirm the real count with tools/list on your host.",
+        "Nothing is installed or configured by this preset. It is a plan; the Configure Preset Tools for Copilot command is what writes a selection, and it writes no credential."
+      ],
+      "packages": [
+        "full"
+      ],
+      "defaultFor": [],
+      "tools": [
+        "read_document",
+        "read_text_source",
+        "write_markdown",
+        "write_docx",
+        "search_literature",
+        "check_citation",
+        "zotero_library",
+        "index_corpus",
+        "embed_corpus",
+        "search_corpus",
+        "evidence_read",
+        "verify_sources",
+        "claims_read",
+        "claims_write",
+        "claims_export",
+        "store_status"
+      ],
+      "thirdParty": [
+        {
+          "id": "github-full",
+          "label": "GitHub MCP, every published toolset",
+          "toolsets": [
+            "context",
+            "repos",
+            "issues",
+            "pull_requests",
+            "users",
+            "copilot",
+            "actions",
+            "code_quality",
+            "code_security",
+            "dependabot",
+            "discussions",
+            "gists",
+            "git",
+            "governance",
+            "labels",
+            "notifications",
+            "orgs",
+            "projects",
+            "secret_protection",
+            "security_advisories",
+            "stargazers"
+          ],
+          "readOnly": false,
+          "server": {
+            "remoteUrl": "https://api.githubcopilot.com/mcp/x/all",
+            "localToolsets": "GITHUB_TOOLSETS=all"
+          },
+          "tools": [
+            "actions_get",
+            "actions_list",
+            "actions_run_trigger",
+            "add_comment_to_pending_review",
+            "add_issue_comment",
+            "add_reply_to_pull_request_comment",
+            "assign_copilot_to_issue",
+            "assign_copilot_to_issue_with_intent",
+            "create_branch",
+            "create_gist",
+            "create_or_update_file",
+            "create_pull_request",
+            "create_repository",
+            "create_repository_ruleset",
+            "custom_properties_read",
+            "custom_properties_write",
+            "delete_file",
+            "delete_repository",
+            "discussion_comment_write",
+            "dismiss_notification",
+            "fork_repository",
+            "get_code_quality_finding",
+            "get_code_scanning_alert",
+            "get_commit",
+            "get_dependabot_alert",
+            "get_discussion",
+            "get_discussion_comments",
+            "get_file_contents",
+            "get_gist",
+            "get_global_security_advisory",
+            "get_job_logs",
+            "get_label",
+            "get_latest_release",
+            "get_me",
+            "get_notification_details",
+            "get_release_by_tag",
+            "get_repository_tree",
+            "get_secret_scanning_alert",
+            "get_tag",
+            "get_team_members",
+            "get_teams",
+            "issue_read",
+            "issue_write",
+            "label_write",
+            "list_branches",
+            "list_code_scanning_alerts",
+            "list_commits",
+            "list_dependabot_alerts",
+            "list_discussion_categories",
+            "list_discussions",
+            "list_gists",
+            "list_global_security_advisories",
+            "list_issue_fields",
+            "list_issue_types",
+            "list_issues",
+            "list_label",
+            "list_notifications",
+            "list_org_repository_security_advisories",
+            "list_pull_requests",
+            "list_releases",
+            "list_repository_collaborators",
+            "list_repository_security_advisories",
+            "list_secret_scanning_alerts",
+            "list_starred_repositories",
+            "list_tags",
+            "manage_notification_subscription",
+            "manage_repository_notification_subscription",
+            "mark_all_notifications_read",
+            "merge_pull_request",
+            "projects_get",
+            "projects_list",
+            "projects_write",
+            "pull_request_read",
+            "pull_request_review_write",
+            "push_files",
+            "repository_ruleset_read",
+            "request_copilot_review",
+            "search_code",
+            "search_commits",
+            "search_issues",
+            "search_orgs",
+            "search_pull_requests",
+            "search_repositories",
+            "search_users",
+            "star_repository",
+            "sub_issue_write",
+            "ui_get",
+            "unstar_repository",
+            "update_gist",
+            "update_issue_comment",
+            "update_pull_request",
+            "update_pull_request_branch"
+          ],
+          "toolsEstimate": 92,
+          "note": "Names every tool in GitHub's published local catalog on 2026-11-17; the count is the length of this list. Vendor-documented names, not measured by this extension: no tools/list was captured here, and GitHub publishes no toolset counts."
+        }
+      ],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "Corpus index and record store step completed",
+        "A GitHub MCP server you configured, with your own token"
+      ]
+    },
+    {
+      "id": "research-max-github-limited",
+      "label": "Maximum research: GitHub as read-only evidence",
+      "goal": "Read GitHub as a source you cite — a file, a commit, a release, an issue or a pull request, plus the read-only security and quality alerts around a repository — with no write, comment, push, merge or delete capability in the tool surface, and record what you found in the local store.",
+      "tips": [
+        "20 toolkit tools + 42 named GitHub tools = 62, leaving 66 tools of headroom.",
+        "Every GitHub name here is read-only, and the selection also sets the server's own read-only switch and lists every write tool as excluded.",
+        "The one toolkit verb this goal leaves out is store_maintenance: reading evidence does not need a vacuum or a restore.",
+        "Read-only in the tool surface is not a permission boundary: what your token may do is decided by GitHub, not by this preset."
+      ],
+      "packages": [
+        "full"
+      ],
+      "defaultFor": [],
+      "tools": [
+        "read_document",
+        "read_text_source",
+        "search_local_text",
+        "write_markdown",
+        "write_docx",
+        "search_literature",
+        "check_citation",
+        "zotero_library",
+        "zotero_write",
+        "prepare_zotero_import",
+        "index_corpus",
+        "embed_corpus",
+        "unindex_corpus",
+        "search_corpus",
+        "evidence_read",
+        "verify_sources",
+        "claims_read",
+        "claims_write",
+        "claims_export",
+        "store_status"
+      ],
+      "thirdParty": [
+        {
+          "id": "github-limited",
+          "label": "GitHub MCP, read-only evidence selection",
+          "toolsets": [
+            "context",
+            "repos",
+            "git",
+            "issues",
+            "pull_requests",
+            "labels",
+            "users",
+            "orgs",
+            "gists",
+            "code_quality",
+            "code_security",
+            "secret_protection",
+            "dependabot",
+            "security_advisories"
+          ],
+          "readOnly": true,
+          "server": {
+            "remoteUrl": "https://api.githubcopilot.com/mcp/readonly",
+            "localToolsets": "GITHUB_TOOLSETS=… plus GITHUB_READ_ONLY=true",
+            "excludeTools": [
+              "actions_run_trigger",
+              "add_comment_to_pending_review",
+              "add_issue_comment",
+              "add_reply_to_pull_request_comment",
+              "assign_copilot_to_issue",
+              "assign_copilot_to_issue_with_intent",
+              "create_branch",
+              "create_gist",
+              "create_or_update_file",
+              "create_pull_request",
+              "create_repository",
+              "create_repository_ruleset",
+              "custom_properties_write",
+              "delete_file",
+              "delete_repository",
+              "discussion_comment_write",
+              "dismiss_notification",
+              "fork_repository",
+              "issue_write",
+              "label_write",
+              "manage_notification_subscription",
+              "manage_repository_notification_subscription",
+              "mark_all_notifications_read",
+              "merge_pull_request",
+              "projects_write",
+              "pull_request_review_write",
+              "push_files",
+              "request_copilot_review",
+              "star_repository",
+              "sub_issue_write",
+              "unstar_repository",
+              "update_gist",
+              "update_issue_comment",
+              "update_pull_request",
+              "update_pull_request_branch"
+            ]
+          },
+          "tools": [
+            "get_code_quality_finding",
+            "get_code_scanning_alert",
+            "get_commit",
+            "get_dependabot_alert",
+            "get_file_contents",
+            "get_gist",
+            "get_global_security_advisory",
+            "get_label",
+            "get_latest_release",
+            "get_me",
+            "get_release_by_tag",
+            "get_repository_tree",
+            "get_secret_scanning_alert",
+            "get_tag",
+            "get_team_members",
+            "get_teams",
+            "issue_read",
+            "list_branches",
+            "list_code_scanning_alerts",
+            "list_commits",
+            "list_dependabot_alerts",
+            "list_gists",
+            "list_global_security_advisories",
+            "list_issue_fields",
+            "list_issue_types",
+            "list_issues",
+            "list_label",
+            "list_org_repository_security_advisories",
+            "list_pull_requests",
+            "list_releases",
+            "list_repository_collaborators",
+            "list_repository_security_advisories",
+            "list_secret_scanning_alerts",
+            "list_tags",
+            "pull_request_read",
+            "search_code",
+            "search_commits",
+            "search_issues",
+            "search_orgs",
+            "search_pull_requests",
+            "search_repositories",
+            "search_users"
+          ],
+          "toolsEstimate": 42,
+          "note": "Every name here carries GitHub's own read-only hint; the server-side read-only switch and the explicit exclude list of all 35 write tools sit under it. Names are vendor-documented, not measured here, and a read-only switch is a filter, not a permission boundary. The 42 names are a chosen subset, not the whole published read-only set: the 35 published write tools are named as excluded, 14 further read-only names are not offered because their toolsets are not enabled in this preset, and `ui_get` is left out by choice rather than by the read-only rule."
+        }
+      ],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "Corpus index and record store step completed",
+        "A GitHub MCP server you configured, in its read-only mode"
+      ]
+    },
+    {
+      "id": "research-max-no-github",
+      "label": "Maximum research: the whole local store, no GitHub",
+      "goal": "The complete local research surface in one preset: read sources, index them, build and search their retrieval vectors, resolve and re-verify evidence, record and export claims, read and write your local Zotero library, and maintain the store — with no third-party GitHub surface at all.",
+      "tips": [
+        "20 toolkit tools, no third-party surface: 108 tools of headroom under the 128-tool ceiling.",
+        "The one verb it leaves out is search_local_text: the goal is the stored corpus, and search_corpus is its search verb.",
+        "This preset configures nothing. To take Copilot's built-in GitHub server out of the surface, uncheck the GitHub group in Chat: Open Customizations -> Tools, and do not add a github entry to your MCP configuration.",
+        "store_maintenance and unindex_corpus are here: the preset that owns the store also owns its destructive verbs, each behind its own confirmation."
+      ],
+      "packages": [
+        "full"
+      ],
+      "defaultFor": [],
+      "tools": [
+        "read_document",
+        "read_text_source",
+        "write_markdown",
+        "write_docx",
+        "search_literature",
+        "check_citation",
+        "zotero_library",
+        "zotero_write",
+        "prepare_zotero_import",
+        "index_corpus",
+        "embed_corpus",
+        "unindex_corpus",
+        "search_corpus",
+        "evidence_read",
+        "verify_sources",
+        "claims_read",
+        "claims_write",
+        "claims_export",
+        "store_status",
+        "store_maintenance"
+      ],
+      "thirdParty": [],
+      "requires": [
+        "Managed worker installed in this workspace",
+        "Corpus index and record store step completed",
+        "Zotero localhost API for the Zotero verbs"
       ]
     }
   ]

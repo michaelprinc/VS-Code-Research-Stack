@@ -40,8 +40,8 @@ def test_init_creates_the_reviewed_schema_once_and_never_replaces_rows(tmp_path)
     first = records.init_store(root)
     assert first["ok"] is True and first["preexisting"] is False
     assert first["schemaVersion"] == records.SCHEMA_VERSION
-    assert first["tableCount"] == 8, "schema 3 adds index_runs: one row per ingestion call"
-    assert set(first["tables"]) == {"claims", "claim_evidence", "claim_events", "chunks", "index_runs", "meta", "source_versions", "sources"}
+    assert first["tableCount"] == 9, "schema 4 adds chunk_vectors next to the schema-3 tables"
+    assert set(first["tables"]) == {"chunk_vectors", "claims", "claim_evidence", "claim_events", "chunks", "index_runs", "meta", "source_versions", "sources"}
     records.index_corpus(root, [NOTES])
     again = records.init_store(root)
     assert again["preexisting"] is True
@@ -271,6 +271,28 @@ def test_claim_input_limits_are_enforced(tmp_path):
     with pytest.raises(StoreError) as failure:
         records.read_claims(root, cursor="not-a-cursor")
     assert "CLAIM_CURSOR_INVALID" in str(failure.value)
+
+
+def test_draft_is_an_accepted_claim_status_and_an_unknown_one_is_still_refused(tmp_path):
+    """F-02 (HR-32): a statement the researcher has not assessed yet gets its own status."""
+    root = workspace(tmp_path)
+    assert "draft" in records.CLAIM_STATUSES
+    records.index_corpus(root, [NOTES])
+    chunk_id = records.stored_chunks(root)[0].chunk_id
+    created = records.write_claim(root, "A statement to check against the guild records.",
+                                  evidence_chunk_ids=[chunk_id], status="draft")
+    assert created["created"] is True and created["claim"]["status"] == "draft"
+    assert records.read_claims(root)["claims"][0]["status"] == "draft"
+    assert records.read_claims(root, status="draft")["claimCount"] == 1
+
+    patched = records.write_claim(root, "The statement, now checked against the guild records.",
+                                  claim_id=created["claim"]["claim_id"], status="supported")
+    assert patched["claim"]["status"] == "supported", "a draft is a starting status, not a trap"
+
+    with pytest.raises(StoreError) as failure:
+        records.write_claim(root, "A claim with an invented status", status="under-review")
+    assert "CLAIM_STATUS" in str(failure.value) and "draft" in str(failure.value), \
+        "the refusal still lists every status it accepts, draft included"
 
 
 def test_reindex_preview_reports_changes_without_writing(tmp_path):

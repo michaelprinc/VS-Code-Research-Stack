@@ -23,7 +23,7 @@ DOCUMENT_TOOLS = frozenset({"read_document", "read_text_source", "search_local_t
 # it is deliberately kept out of every package default preset (DD14-03).
 RESEARCH_TOOLS = frozenset({"search_literature", "check_citation", "zotero_library", "zotero_write", "prepare_zotero_import"})
 RESEARCH_READ_TOOLS = RESEARCH_TOOLS - frozenset({"zotero_write"})
-LAB_TOOLS = frozenset({"index_corpus", "unindex_corpus", "search_corpus", "evidence_read", "verify_sources", "claims_read", "claims_write", "claims_export", "store_status", "store_maintenance"})
+LAB_TOOLS = frozenset({"index_corpus", "embed_corpus", "unindex_corpus", "search_corpus", "evidence_read", "verify_sources", "claims_read", "claims_write", "claims_export", "store_status", "store_maintenance"})
 ALL_TOOLS = DOCUMENT_TOOLS | RESEARCH_TOOLS | LAB_TOOLS
 
 #: Preset id -> the toolkit tools that the goal enables. Kept in sync with
@@ -36,16 +36,34 @@ TOOL_PRESETS: dict[str, frozenset[str]] = {
     # ever sees a Zotero write.
     "zotero-handoff": RESEARCH_TOOLS,
     "research-core": DOCUMENT_TOOLS | RESEARCH_READ_TOOLS,
+    # Retired in 0.3.14 (DD15-07): these two ids stay registered so a saved 0.3.13 preference resolves
+    # to a stated retirement instead of falling back in silence. They are offered by no package and
+    # carry no third-party surface, because their whole 0.3.13 content was an unnamed tool estimate.
     "research-lab": DOCUMENT_TOOLS | RESEARCH_READ_TOOLS,
     "research-lab-max": DOCUMENT_TOOLS | RESEARCH_READ_TOOLS,
-    # The continuous Full journey: read a source, index it, retrieve a passage, resolve the
-    # evidence, record a claim and export a report. 11 toolkit tools, inside the C-13 budget.
+    # The continuous Full journey: read a source, index it, build its retrieval vectors, retrieve a
+    # passage, resolve and re-verify the evidence, record a claim, export it, and read the store.
+    # 15 toolkit tools, inside the 20-tool 0.3.14 budget.
     "research-workflow": frozenset({
         "read_document", "read_text_source", "write_markdown", "write_docx",
         "search_literature", "check_citation",
-        "index_corpus", "search_corpus", "evidence_read", "claims_read", "claims_write",
+        "index_corpus", "embed_corpus", "search_corpus", "evidence_read", "verify_sources",
+        "claims_read", "claims_write", "claims_export", "store_status",
     }),
     "corpus-lab": LAB_TOOLS | frozenset({"read_text_source"}),
+    # The three max goals (HR-10, DD15-01). Each carries the toolkit verbs its objective uses and
+    # names the one or five it leaves out; the GitHub difference between them is third-party and is
+    # described in extension/presets.json, which is where the exact tool names live.
+    "research-max-github-full": frozenset({
+        "read_document", "read_text_source", "write_markdown", "write_docx",
+        "search_literature", "check_citation", "zotero_library",
+        "index_corpus", "embed_corpus", "search_corpus", "evidence_read", "verify_sources",
+        "claims_read", "claims_write", "claims_export", "store_status",
+    }),
+    # Reading evidence does not need a vacuum or a restore: store_maintenance is the verb this goal drops.
+    "research-max-github-limited": ALL_TOOLS - frozenset({"store_maintenance"}),
+    # The stored corpus is this goal's search surface, so search_local_text is the verb it drops.
+    "research-max-no-github": ALL_TOOLS - frozenset({"search_local_text"}),
     DEFAULT_PRESET: ALL_TOOLS,
 }
 

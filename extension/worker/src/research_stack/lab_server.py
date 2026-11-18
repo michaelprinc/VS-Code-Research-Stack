@@ -4,7 +4,8 @@ Verbs are separated so a client can gate them by what they actually do:
 
 ``index_corpus``      build/refresh the workspace corpus index for selected sources (Markdown/text, PDF, DOCX)
 ``unindex_corpus``    drop selected sources from the current index (retained evidence stays)
-``search_corpus``     BM25 retrieval over the current stored chunks, with provenance
+``search_corpus``     retrieval over the stored chunks, with provenance: ``lexical`` (BM25), ``vector``, ``hybrid``
+``embed_corpus``      build or rebuild the stored retrieval vectors from the chunk text in the store
 ``evidence_read``     resolve chunk ids to source path, locator, text hash and freshness
 ``verify_sources``    re-hash the indexed sources and record what the present files actually are
 ``claims_read``       list or read claims with hydrated, freshness-flagged evidence links
@@ -14,7 +15,13 @@ Verbs are separated so a client can gate them by what they actually do:
 ``store_maintenance`` backup, candidate restore and confirmed vacuum
 
 Everything is local to the workspace store under ``.research-toolkit/store/``. Source files
-are read only. No vector search, embedding model or third-party database is implied.
+are read only. The vector ranker is the Toolkit's own CPU lexical signature (``vectors.BACKEND_ID``
+over the stored chunk text): no embedding model is downloaded, no network call is made, and no
+third-party database or vector service is implied. It is a lexical-signature ranker, not a semantic
+model, and the ``retrieval`` provenance on a hit says which ranker contributed what.
+
+Every store-writing verb rewrites ``.research-toolkit/lab-state.json`` from the store (HR-05); the
+receipt carries that as ``labState``.
 
 A structured failure is returned as ``{"resultState": "error", "error": {"code", "message"}}`` with
 the MCP envelope left non-error, exactly as in 0.3.8: the client is meant to read the code, not to
@@ -40,9 +47,10 @@ TOOL_TITLES = {
     "claims_export": "Export stored claims as validated report references",
     "claims_read": "Read claims and their evidence links",
     "claims_write": "Create or update a claim with evidence links",
+    "embed_corpus": "Build or rebuild the corpus retrieval vectors from the stored chunk text",
     "evidence_read": "Resolve evidence chunk ids to source text and provenance",
     "index_corpus": "Index or re-index selected workspace sources (Markdown, text, PDF, DOCX)",
-    "search_corpus": "Search the indexed corpus with provenance",
+    "search_corpus": "Search the indexed corpus with provenance (lexical, vector or hybrid)",
     "store_maintenance": "Back up, restore or vacuum the research record store",
     "store_status": "Inspect the research record store",
     "unindex_corpus": "Remove selected sources from the current index",
@@ -55,6 +63,9 @@ TOOL_ANNOTATIONS = {
     "claims_export": annotations(read_only=True),
     "claims_read": annotations(read_only=True),
     "claims_write": annotations(read_only=False, destructive=False, idempotent=False, open_world_hint=False),
+    # embed_corpus computes vectors from the text already in the store and writes them there: it
+    # writes the store, never a source, and re-running it is safe.
+    "embed_corpus": annotations(read_only=False, destructive=False, idempotent=True, open_world_hint=False),
     "evidence_read": annotations(read_only=True),
     "index_corpus": annotations(read_only=False, destructive=False, idempotent=True, open_world_hint=False),
     "search_corpus": annotations(read_only=True),
@@ -120,13 +131,47 @@ def unindex_corpus(paths: list[str]) -> dict[str, object]:
         return _failure(exc)
 
 
-def search_corpus(query: str, limit: int = 10) -> dict[str, object]:
-    """Search the stored corpus chunks; a score is relevance ranking only, not a truth claim."""
+def search_corpus(query: str, limit: int = 10, mode: str = "lexical") -> dict[str, object]:
+    """Search the stored corpus chunks; a score is relevance ranking only, not a truth claim.
+
+    ``mode`` chooses the ranker and defaults to ``lexical``, which is the 0.3.13 BM25 path with the
+    0.3.13 reply shape. ``vector`` ranks the stored hashed vectors and ``hybrid`` fuses the two
+    rankings; those two modes add a ``retrieval`` block to the reply and a ``retrieval`` provenance
+    record to every hit, so the client can see which ranker placed the chunk, at what rank, with what
+    score, and by which backend id. A mode that has nothing to score says why and names the verb to
+    run instead of quietly answering from a different ranker.
+    """
     try:
-        hits = records.search_corpus(configured_root(), query, limit=limit)
-        return {"hits": [hit.as_dict() for hit in hits], "method": "bm25", "persistentIndex": True, "readOnly": True}
+        root = configured_root()
+        if mode == "lexical":
+            hits = records.search_corpus(root, query, limit=limit)
+            return {"hits": [hit.as_dict() for hit in hits], "method": "bm25", "persistentIndex": True, "readOnly": True}
+        found = records.search_store(root, query, limit=limit, mode=mode)
+        return {
+            "hits": [hit.as_dict() for hit in found["hits"]],
+            "method": found["method"],
+            "mode": found["mode"],
+            "retrieval": found["retrieval"],
+            "persistentIndex": True,
+            "readOnly": True,
+        }
     except (StoreError, PathPolicyError) as exc:
         return _failure(exc, readOnly=True)
+
+
+def embed_corpus(overwrite: bool = False) -> dict[str, object]:
+    """Build (or rebuild) the stored retrieval vectors for the current index.
+
+    The vectors are computed on CPU from the chunk text the store already holds, by the Toolkit's own
+    named backend — no model download, no network, no new dependency. Run it after indexing a store
+    that predates vector retrieval, after a backend change, or whenever ``store_status`` reports the
+    vector index as ``not-built``, ``partial`` or ``stale``. ``overwrite`` recomputes vectors that
+    already match the current backend; without it a matching vector is reused.
+    """
+    try:
+        return {"writeMode": "store-only", "persistentIndex": True, **records.embed_chunks(configured_root(), overwrite=overwrite)}
+    except (StoreError, PathPolicyError) as exc:
+        return _failure(exc)
 
 
 def evidence_read(chunk_ids: list[str]) -> dict[str, object]:
@@ -164,7 +209,13 @@ def claims_write(
     evidence_mode: str = "append",
     idempotency_key: str | None = None,
 ) -> dict[str, object]:
-    """Create a claim or patch one by id; omitted status and note keep their stored values."""
+    """Create a claim or patch one by id; omitted status and note keep their stored values.
+
+    A status is the researcher's recorded assessment, never a toolkit judgement: ``open``, ``draft``
+    (a statement not assessed yet), ``supported``, ``contested``, ``rejected``, ``closed``.
+    ``supported`` means the researcher recorded that assessment about cited evidence — it does not
+    mean the Toolkit verified the statement.
+    """
     try:
         return {"writeMode": "create-or-patch", **records.write_claim(
             configured_root(), statement, claim_id=claim_id, status=status, note=note,
@@ -219,7 +270,7 @@ def corpus_status(root: Path) -> dict[str, object]:
     return records.index_state(root)
 
 
-LAB_TOOLS = (claims_export, claims_read, claims_write, evidence_read, index_corpus, search_corpus, store_maintenance, store_status, unindex_corpus, verify_sources)
+LAB_TOOLS = (claims_export, claims_read, claims_write, embed_corpus, evidence_read, index_corpus, search_corpus, store_maintenance, store_status, unindex_corpus, verify_sources)
 
 
 def main() -> None:

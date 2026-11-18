@@ -662,6 +662,56 @@ async function main() {
         `data-readonly=${JSON.stringify(updateNow.getAttribute("data-readonly"))} data-unavailable=${JSON.stringify(updateNow.getAttribute("data-unavailable"))} disabled=${updateNow.disabled} aria-disabled=${JSON.stringify(updateNow.getAttribute("aria-disabled"))} title=${JSON.stringify(reason)}`,
         "a read-only control the renderer marks unavailable is disabled, announced, and still explains itself");
     }
+
+    /* -- H: the 0.3.14 bundle-archive and preset-tool-selection controls are in the shipped document ---
+     * `extension.js` registers the commands and its action map names them, but a command nobody can reach
+     * from the panel is a command the operator does not have. This row measures what the shipped document
+     * really contains, including the wording: the force button does not promise an overwrite, the preset
+     * button says "select", not "install". What it does NOT prove: that the command then shows its modal,
+     * archives before it replaces, or refuses a file it did not write — those are proven in
+     * extension/test/bundles.test.js and extension/test/presetselect.test.js against the controller.
+     */
+    const newControls = [
+      ["forceBundleUpdate", "Force-update topic bundle where a file differs"],
+      ["bundleArchives", "Show bundle archive history"],
+      ["restoreBundleArchive", "Restore an archived bundle version"],
+      ["configurePresetTools", "Select the GitHub tools this preset offers Copilot"],
+    ];
+    const measuredH = newControls.map(([action, expected]) => {
+      const button = document.querySelector(`[data-action="${action}"]`);
+      return { action, label: button ? button.textContent : "<no such control>", expected };
+    });
+    const okH = measuredH.every((item) => item.label === item.expected);
+    verdict("H", okH, measuredH.map((item) => `[data-action="${item.action}"]=${JSON.stringify(item.label)}`).join(" "),
+      "all four 0.3.14 controls are in the panel document the shipped controller builds, each with the label the release states; the modal, the archive-before-overwrite and the refusal live in the commands, not in this row");
+
+    /* -- I: a retired preset in force is explained, not left as a blank section (DD15-07) -------------
+     * The state fed here is a real one: a second harness at package `full` with `research-lab-max` saved,
+     * read straight out of the shipped controller. The retired preset has no card in `state.presets` by
+     * design, so the question is what the renderer paints when the preset in force has no card — silence
+     * would read as a broken panel. This measures the two lines the renderer writes for that state.
+     */
+    const retiredHarness = makeHarness({
+      folders: [{ name: "Research Panel Check", uri: { scheme: "file", fsPath: tempRoot } }],
+      initial: { selectedPackage: "full", toolsPreset: "research-lab-max" },
+      diagnosticServices: { async findHostTool() { return undefined; }, async runFile() { return ""; } },
+    });
+    const retiredState = JSON.parse(JSON.stringify(retiredHarness.api.state()));
+    if (retiredState.selectedToolsPreset !== "research-lab-max" || typeof retiredState.presetRetirement !== "string" || retiredState.presets.some((preset) => preset.retired)) {
+      verdict("I", null, `the shipped controller gave selectedToolsPreset=${JSON.stringify(retiredState.selectedToolsPreset)} presetRetirement=${JSON.stringify(retiredState.presetRetirement)} offeredRetired=${retiredState.presets.filter((preset) => preset.retired).length}`,
+        "NOT PROVEN — the controller did not produce the retired-preset state this row measures");
+    } else {
+      dispatchMessage(retiredState);
+      const noteText = document.getElementById("preset-note").textContent;
+      const savedText = document.getElementById("saved-preset").textContent;
+      const cards = document.getElementById("preset-list").querySelectorAll("label").length;
+      const okI = noteText.includes("retired in 0.3.14") && noteText.includes("research-max-github-full")
+        && savedText.includes("research-lab-max") && !noteText.includes("undefined") && !savedText.includes("undefined")
+        && retiredState.presets.length > 0 && cards === retiredState.presets.length;
+      verdict("I", okI, `#preset-note=${JSON.stringify(noteText)} #saved-preset=${JSON.stringify(savedText)} preset cards rendered=${cards}/${retiredState.presets.length}`,
+        "the retirement and its replacements are painted where the operator is looking, and the offered presets still render; what is NOT claimed here is that the retired preset's own tools are still available — the row above it says 0.3.14 cannot name them");
+      dispatchMessage(realState); // leave the document on the state the other rows measured
+    }
     const selectValue = document.getElementById("diagnostics-workspace").value;
     observe(`shim fidelity: the renderer assigns select.value = ${JSON.stringify(selectValue)}; this shim stores the assignment and does not select the matching <option> (a browser would set selectedIndex). controls.js only reads select.value back off a change event, so no assertion here depends on it.`);
 
@@ -678,7 +728,7 @@ async function main() {
     }
     console.log("");
     console.log(`  assertions run: ${results.length}   pass: ${results.filter((item) => item.ok === true).length}   fail: ${failures.length}   not proven: ${unproven.length}`);
-    console.log("  A real browser is still needed for: the visual and assistive-technology consequences of A and B (does controls.css render the unavailable state, does the title really appear as a tooltip, does a screen reader announce aria-disabled, can a keyboard user still reach the control); for C, D and E, that a live region really speaks the text the shim measured; for F and G, that a disabled control genuinely cannot be pressed and that 1000 presses of a read-only button are reachable by a real operator. The DOM-level behaviour of A to G is proven here; the browser-level behaviour of A to G is proven only by extension/test/browser.test.js, which has never run in this container.");
+    console.log("  A real browser is still needed for: the visual and assistive-technology consequences of A and B (does controls.css render the unavailable state, does the title really appear as a tooltip, does a screen reader announce aria-disabled, can a keyboard user still reach the control); for C, D and E, that a live region really speaks the text the shim measured; for F and G, that a disabled control genuinely cannot be pressed and that 1000 presses of a read-only button are reachable by a real operator; for H and I, that these controls and sentences are reachable by keyboard and are what a screen reader reads. The DOM-level behaviour of A to I is proven here; the browser-level behaviour of A to I is proven only by extension/test/browser.test.js, which has never run in this container.");
     console.log("  Not covered by this shim at all: CSS, layout, overflow, theme variables, screenshots, CSP and the script nonce, real focus and keyboard order, form submit semantics, and any pseudo-class beyond :checked/:disabled.");
 
     process.exitCode = failures.length ? 1 : 0;

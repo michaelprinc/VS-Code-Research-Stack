@@ -262,6 +262,37 @@ test("a rollback candidate that fails the reading check never becomes active (T5
   assert.equal(after.runtimes.find((item) => item.version === "0.3.4").active, false);
 });
 
+test("a rollback names the checker release and the runtime release, and says what their mismatch proves (F-01, T15-19)", async (t) => {
+  const { root, folder } = await fixture(t);
+  const harness = makeHarness({ folders: [folder] });
+  const backend = services(root);
+  await runPlan({ vscode: harness.vscode, context: harness.context, folder, packageId: "basic", services: backend });
+
+  const prior = path.join(root, MANAGED_FOLDER, "worker-0.3.4");
+  const priorPython = path.join(prior, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+  await fs.mkdir(path.dirname(priorPython), { recursive: true });
+  await fs.writeFile(priorPython, "prior interpreter");
+  await writeReceipt(prior, { extensionVersion: "0.3.4", workerVersion: "0.3.4", updatedAt: "2026-10-30T00:00:00.000Z",
+    steps: { worker: { toolkitVersion: "0.3.4", at: "2026-10-30T00:00:00.000Z" } } });
+
+  const checker = harness.context.extension.packageJSON.version;
+  const rolled = await rollbackRuntime(harness.vscode, harness.context, folder, "0.3.4", backend);
+  assert.equal(rolled.checkerVersion, checker, "the checker that ran is named: 0.3.13 ran it and reported neither version");
+  assert.equal(rolled.version, "0.3.4", "and so is the runtime it was run against");
+  assert.equal(rolled.checkerMatchesRuntime, false, "the mismatch is a stated fact, not something the reader has to infer");
+  assert.ok(rolled.verificationNote.includes(checker) && rolled.verificationNote.includes("0.3.4"),
+    `the sentence names both releases: ${rolled.verificationNote}`);
+  assert.match(rolled.verificationNote, /not that the checker and the runtime were verified together/,
+    "and it says plainly what the weaker proof is");
+
+  // Forward to this release's runtime: the same code path with the versions agreeing must say so,
+  // because "the pair this toolkit verifies as a pair" is a different claim from the one above.
+  const forward = await rollbackRuntime(harness.vscode, harness.context, folder, WORKER_VERSION, backend);
+  assert.equal(forward.checkerVersion, WORKER_VERSION);
+  assert.equal(forward.checkerMatchesRuntime, true, "one release on both sides is reported as one release");
+  assert.match(forward.verificationNote, /one release, the pair this toolkit verifies as a pair/);
+});
+
 /** A worker bundle whose project file cannot be parsed at all: the reader must report, not crash. */
 async function unreadableBundleContext(t) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "research-unreadable-bundle-"));

@@ -26,6 +26,15 @@ Schema version 3 adds what 0.3.9 needs and changes nothing that version 2 alread
 * **one row per ingestion run** (``index_runs``), so a mixed batch that indexed nine files and
   refused one is a fact the store can still report afterwards.
 
+Schema version 4 adds what 0.3.14 needs and changes nothing that version 3 already stated:
+
+* **stored retrieval vectors** (``chunk_vectors``): one row per chunk, carrying the embedding
+  backend id, its dimension, the hash of the chunk text the vector was made from, and the vector
+  itself. A vector is only used when all three of those match what the current backend would
+  produce; a row that does not match is reported as stale and the store names the verb that
+  rebuilds it. Version 3's chunk rows are untouched, so a migrated store keeps every chunk
+  identity and every claim link it already had.
+
 A migrated row is labelled ``legacy``/``unchecked`` rather than back-filled: 0.3.8 did not record
 coverage or a hash check, and inventing one would be a false claim about the past.
 """
@@ -38,18 +47,21 @@ import os
 import secrets
 import sqlite3
 import urllib.parse
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .paths import PathPolicyError, assert_no_redirect, is_redirect
+from . import vectors
+from .paths import PathPolicyError, assert_no_redirect, contained_write_path, is_redirect
 
 STORE_DIRECTORY = ".research-toolkit/store"
 STORE_NAME = "research.sqlite3"
+LAB_STATE_NAME = "lab-state.json"
 BACKUP_DIRECTORY = "backups"
 RESTORE_PREFIX = "research-restore-"
 PRE_RESTORE_PREFIX = "research-pre-restore-"
-SCHEMA_VERSION = 3
-SUPPORTED_SCHEMA_VERSIONS = (1, 2, 3)
+SCHEMA_VERSION = 4
+SUPPORTED_SCHEMA_VERSIONS = (1, 2, 3, 4)
 
 MAX_INDEX_SOURCES = 1000
 MAX_STORE_CHUNKS = 20000
@@ -64,6 +76,23 @@ SOURCE_KINDS = ("text", "pdf", "docx")
 INGESTION_OUTCOMES = ("complete", "partial", "failed", "legacy")
 VERIFICATION_STATES = ("verified", "changed", "missing", "inaccessible", "unchecked")
 RUN_STATUSES = ("complete", "partial", "failed", "cancelled")
+
+#: Retrieval modes ``search_corpus`` accepts (HR-03). ``lexical`` is the 0.3.13 BM25 path.
+SEARCH_MODES = ("lexical", "vector", "hybrid")
+#: Reciprocal-rank-fusion constant: a rank-1 hit from both rankers is worth 2/61 before normalising.
+VECTOR_RRF_K = 60
+#: How much of the fused score each contribution carries. They sum to 1.0 on purpose, so a fused
+#: score is always in 0..1 and a reader can see which part moved it.
+FUSION_WEIGHTS = {"reciprocalRankFusion": 0.5, "lexicalScore": 0.25, "vectorScore": 0.25}
+MAX_FUSION_POOL = 50
+FUSION_RULE = (
+    "fusedScore = 0.5 * reciprocal-rank-fusion(k=60, normalised so a chunk ranked first by both "
+    "rankers scores 1.0) + 0.25 * (BM25 score / highest BM25 score in the candidate pool) "
+    + "+ 0.25 * (max(0, cosine) / highest cosine in the candidate pool); a ranker that did not place "
+    "the chunk contributes 0. Ties break on source path, then locator, then chunk id."
+)
+
+_PROVENANCE_HIT_CLASS = None
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -150,9 +179,18 @@ CREATE TABLE IF NOT EXISTS index_runs (
     accepted_partial INTEGER NOT NULL DEFAULT 0,
     detail TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS chunk_vectors (
+    chunk_id TEXT PRIMARY KEY,
+    backend_id TEXT NOT NULL,
+    dimensions INTEGER NOT NULL,
+    text_sha256 TEXT NOT NULL,
+    vector TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chunk_vectors_backend_idx ON chunk_vectors (backend_id, dimensions);
 """
 
-CLAIM_STATUSES = ("open", "supported", "contested", "rejected", "closed")
+CLAIM_STATUSES = ("open", "draft", "supported", "contested", "rejected", "closed")
 EVIDENCE_ROLES = ("supporting", "contradicting", "contextual")
 EVIDENCE_MODES = ("append", "replace", "remove")
 
@@ -283,7 +321,8 @@ def _toolkit_version() -> str:
 
 
 def _migrate_to_current(connection: sqlite3.Connection, from_version: int) -> None:
-    """Reviewed migrations: 1 → 2 (durable evidence), 2 → 3 (document provenance and freshness).
+    """Reviewed migrations: 1 → 2 (durable evidence), 2 → 3 (document provenance and freshness),
+    3 → 4 (stored retrieval vectors).
 
     Additive only. No table is rebuilt and no stored chunk row is rewritten: a chunk id is a hash of
     its content, so rewriting a row would stale every claim that cites it.
@@ -292,7 +331,9 @@ def _migrate_to_current(connection: sqlite3.Connection, from_version: int) -> No
         return
     if from_version == 1:
         _migrate_1_to_2(connection)
-    _migrate_2_to_3(connection)
+    if from_version <= 2:
+        _migrate_2_to_3(connection)
+    _migrate_3_to_4(connection)
     connection.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
     connection.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('migrated_from', ?)", (str(from_version),))
     connection.commit()
@@ -363,6 +404,20 @@ def _migrate_2_to_3(connection: sqlite3.Connection) -> None:
     connection.executescript(SCHEMA)
 
 
+def _migrate_3_to_4(connection: sqlite3.Connection) -> None:
+    """Version 3 → 4: add the ``chunk_vectors`` table, and nothing else.
+
+    The 0.3.13 store keeps every row it had: no source, chunk, claim or evidence row is touched, and
+    no vector is invented during migration. A migrated store has chunks and no vectors, which is the
+    state ``store_status`` reports as ``not-built`` and the verbs answer by naming ``embed_corpus``.
+    Computing vectors needs the chunk text and the backend recipe, not a schema change, so the work
+    belongs to the verb rather than to the migration.
+    """
+    if "chunk_vectors" in _table_names(connection):
+        return
+    connection.executescript(SCHEMA)
+
+
 def _connect(root: Path, *, create: bool = False) -> sqlite3.Connection:
     """Open the store. Writes validate the schema first; reads open the file read-only."""
     path = store_path(root)
@@ -411,7 +466,8 @@ def init_store(root: Path) -> dict[str, object]:
     connection = _connect(root, create=True)
     try:
         tables = sorted(name for name in _table_names(connection) if not name.startswith("sqlite_"))
-        counts = {table: connection.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"] for table in ("sources", "chunks", "claims", "claim_evidence", "index_runs")}
+        counts = {table: connection.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"] for table in ("sources", "chunks", "claims", "claim_evidence", "index_runs", "chunk_vectors")}
+        meta = {row["key"]: row["value"] for row in connection.execute("SELECT key, value FROM meta")}
         connection.commit()
     finally:
         connection.close()
@@ -422,6 +478,7 @@ def init_store(root: Path) -> dict[str, object]:
         "tableCount": len(tables),
         "tables": tables,
         "counts": counts,
+        "createdAt": meta.get("created_at"),
         "preexisting": existed,
         "contains": "Stored chunk text and your claims; source files are read only. Backups copy this material.",
         "writeMode": "create-or-open; existing rows and the recorded schema version are never replaced by initialisation",
@@ -444,6 +501,7 @@ def _collect_retired(connection: sqlite3.Connection, paths: set[str]) -> int:
         tuple(paths),
     ).fetchall()
     for row in rows:
+        connection.execute("DELETE FROM chunk_vectors WHERE chunk_id = ?", (row["chunk_id"],))
         connection.execute("DELETE FROM chunks WHERE chunk_id = ?", (row["chunk_id"],))
     return len(rows)
 
@@ -456,6 +514,57 @@ def _retained_count(connection: sqlite3.Connection, paths: set[str]) -> int:
         f"SELECT COUNT(*) AS n FROM chunks WHERE current = 0 AND source_path IN ({placeholders})",
         tuple(paths),
     ).fetchone()["n"]
+
+
+def _vector_row_state(row, text_sha256: str) -> str | None:
+    """Why a stored vector may not be used, or ``None`` when it may.
+
+    The row must expose ``backend_id``, ``dimensions`` and ``vector_text_sha256`` — the hash the
+    vector was made from, not the chunk's present hash, because the whole point of the check is to
+    compare the two.
+
+    A stored vector is only trustworthy together with the recipe that made it: same backend id, same
+    dimension, and made from the very chunk text it is attached to. Anything else is stale, and using
+    it would rank a chunk by a score whose origin cannot be named (HR-04).
+    """
+    if row is None:
+        return "missing"
+    if row["backend_id"] != vectors.BACKEND_ID:
+        return "backend"
+    if int(row["dimensions"]) != vectors.EMBEDDING_DIMENSIONS:
+        return "dimensions"
+    if row["vector_text_sha256"] != text_sha256:
+        return "text"
+    return None
+
+
+def _store_chunk_vectors(connection: sqlite3.Connection, chunks, stamp: str) -> dict[str, int]:
+    """Embed stored chunk text with the current backend, reusing a row that already matches it."""
+    written = 0
+    reused = 0
+    no_signature = 0
+    for chunk in chunks:
+        existing = connection.execute("SELECT backend_id, dimensions, text_sha256 AS vector_text_sha256 FROM chunk_vectors WHERE chunk_id = ?", (chunk.chunk_id,)).fetchone()
+        if _vector_row_state(existing, chunk.text_sha256) is None:
+            reused += 1
+            continue
+        vector = vectors.embed_text(chunk.text)
+        if vectors.is_zero_vector(vector):
+            # A chunk with no letter or digit has no lexical signature. Storing an all-zero vector
+            # would let it show up as a 0.0-score hit; deleting and counting it is the honest answer.
+            connection.execute("DELETE FROM chunk_vectors WHERE chunk_id = ?", (chunk.chunk_id,))
+            no_signature += 1
+            continue
+        connection.execute(
+            "INSERT OR REPLACE INTO chunk_vectors (chunk_id, backend_id, dimensions, text_sha256, vector, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (chunk.chunk_id, vectors.BACKEND_ID, vectors.EMBEDDING_DIMENSIONS, chunk.text_sha256, vectors.encode_vector(vector), stamp),
+        )
+        written += 1
+    return {"vectorsWritten": written, "vectorsReused": reused, "chunksWithoutSignature": no_signature}
+
+
+def _vector_backend_note() -> dict[str, object]:
+    return {"backendId": vectors.BACKEND_ID, "dimensions": vectors.EMBEDDING_DIMENSIONS, "encoding": vectors.VECTOR_ENCODING}
 
 
 def remove_sources(root: Path, relative_paths: list[str]) -> dict[str, object]:
@@ -494,6 +603,148 @@ def remove_sources(root: Path, relative_paths: list[str]) -> dict[str, object]:
         "collectedUnreferencedChunks": collected,
         "indexFingerprint": _fingerprint(sources),
         "sourceFilesModified": False,
+        "labState": refresh_lab_state(root, refreshed_by="unindex_corpus"),
+    }
+
+
+def _vector_counters(connection: sqlite3.Connection) -> dict[str, object]:
+    """What the vector index actually is, counted from the store (HR-05, HR-06).
+
+    ``scoreableChunks`` counts only rows that pass the current-backend check, so a stale row is never
+    reported as a usable vector.
+    """
+    stored_rows = connection.execute("SELECT COUNT(*) AS n FROM chunk_vectors").fetchone()["n"]
+    current_chunks = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 1").fetchone()["n"]
+    matching_any = connection.execute(
+        "SELECT COUNT(*) AS n FROM chunk_vectors v JOIN chunks c ON c.chunk_id = v.chunk_id "
+        "WHERE v.backend_id = ? AND v.dimensions = ? AND v.text_sha256 = c.text_sha256",
+        (vectors.BACKEND_ID, vectors.EMBEDDING_DIMENSIONS),
+    ).fetchone()["n"]
+    scoreable = connection.execute(
+        "SELECT COUNT(*) AS n FROM chunks c JOIN chunk_vectors v ON v.chunk_id = c.chunk_id "
+        "WHERE c.current = 1 AND v.backend_id = ? AND v.dimensions = ? AND v.text_sha256 = c.text_sha256",
+        (vectors.BACKEND_ID, vectors.EMBEDDING_DIMENSIONS),
+    ).fetchone()["n"]
+    stale_rows = stored_rows - matching_any
+    if stored_rows == 0:
+        state = "not-built"
+    elif current_chunks and scoreable == 0:
+        state = "stale"
+    elif scoreable < current_chunks or stale_rows:
+        state = "partial"
+    else:
+        state = "ready"
+    notes = {
+        "not-built": (
+            "The store has no vectors yet. Lexical search works; vector and hybrid search refuse until "
+            "embed_corpus builds the vectors from the chunk text already in the store."
+        ),
+        "stale": (
+            "Every stored vector fails the current-backend check, so none is used. Run embed_corpus to "
+            "rebuild them; the verbs refuse rather than rank by a vector whose origin is unknown."
+        ),
+        "partial": (
+            "Some current chunks have a usable vector and some do not. Run embed_corpus to complete the "
+            "index; a chunk without a vector can only be found by the lexical ranker."
+        ),
+        "ready": (
+            "Every current chunk has a vector made by this backend from this chunk text. Vector and "
+            "hybrid search score the whole current index."
+        ),
+    }
+    return {
+        "state": state,
+        "implemented": True,
+        "backendId": vectors.BACKEND_ID,
+        "dimensions": vectors.EMBEDDING_DIMENSIONS,
+        "encoding": vectors.VECTOR_ENCODING,
+        "vectorCount": stored_rows,
+        "currentChunkCount": current_chunks,
+        "scoreableChunks": scoreable,
+        "staleVectorCount": stale_rows,
+        "modes": list(SEARCH_MODES),
+        "reindexVerb": "embed_corpus",
+        "note": notes[state],
+    }
+
+
+def vector_index_state(root: Path) -> dict[str, object]:
+    """The vector index as the store reports it, for a verb that needs it on its own."""
+    connection = _connect(root)
+    try:
+        return _vector_counters(connection)
+    finally:
+        connection.close()
+
+
+def embed_chunks(root: Path, *, overwrite: bool = False) -> dict[str, object]:
+    """Build the stored vectors for the current index from the chunk text already in the store.
+
+    No source file is read: the text is the text the index already holds, which is what makes a
+    re-index possible for a store whose source files are gone or unreadable. ``overwrite`` rebuilds
+    vectors that already match the current backend too; without it a matching vector is reused and
+    only missing or stale rows are written.
+    """
+    connection = _connect(root, create=True)
+    try:
+        stamp = _now()
+        rows = connection.execute(
+            "SELECT c.chunk_id, c.text, c.text_sha256, v.backend_id, v.dimensions, v.text_sha256 AS vector_text_sha256 "
+            "FROM chunks c LEFT JOIN chunk_vectors v ON v.chunk_id = c.chunk_id "
+            "WHERE c.current = 1 ORDER BY c.source_path, c.locator, c.chunk_id LIMIT ?",
+            (MAX_STORE_CHUNKS,),
+        ).fetchall()
+        before = _vector_counters(connection)
+        written = 0
+        reused = 0
+        replaced = 0
+        no_signature = 0
+        for row in rows:
+            if overwrite:
+                connection.execute("DELETE FROM chunk_vectors WHERE chunk_id = ?", (row["chunk_id"],))
+            elif _vector_row_state(row, row["text_sha256"]) is None:
+                reused += 1
+                continue
+            had_stale_row = row["vector_text_sha256"] is not None
+            vector = vectors.embed_text(row["text"])
+            if vectors.is_zero_vector(vector):
+                connection.execute("DELETE FROM chunk_vectors WHERE chunk_id = ?", (row["chunk_id"],))
+                no_signature += 1
+                continue
+            connection.execute(
+                "INSERT OR REPLACE INTO chunk_vectors (chunk_id, backend_id, dimensions, text_sha256, vector, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (row["chunk_id"], vectors.BACKEND_ID, vectors.EMBEDDING_DIMENSIONS, row["text_sha256"], vectors.encode_vector(vector), stamp),
+            )
+            written += 1
+            if had_stale_row and not overwrite:
+                replaced += 1
+        connection.commit()
+        after = _vector_counters(connection)
+    except StoreError:
+        connection.rollback()
+        raise
+    except sqlite3.Error as exc:
+        connection.rollback()
+        raise _translate(exc) from exc
+    finally:
+        connection.close()
+    return {
+        "currentChunks": len(rows),
+        "vectorsWritten": written,
+        "vectorsReused": reused,
+        "staleVectorsReplaced": replaced,
+        "chunksWithoutSignature": no_signature,
+        "overwrite": overwrite,
+        "vectorBackend": _vector_backend_note(),
+        "before": before,
+        "after": after,
+        "sourceFilesRead": False,
+        "sourceFilesModified": False,
+        "note": (
+            "Vectors are computed from the chunk text stored in the index, not by re-reading a source. "
+            "A chunk with no letter or digit gets no vector rather than a zero vector."
+        ),
+        "labState": refresh_lab_state(root, refreshed_by="embed_corpus"),
     }
 
 
@@ -507,6 +758,7 @@ def index_state(root: Path) -> dict[str, object]:
         chunk_count = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 1").fetchone()["n"]
         retained = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 0").fetchone()["n"]
         claim_count = connection.execute("SELECT COUNT(*) AS n FROM claims").fetchone()["n"]
+        vectors_state = _vector_counters(connection)
     finally:
         connection.close()
     for source in sources:
@@ -527,6 +779,8 @@ def index_state(root: Path) -> dict[str, object]:
         "chunkCount": chunk_count,
         "retainedChunkCount": retained,
         "claimCount": claim_count,
+        "vectorCount": vectors_state["vectorCount"],
+        "vectorSearch": vectors_state,
         "freshness": freshness_counts,
         "freshnessNote": (
             "Freshness is a recorded hash check, not an inference from the index. 'unchecked' means the "
@@ -676,6 +930,9 @@ def index_corpus(
         empty_sources: list[str] = []
         retained = 0
         collected = 0
+        vectors_written = 0
+        vectors_reused = 0
+        chunks_without_signature = 0
         for path, (record, chunks) in sorted(prepared.items()):
             if cancel is not None and cancel():
                 raise _Cancelled()
@@ -717,6 +974,10 @@ def index_corpus(
                 partial_sources.append({"path": path, "unitsTotal": coverage.get("totalUnits"), "unitsExtracted": coverage.get("unitsRead"),
                                         "emptyUnits": coverage.get("emptyUnits", []), "accepted": True})
             collected += _collect_retired(connection, {path})
+            summary = _store_chunk_vectors(connection, chunks, stamp)
+            vectors_written += summary["vectorsWritten"]
+            vectors_reused += summary["vectorsReused"]
+            chunks_without_signature += summary["chunksWithoutSignature"]
             indexed.append(path)
         if not indexed:
             # Nothing was writable: leave the store byte-for-byte as it was.
@@ -735,6 +996,10 @@ def index_corpus(
                 "storeChunks": current_total,
                 "retainedEvidenceChunks": 0,
                 "collectedUnreferencedChunks": 0,
+                "vectorsWritten": 0,
+                "vectorsReused": 0,
+                "chunksWithoutSignature": 0,
+                "vectorBackend": _vector_backend_note(),
                 "indexFingerprint": _fingerprint(sources),
                 "indexedAt": stamp,
                 "sourceFilesModified": False,
@@ -781,10 +1046,15 @@ def index_corpus(
         "storeChunks": stored,
         "retainedEvidenceChunks": retained_total,
         "collectedUnreferencedChunks": collected,
+        "vectorsWritten": vectors_written,
+        "vectorsReused": vectors_reused,
+        "chunksWithoutSignature": chunks_without_signature,
+        "vectorBackend": _vector_backend_note(),
         "indexFingerprint": _fingerprint(sources),
         "indexedAt": stamp,
         "committed": committed,
         "sourceFilesModified": False,
+        "labState": refresh_lab_state(root, refreshed_by="index_corpus"),
     }
 
 
@@ -849,6 +1119,7 @@ def verify_sources(root: Path, relative_paths: list[str] | None = None) -> dict[
         "uncheckedRemaining": unchecked,
         "checkedAt": stamp,
         "sourceFilesModified": False,
+        "labState": refresh_lab_state(root, refreshed_by="verify_sources"),
         "note": "Freshness is a recorded check. A source is 'verified' only when its present bytes were hashed in this call.",
     }
 
@@ -891,17 +1162,257 @@ def stored_chunks(root: Path, *, limit: int = MAX_STORE_CHUNKS, include_retired:
     ]
 
 
-def search_corpus(root: Path, query: str, *, limit: int = 10):
-    """BM25 over the current stored chunks; every hit carries source path, locator and hashes."""
+def _provenance_hit_class():
+    """``SearchHit`` plus a ``retrieval`` provenance record, built once per process.
+
+    The rankers in ``full.py`` return plain ``SearchHit`` records and every 0.3.8+ client reads that
+    shape. The new modes need to say more, so they return a subclass that adds one key and keeps
+    every key the older shape had.
+    """
+    global _PROVENANCE_HIT_CLASS
+    if _PROVENANCE_HIT_CLASS is not None:
+        return _PROVENANCE_HIT_CLASS
+    from .full import SearchHit
+
+    @dataclass(frozen=True)
+    class ProvenanceHit(SearchHit):  # type: ignore[valid-type,misc]
+        retrieval: dict[str, object] = field(default_factory=dict)
+
+        def as_dict(self) -> dict[str, object]:
+            return {**super().as_dict(), "retrieval": dict(self.retrieval)}
+
+    _PROVENANCE_HIT_CLASS = ProvenanceHit
+    return _PROVENANCE_HIT_CLASS
+
+
+def _current_chunks_with_vectors(connection: sqlite3.Connection) -> list[tuple[object, sqlite3.Row | None]]:
+    """Every current chunk together with its stored vector row, if it has one.
+
+    The candidate set is bounded by ``MAX_STORE_CHUNKS``, the same bound ``index_corpus`` enforces on
+    the store, so retrieval can never be shown a ranking over a set the store could not hold.
+    """
+    from .full import EvidenceChunk
+
+    rows = connection.execute(
+        "SELECT c.chunk_id, c.content_id, c.source_path, c.source_sha256, c.locator, c.text, c.text_sha256, c.chunker_id, "
+        "c.unit_kind, c.unit_index, c.char_start, c.char_end, "
+        "v.backend_id, v.dimensions, v.text_sha256 AS vector_text_sha256, v.vector "
+        "FROM chunks c LEFT JOIN chunk_vectors v ON v.chunk_id = c.chunk_id "
+        "WHERE c.current = 1 ORDER BY c.source_path, c.locator, c.chunk_id LIMIT ?",
+        (MAX_STORE_CHUNKS,),
+    ).fetchall()
+    chunks = [
+        EvidenceChunk(
+            chunk_id=row["chunk_id"],
+            content_id=row["content_id"],
+            source_version_id=row["source_sha256"],
+            source_path=row["source_path"],
+            locator=row["locator"],
+            text=row["text"],
+            text_sha256=row["text_sha256"],
+            chunker_id=row["chunker_id"],
+            unit_kind=row["unit_kind"],
+            unit_index=row["unit_index"],
+            char_start=row["char_start"],
+            char_end=row["char_end"],
+        )
+        for row in rows
+    ]
+    return [
+        (chunk, row if row["vector"] is not None else None)
+        for chunk, row in zip(chunks, rows, strict=True)
+    ]
+
+
+def _rank_vectors(query_vector: list[float], entries: list[tuple[object, list[float]]], *, limit: int) -> list[tuple[float, object]]:
+    """Cosine ranking with the same deterministic tie-break the BM25 ranker uses."""
+    scored = [(vectors.cosine_similarity(query_vector, vector), chunk) for chunk, vector in entries]
+    scored.sort(key=lambda item: (-item[0], item[1].source_path, item[1].locator, item[1].chunk_id))
+    return scored[:limit]
+
+
+def search_corpus(root: Path, query: str, *, limit: int = 10, mode: str = "lexical") -> list:
+    """Ranked hits for one retrieval mode; ``lexical`` is the 0.3.13 BM25 path unchanged.
+
+    ``lexical`` returns the same ``SearchHit`` records, in the same order, as 0.3.13. ``vector`` and
+    ``hybrid`` return ``ProvenanceHit`` records, which are ``SearchHit`` records plus the
+    ``retrieval`` provenance the mode owes the reader (which ranker placed the chunk, at what rank,
+    with what score, and by which backend).
+
+    Use :func:`search_store` when you also want what the call did to the rest of the index: how many
+    chunks have vectors, how many stored vectors were refused as stale, and the fusion rule applied.
+    """
+    return search_store(root, query, limit=limit, mode=mode)["hits"]
+
+
+def search_store(root: Path, query: str, *, limit: int = 10, mode: str = "lexical") -> dict[str, object]:
+    """One retrieval call over the current index, with what the mode actually did.
+
+    Refusals are named and actionable: an unknown mode, an index with chunks but no vectors, and an
+    index whose stored vectors were made by a different recipe each say what to run next. A mode that
+    cannot rank without vectors refuses rather than quietly answering with a different mode.
+    """
     from .full import search_bm25
 
+    if mode not in SEARCH_MODES:
+        raise StoreError(f"SEARCH_MODE: expected {' | '.join(SEARCH_MODES)}. The lexical mode is the stored BM25 path.")
+
+    if mode == "lexical":
+        try:
+            hits = search_bm25(stored_chunks(root), query, limit=limit)
+        except StoreError:
+            raise
+        except Exception as exc:
+            raise _prototype_error(exc) from exc
+        return {"mode": "lexical", "method": "bm25", "hits": hits, "retrieval": None}
+
+    if not 1 <= limit <= 50:
+        raise StoreError("RESULT_LIMIT: limit must be 1..50.")
+
+    connection = _connect(root)
     try:
-        hits = search_bm25(stored_chunks(root), query, limit=limit)
+        entries = _current_chunks_with_vectors(connection)
+    finally:
+        connection.close()
+
+    chunks = [chunk for chunk, _row in entries]
+    usable: list[tuple[object, list[float]]] = []
+    stale_reasons: dict[str, int] = {}
+    without_vector = 0
+    stored_rows = 0
+    for chunk, row in entries:
+        if row is None:
+            without_vector += 1
+            continue
+        stored_rows += 1
+        reason = _vector_row_state(row, chunk.text_sha256)
+        if reason is not None:
+            stale_reasons[reason] = stale_reasons.get(reason, 0) + 1
+            continue
+        try:
+            vector = vectors.decode_vector(row["vector"])
+        except vectors.VectorError:
+            stale_reasons["encoding"] = stale_reasons.get("encoding", 0) + 1
+            continue
+        usable.append((chunk, vector))
+
+    if not stored_rows and chunks:
+        raise StoreError(
+            f"VECTORS_MISSING: the index holds {len(chunks)} current chunks and no stored vectors, so the "
+            f"{mode} mode has nothing to score. Run embed_corpus: it builds the vectors from the chunk text "
+            f"already in the store (backend {vectors.BACKEND_ID}, {vectors.EMBEDDING_DIMENSIONS} dimensions, "
+            "no network, no model download). Lexical search on the same store is unchanged."
+        )
+    if not usable:
+        raise StoreError(
+            f"VECTOR_BACKEND_STALE: all {stored_rows} stored vectors fail the current backend check "
+            f"(expected backend {vectors.BACKEND_ID}, {vectors.EMBEDDING_DIMENSIONS} dimensions, and a match on "
+            f"the chunk text hash; refused reasons: {', '.join(sorted(stale_reasons))}). None of them is used. "
+            "Run embed_corpus to rebuild them, or store_maintenance with action='restore' to return a store "
+            "that matches this backend."
+        )
+
+    pool = min(MAX_FUSION_POOL, max(limit * 3, 20))
+    query_vector = vectors.embed_text(query)
+    vector_ranked = _rank_vectors(query_vector, usable, limit=pool) if not vectors.is_zero_vector(query_vector) else []
+    summary: dict[str, object] = {
+        "mode": mode,
+        "backend": vectors.BACKEND_ID,
+        "dimensions": vectors.EMBEDDING_DIMENSIONS,
+        "encoding": vectors.VECTOR_ENCODING,
+        "currentChunks": len(chunks),
+        "scoredChunks": len(usable),
+        "refusedStaleVectors": sum(stale_reasons.values()),
+        "staleVectorReasons": dict(sorted(stale_reasons.items())),
+        "chunksWithoutVector": without_vector,
+        "note": (
+            "A vector score here is a lexical-signature similarity produced by "
+            f"{vectors.BACKEND_ID}: shared word and character-shape weight, not a judgement that the "
+            "passage supports anything."
+        ),
+    }
+    if vectors.is_zero_vector(query_vector):
+        summary["queryNote"] = "The query carries no letter or digit, so it has no lexical signature; the vector ranker returned nothing."
+
+    if mode == "vector":
+        hit_class = _provenance_hit_class()
+        hits = [
+            hit_class(
+                score=round(score, 6),
+                chunk=chunk,
+                retrieval_method="vector",
+                retrieval={
+                    "mode": "vector",
+                    "lexicalRank": None,
+                    "lexicalScore": None,
+                    "vectorRank": rank,
+                    "vectorScore": round(score, 6),
+                    "fusedScore": None,
+                    "backend": vectors.BACKEND_ID,
+                },
+            )
+            for rank, (score, chunk) in enumerate(vector_ranked[:limit], start=1)
+        ]
+        summary["vectorCandidates"] = len(vector_ranked)
+        return {"mode": "vector", "method": "vector", "hits": hits, "retrieval": summary}
+
+    try:
+        lexical_ranked = search_bm25(chunks, query, limit=pool)
     except StoreError:
         raise
     except Exception as exc:
         raise _prototype_error(exc) from exc
-    return hits
+
+    candidates: dict[str, dict[str, object]] = {}
+    for rank, hit in enumerate(lexical_ranked, start=1):
+        candidates[hit.chunk.chunk_id] = {"chunk": hit.chunk, "lexicalRank": rank, "lexicalScore": hit.score}
+    for rank, (score, chunk) in enumerate(vector_ranked, start=1):
+        entry = candidates.setdefault(chunk.chunk_id, {"chunk": chunk})
+        entry["vectorRank"] = rank
+        entry["vectorScore"] = score
+
+    if not candidates:
+        summary["fusionRule"] = FUSION_RULE
+        summary["fusionWeights"] = dict(FUSION_WEIGHTS)
+        summary["reciprocalRankConstant"] = VECTOR_RRF_K
+        return {"mode": "hybrid", "method": "hybrid", "hits": [], "retrieval": summary}
+
+    highest_lexical = max((float(entry["lexicalScore"]) for entry in candidates.values() if "lexicalScore" in entry), default=0.0)
+    highest_vector = max((float(entry["vectorScore"]) for entry in candidates.values() if "vectorScore" in entry), default=0.0)
+    fused: list[tuple[float, object, dict[str, object]]] = []
+    for entry in candidates.values():
+        reciprocal = 0.0
+        if "lexicalRank" in entry:
+            reciprocal += 1.0 / (VECTOR_RRF_K + int(entry["lexicalRank"]))
+        if "vectorRank" in entry:
+            reciprocal += 1.0 / (VECTOR_RRF_K + int(entry["vectorRank"]))
+        reciprocal_norm = reciprocal * (VECTOR_RRF_K + 1) / 2.0
+        lexical_norm = (float(entry["lexicalScore"]) / highest_lexical) if "lexicalScore" in entry and highest_lexical > 0 else 0.0
+        vector_norm = (max(0.0, float(entry["vectorScore"])) / highest_vector) if "vectorScore" in entry and highest_vector > 0 else 0.0
+        score = (FUSION_WEIGHTS["reciprocalRankFusion"] * reciprocal_norm
+                 + FUSION_WEIGHTS["lexicalScore"] * lexical_norm
+                 + FUSION_WEIGHTS["vectorScore"] * vector_norm)
+        chunk = entry["chunk"]
+        provenance = {
+            "mode": "hybrid",
+            "lexicalRank": entry.get("lexicalRank"),
+            "lexicalScore": round(float(entry["lexicalScore"]), 6) if "lexicalScore" in entry else None,
+            "vectorRank": entry.get("vectorRank"),
+            "vectorScore": round(float(entry["vectorScore"]), 6) if "vectorScore" in entry else None,
+            "fusedScore": round(score, 6),
+            "backend": vectors.BACKEND_ID,
+        }
+        fused.append((round(score, 6), chunk, provenance))
+    fused.sort(key=lambda item: (-item[0], item[1].source_path, item[1].locator, item[1].chunk_id))
+    hit_class = _provenance_hit_class()
+    hits = [hit_class(score=score, chunk=chunk, retrieval_method="hybrid", retrieval=provenance) for score, chunk, provenance in fused[:limit]]
+    summary["fusionRule"] = FUSION_RULE
+    summary["fusionWeights"] = dict(FUSION_WEIGHTS)
+    summary["reciprocalRankConstant"] = VECTOR_RRF_K
+    summary["lexicalCandidates"] = len(lexical_ranked)
+    summary["vectorCandidates"] = len(vector_ranked)
+    summary["candidatePool"] = len(candidates)
+    return {"mode": "hybrid", "method": "hybrid", "hits": hits, "retrieval": summary}
 
 
 def get_chunks(root: Path, chunk_ids: list[str]) -> list[dict[str, object]]:
@@ -1173,6 +1684,7 @@ def write_claim(
         "evidenceLinked": linked["added"],
         "evidenceRemoved": linked["removed"],
         "sourceFilesModified": False,
+        "labState": refresh_lab_state(root, refreshed_by="claims_write"),
         "assessment": ASSESSMENT_NOTE,
     }
 
@@ -1301,6 +1813,109 @@ def export_claims(root: Path, claim_ids: list[str], *, include_stale: bool = Fal
     }
 
 
+LAB_STATE_RELATIVE_PATH = ".research-toolkit/lab-state.json"
+LAB_STATE_SCHEMA_VERSION = 2
+
+DERIVED_RECORD_NOTE = (
+    "Derived record: every value in this file was recomputed from "
+    f"{STORE_DIRECTORY}/{STORE_NAME} by the toolkit verb named in 'refreshedBy'. It is not a promise "
+    "made at setup and it is not a second source of truth — verify it with store_status, and if the two "
+    "disagree the store is the record."
+)
+
+
+def lab_state_record(root: Path, *, refreshed_by: str) -> dict[str, object]:
+    """Recompute the lab-state record from the store. Nothing here is remembered from an earlier call."""
+    from . import __version__
+
+    connection = _connect(root)
+    try:
+        tables = sorted(name for name in _table_names(connection) if not name.startswith("sqlite_"))
+        counts = {
+            "sources": connection.execute("SELECT COUNT(*) AS n FROM sources").fetchone()["n"],
+            "chunks": connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 1").fetchone()["n"],
+            "retainedChunks": connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 0").fetchone()["n"],
+            "claims": connection.execute("SELECT COUNT(*) AS n FROM claims").fetchone()["n"],
+            "claimEvidence": connection.execute("SELECT COUNT(*) AS n FROM claim_evidence").fetchone()["n"],
+            "indexRuns": connection.execute("SELECT COUNT(*) AS n FROM index_runs").fetchone()["n"],
+            "chunkVectors": connection.execute("SELECT COUNT(*) AS n FROM chunk_vectors").fetchone()["n"],
+        }
+        meta = {row["key"]: row["value"] for row in connection.execute("SELECT key, value FROM meta")}
+        vectors_state = _vector_counters(connection)
+    finally:
+        connection.close()
+    return {
+        "schemaVersion": LAB_STATE_SCHEMA_VERSION,
+        "derivedRecord": True,
+        "deriveNote": DERIVED_RECORD_NOTE,
+        "refreshedAt": _now(),
+        "refreshedBy": refreshed_by,
+        "profileId": "full",
+        "toolkitVersion": __version__,
+        "storePath": f"{STORE_DIRECTORY}/{STORE_NAME}",
+        "storeSchemaVersion": int(meta.get("schema_version", SCHEMA_VERSION)),
+        "storeCreatedAt": meta.get("created_at"),
+        "indexFingerprint": meta.get("index_fingerprint"),
+        "indexedAt": meta.get("indexed_at"),
+        "serviceMode": "local-stdio",
+        "tableCount": len(tables),
+        "tables": tables,
+        "counts": counts,
+        "vectorSearch": vectors_state,
+        "externalDatabases": "not-installed",
+    }
+
+
+def refresh_lab_state(root: Path, *, refreshed_by: str) -> dict[str, object]:
+    """Rewrite ``.research-toolkit/lab-state.json`` from the store, after a verb changed the store.
+
+    The write goes through the same containment policy as every other toolkit write, so a linked or
+    junctioned ``.research-toolkit`` is refused rather than followed. A failure here is reported as
+    the failure of the verb's reporting step, never swallowed: the store write already happened, and
+    the operator has to be told the derived record did not land.
+    """
+    state = lab_state_record(root, refreshed_by=refreshed_by)
+    root_path = Path(root).expanduser().resolve(strict=True)
+    target = contained_write_path(root_path, LAB_STATE_RELATIVE_PATH)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target = contained_write_path(root_path, LAB_STATE_RELATIVE_PATH)
+    target.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return {
+        "path": LAB_STATE_RELATIVE_PATH,
+        "refreshedAt": state["refreshedAt"],
+        "refreshedBy": refreshed_by,
+        "counts": state["counts"],
+        "vectorSearchState": state["vectorSearch"]["state"],
+    }
+
+
+def _refresh_lab_state_or_report_block(root: Path, *, refreshed_by: str) -> dict[str, object]:
+    """Re-derive the lab-state record, or report why this build cannot read the store yet.
+
+    A backup or an activated restore may involve a store on an older schema — 0.3.6's guarantee is that
+    a 0.3.8 store is backable up before any migration runs, and that an activated restore is the backup
+    rather than the post-backup state. This build must not migrate such a store unasked, and a store it
+    cannot read has no honest counters to derive: the receipt names that instead of writing numbers it
+    did not measure.
+    """
+    try:
+        return refresh_lab_state(root, refreshed_by=refreshed_by)
+    except StoreError as exc:
+        code, _message = _code_of(str(exc))
+        if code not in {"STORE_SCHEMA_UPGRADE_REQUIRED", "STORE_SCHEMA_UNKNOWN", "STORE_SCHEMA_UNSUPPORTED"}:
+            raise
+        return {
+            "path": LAB_STATE_RELATIVE_PATH,
+            "refreshed": False,
+            "reason": code,
+            "message": (
+                "The store involved is on a schema this build must migrate before it can be read, so the "
+                "derived record was not rewritten with counters it did not measure."
+            ),
+            "nextAction": "Run the corpus index and record store step (research-stack init-lab) to migrate the store; the next store verb re-derives the record.",
+        }
+
+
 def reindex_preview(root: Path, relative_paths: list[str]) -> dict[str, object]:
     """Show what an index run would change, without creating or writing anything.
 
@@ -1389,7 +2004,7 @@ def _snapshot(source: Path, destination: Path) -> dict[str, object]:
         # really has is what makes `backup` work on a 0.3.8 store, before any migration has run.
         existing = _table_names(destination_connection)
         counts = {}
-        for table in ("sources", "chunks", "claims", "claim_evidence", "index_runs"):
+        for table in ("sources", "chunks", "claims", "claim_evidence", "index_runs", "chunk_vectors"):
             counts[table] = destination_connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] if table in existing else 0
     except sqlite3.Error as exc:
         raise _translate(exc) from exc
@@ -1429,7 +2044,7 @@ def maintenance(root: Path, action: str, *, confirm: bool = False, backup_path: 
         except StoreError:
             target.unlink(missing_ok=True)
             raise
-        return {"action": "backup", "store": str(path), "backup": str(target), "writeMode": "new-file-only", "consistentSnapshot": True, **report}
+        return {"action": "backup", "store": str(path), "backup": str(target), "writeMode": "new-file-only", "consistentSnapshot": True, "labState": _refresh_lab_state_or_report_block(root, refreshed_by="store_maintenance:backup"), **report}
     if action == "restore":
         if not backup_path:
             raise StoreError("RESTORE_SOURCE_REQUIRED: pass the backup file to restore from.")
@@ -1458,6 +2073,7 @@ def maintenance(root: Path, action: str, *, confirm: bool = False, backup_path: 
             raise
         candidate.unlink(missing_ok=True)
         report.update({"activated": True, "stagedOnly": False, "previousStorePreserved": str(preserved), "activatedStore": activated,
+                       "labState": _refresh_lab_state_or_report_block(root, refreshed_by="store_maintenance:restore"),
                        "nextAction": "Verify the restored store with store_maintenance action='status'."})
         return report
     if not confirm:
@@ -1473,4 +2089,4 @@ def maintenance(root: Path, action: str, *, confirm: bool = False, backup_path: 
         raise _translate(exc) from exc
     finally:
         connection.close()
-    return {"action": "vacuum", "store": str(path), "chunksBefore": before, "retiredChunksBefore": retired, "collectedUnreferencedChunks": collected, "bytes": path.stat().st_size, "confirmed": True}
+    return {"action": "vacuum", "store": str(path), "chunksBefore": before, "retiredChunksBefore": retired, "collectedUnreferencedChunks": collected, "bytes": path.stat().st_size, "confirmed": True, "labState": refresh_lab_state(root, refreshed_by="store_maintenance:vacuum")}

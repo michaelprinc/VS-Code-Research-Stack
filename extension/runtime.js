@@ -213,12 +213,26 @@ async function rollbackRuntime(vscode, context, folder, version, services = {}) 
   if (candidate.active) throw new Error(`Runtime ${version} is already the active one.`);
   const python = path.join(candidate.folder, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
   if (!(await fs.stat(python).catch(() => null))) throw new Error(`Runtime ${version} has no interpreter in this workspace. Run Set up package components instead.`);
+  // F-01, closed 2026-11-17: the check script is the one this window installed, the interpreter is the
+  // candidate's. When those are different releases the proof is weaker than a fresh setup's — it shows
+  // the older interpreter still passes *this* release's reading check, not that the pair was verified
+  // together. 0.3.13 ran that check and reported neither version. Both are reported now, and the
+  // difference is stated in words the operator can act on.
+  const checkerVersion = (context.extension && context.extension.packageJSON && context.extension.packageJSON.version) || WORKER_VERSION;
   const check = await functionalCheck(context, { worker: candidate.folder, python, version: candidate.version }, folder, undefined, services);
   const pointerPath = await activateRuntime(discovered.managed, {
     version: candidate.version, folder: candidate.folder, previousVersion: discovered.active && discovered.active.version,
     reason: "rollback-verified",
   });
-  return { version: candidate.version, folder: candidate.folder, pointer: pointerPath, check, previousVersion: discovered.active && discovered.active.version || null };
+  const checkerMatchesRuntime = checkerVersion === candidate.version;
+  return {
+    version: candidate.version, folder: candidate.folder, pointer: pointerPath, check,
+    previousVersion: discovered.active && discovered.active.version || null,
+    checkerVersion, checkerMatchesRuntime,
+    verificationNote: checkerMatchesRuntime
+      ? `The reading check ran the ${checkerVersion} checker against the ${candidate.version} runtime: one release, the pair this toolkit verifies as a pair.`
+      : `The reading check ran the ${checkerVersion} checker against the ${candidate.version} runtime. The checker is the release this window installed, not the release that installed that runtime: this proves the older interpreter still passes this release's reading check, not that the checker and the runtime were verified together.`,
+  };
 }
 
 async function functionalCheck(context, runtime, folder, document, services = {}) {

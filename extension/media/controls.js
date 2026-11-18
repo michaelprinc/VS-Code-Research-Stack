@@ -16,6 +16,9 @@
   let installation;
   let recentPresets = [];
   let presetScope = "profile";
+  // 0.3.14 (DD15-07): set when the preset in force is retired. Empty for every live preset, so no panel
+  // text about a normal preset changes.
+  let presetRetirement = "";
 
   const tokens = (value) => `≈${Math.round(value / 100) / 10}k tokens`;
   const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
@@ -70,8 +73,25 @@
     const note = document.getElementById("preset-note");
     box.replaceChildren();
     const preset = presetById(activePresetId);
-    if (!preset) { note.textContent = ""; return; }
+    if (!preset) {
+      // 0.3.14 (DD15-07): the preset in force is retired, so it has no card in the list above and no estimate
+      // to show — but the controller still resolves it, on purpose, so a preference saved in 0.3.13 does not
+      // silently become someone else's surface. An empty section here would read as a broken panel, so the
+      // retirement and the replacements are stated instead. Nothing is claimed about the retired preset's
+      // third-party tools: 0.3.14 cannot name them, which is why it was retired.
+      if (!presetRetirement) { note.textContent = ""; note.className = "check-disclosure"; return; }
+      note.textContent = presetRetirement;
+      note.className = "check-disclosure level-watch";
+      document.getElementById("saved-preset").textContent = `Saved preset "${activePresetId}" is retired in 0.3.14 and is no longer offered · choose one of the presets above to replace it`;
+      return;
+    }
     const estimate = preset.estimate;
+    // HR-11 (0.3.14): a preset that names its third-party tools has a count that *is* the length of its own
+    // list. Calling that a vendor toolset estimate under-claims what the preset states; calling an unnamed
+    // estimate a named list over-claims it. Neither wording claims the server was started or measured here,
+    // and a named list is still vendor-published until the operator captures tools/list on their own host.
+    const entries = preset.thirdParty || [];
+    const namedSurface = entries.length > 0 && entries.every((item) => Array.isArray(item.tools) && item.tools.length === item.toolsEstimate);
     const grid = document.createElement("dl");
     grid.className = "estimate";
     const row = (term, value, tip) => {
@@ -84,8 +104,10 @@
     };
     row("Goal", preset.goal, "The preset enables the tools that serve this goal, whatever MCP server they come from.");
     row("Toolkit tools", plural(estimate.toolkitTools, "tool"), "Research Stack tools enabled by this goal.");
-    row("External tools you configure", estimate.thirdPartyTools ? plural(estimate.thirdPartyTools, "tool") : "None",
-      "Estimated from the published toolsets of servers such as GitHub or Playwright. The toolkit does not start or measure those servers.");
+    row("External tools you configure", estimate.thirdPartyTools ? plural(estimate.thirdPartyTools, namedSurface ? "named tool" : "tool") : "None",
+      namedSurface
+        ? "The exact tool names this preset selects, listed in the preset. The names are published by the server's vendor and this toolkit neither starts nor measures that server, so the count is a name-list count until you confirm it with tools/list."
+        : "Estimated from the published toolsets of servers such as GitHub or Playwright. The toolkit does not start or measure those servers.");
     row("Total tools offered", `${estimate.totalTools} of ${budget.clientCeiling}`,
       "Copilot agent mode can enable at most 128 tools at once; a wider surface is refused rather than trimmed.");
     row("Headroom under the ceiling", plural(estimate.headroom, "tool"), "Deliberate headroom so new toolkit tools cannot push the surface over the client ceiling.");
@@ -93,8 +115,8 @@
       estimate.measured
         ? "Measured from the installed worker's real tools/list schemas (name + title + description + input schema, characters ÷ 4, plus 40 tokens of framing per tool)."
         : `Estimated at ${budget.vendorTokensPerTool} tokens per tool definition. Run Set up package components to measure the real schemas.`);
-    row("Basis", estimate.measured ? "Measured toolkit schemas + vendor estimates for external servers" : "Vendor estimates only (no measured receipt yet)",
-      "The measured part comes from the setup receipt written by the real MCP reading check.");
+    row("Basis", `${estimate.measured ? "Measured toolkit schemas" : "Toolkit part at the vendor estimate (no measured receipt yet)"} + ${namedSurface ? "the exact tool names this preset selects" : "vendor estimates for external servers"}`,
+      "The measured part comes from the setup receipt written by the real MCP reading check. The external part is either this preset's own named tool list or a vendor toolset estimate — the row above says which, and neither is a measurement of a running server.");
     box.append(grid);
     if (toolSurface && toolSurface.servers) {
       row("Installed worker surface", `${toolSurface.toolCount} tools across ${toolSurface.servers.length} servers · ${tokens(toolSurface.tokensEstimate)}`,
@@ -105,7 +127,7 @@
       external.className = "estimate-list";
       for (const item of preset.thirdParty || []) {
         const entry = document.createElement("li");
-        entry.textContent = `${item.label}: about ${item.toolsEstimate} tools`;
+        entry.textContent = `${item.label}: ${(Array.isArray(item.tools) && item.tools.length === item.toolsEstimate) ? `${item.tools.length} tools named by this preset` : `about ${item.toolsEstimate} tools`}`;
         entry.title = item.note;
         external.append(entry);
       }
@@ -627,6 +649,7 @@
       savedPresetSetting = message.toolsPresetSetting;
       appliedPresetId = message.appliedToolsPreset;
       activePresetId = message.selectedToolsPreset;
+      presetRetirement = message.presetRetirement || "";
       document.getElementById("setup-progress").textContent = message.progressMessage || "";
       const reading = message.readingResult || inventory.readingCheck;
       const readingElement = document.getElementById("reading-result"); readingElement.replaceChildren();

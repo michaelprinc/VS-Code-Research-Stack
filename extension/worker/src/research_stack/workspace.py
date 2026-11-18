@@ -8,7 +8,7 @@ from pathlib import Path
 
 from . import __version__
 from .paths import contained_write_path
-from .records import init_store
+from .records import init_store, refresh_lab_state
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "templates" / "basic-workspace"
 
@@ -64,34 +64,20 @@ def initialize_workspace(target: Path) -> dict[str, object]:
 
 
 def init_lab_workspace(target: Path) -> dict[str, object]:
-    """Initialise the Full-package workspace store and write an honest lab-state record.
+    """Initialise the Full-package workspace store and write the derived lab-state record.
 
     The shipped Full slice has no HTTP index service, so it does not write a
-    ``full-profile.json`` instance claiming a loopback endpoint. The lab-state file
-    records only what actually exists in this workspace.
+    ``full-profile.json`` instance claiming a loopback endpoint. What it does write,
+    ``.research-toolkit/lab-state.json``, is a **derived** record (HR-05): every counter and the
+    retrieval state are read back out of the SQLite store by :func:`records.refresh_lab_state`, and
+    every store-writing verb writes the file again. The record says so itself, and names
+    ``store_status`` as the way to check it.
     """
     target = target.expanduser().resolve()
     if not target.is_dir():
         raise ValueError("WORKSPACE_NOT_FOUND: select an existing research workspace directory.")
     store = init_store(target)
-    state_path = contained_write_path(target, ".research-toolkit/lab-state.json")
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    state_path = contained_write_path(target, ".research-toolkit/lab-state.json")
-    state = {
-        "schemaVersion": 1,
-        "profileId": "full",
-        "toolkitVersion": __version__,
-        "storePath": ".research-toolkit/store/research.sqlite3",
-        "storeSchemaVersion": store["schemaVersion"],
-        "tables": store["tables"],
-        "counts": store["counts"],
-        "preexisting": store["preexisting"],
-        "initialisedAt": store.get("createdAt"),
-        "serviceMode": "local-stdio",
-        "vectorSearch": "not-implemented",
-        "externalDatabases": "not-installed",
-    }
-    state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    state = refresh_lab_state(target, refreshed_by="initialize_workspace")
     return {
         "ok": True,
         "workspace": str(target),
@@ -101,5 +87,6 @@ def init_lab_workspace(target: Path) -> dict[str, object]:
         "tables": store["tables"],
         "counts": store["counts"],
         "preexisting": store["preexisting"],
-        "profile": str(state_path),
+        "profile": str(target / state["path"]),
+        "vectorSearch": state["vectorSearchState"],
     }

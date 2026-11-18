@@ -324,12 +324,20 @@ function offeredActions(entry, provider, { installationUnconfirmed = false } = {
   return ids.concat("reset").map((id) => [id, ACTION_LABELS[id]]);
 }
 
-function integrationViews(registry, { now, canProbe = true } = {}) {
+// The window this model falls back to when a caller hands in none. `integrationprobe.js` publishes the same
+// number as `PROBE_COOLDOWN_MS`, and a test in `credential-security.test.js` asserts the two agree: at run time
+// the controller passes the resolved `researchStack.integrationCooldownSeconds`, so the card's countdown, the
+// refusal a press gets and the bound the worker call runs under all come from that one resolved value (HR-30).
+const PROBE_COOLDOWN_MS = 10_000;
+
+function integrationViews(registry, { now, canProbe = true, cooldownMs = PROBE_COOLDOWN_MS } = {}) {
   const base = registry?.providers ? registry : emptyRegistry();
   const instant = epoch(now);
   // The check budget belongs to the record, not to a window, so the card can name the wait before the press.
   // `probeCooldown` gets the caller's instant only: with no clock handed in the wait is 0 — this module owns none.
-  const probeWaitMs = instant === null ? 0 : probeCooldown({ lastProbeAt: base.lastProbeAt, now: instant }).waitMs;
+  // The window is the caller's too: a card that counts down a different number from the one the press is refused
+  // with is the drift HR-30 names.
+  const probeWaitMs = instant === null ? 0 : probeCooldown({ lastProbeAt: base.lastProbeAt, now: instant, cooldownMs }).waitMs;
   return PROVIDERS.map((provider) => {
     const entry = base.providers[provider] || structuredClone(DEFAULTS[provider]);
     const consentRequired = needsConsent(base, provider);
@@ -388,8 +396,9 @@ function integrationViews(registry, { now, canProbe = true } = {}) {
 }
 
 /** One probe per window across every window of the profile, so the cooldown comes from storage, not memory (DD11-09).
- *  The default is the window `integrationprobe.js` publishes; a test asserts the two agree. */
-function probeCooldown({ lastProbeAt, now = Date.now(), cooldownMs = 10000 } = {}) {
+ *  The default is the window this module publishes above, which a test pins to the one `integrationprobe.js`
+ *  publishes; the controller hands in the resolved setting whenever the operator has one. */
+function probeCooldown({ lastProbeAt, now = Date.now(), cooldownMs = PROBE_COOLDOWN_MS } = {}) {
   const started = epoch(lastProbeAt);
   const instant = epoch(now);
   if (started === null || started <= 0 || instant === null) return { allowed: true, waitMs: 0 };
@@ -399,6 +408,7 @@ function probeCooldown({ lastProbeAt, now = Date.now(), cooldownMs = 10000 } = {
 
 module.exports = {
   SCHEMA_VERSION, PROVIDERS, DIMENSIONS, LICENSE_REFERENCE, LICENSE_URL, API_LICENSE_URL, KEY_DECISIONS, ZOTERO_DOWNLOAD_URL,
+  PROBE_COOLDOWN_MS,
   ZOTERO_LOCAL_API_SETTING, API_KEY_APPLICATION_URL, MACHINE_FACT_MAX_AGE_MS, MACHINE_FACT_DAYS, FACT_CLASSIFICATIONS,
   INSTALLATION_SOURCES, FACT_FOUND, NAMES, PROBE_BLOCKED_SENTENCE, emptyRegistry, readRegistry, authorizeSemanticScholar,
   beginOnboarding, skipOnboarding, revokeIntegration, resetIntegration, setMode, setCredentialConfigured,

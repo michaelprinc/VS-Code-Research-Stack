@@ -14,6 +14,8 @@ const assert = require("node:assert/strict");
 const integrations = require("../integrations");
 const store = require("../integrationstore");
 const probe = require("../integrationprobe");
+// HR-30 is a claim about the shipped settings, so the manifest an operator reads is part of what is pinned.
+const manifest = require("../package.json");
 const { makeHarness } = require("./harness");
 
 const AT = "2026-11-08T14:00:00.000Z";
@@ -137,9 +139,29 @@ test("the probe boundary builds one reviewed worker call and refuses an unknown 
   assert.deepEqual(probe.probeArgv({ providers: ["semantic-scholar", "zotero", "semantic-scholar"] }), ["probe-integrations", "--providers", "semantic_scholar,zotero"], "in the order asked, de-duplicated, so one probe checks each service once");
   assert.deepEqual(probe.probeArgv({}), ["probe-integrations", "--providers", "zotero,semantic_scholar"], "asked for nothing, it probes exactly the two services this release knows");
   for (const provider of ["openalex", "ZOTERO", "", null, 7]) assert.throws(() => probe.probeArgv({ providers: [provider] }), TypeError, `${JSON.stringify(provider)} is refused before any command is built, so a typo cannot become a process call`);
-  assert.equal(probe.PROBE_COOLDOWN_MS, 10_000, "one probe per 10 seconds: enough that a panel refresh cannot hammer a live service, short enough that the operator's deliberate 'I have installed Zotero — check it now' is not refused because an automatic check spent the window");
-  assert.equal(integrations.probeCooldown({ lastProbeAt: Date.now(), now: Date.now() }).waitMs, probe.PROBE_COOLDOWN_MS, "and the model's own default is the window the probe module publishes, so the two halves cannot drift apart");
-  assert.equal(probe.PROBE_TIMEOUT_MS, 80_000, "and the call has a stated timeout (NF11-03), so a hung service cannot hold the panel open — and it is above the worker's own worst case, so a Zotero still loading its library is not killed mid-check");
+  // HR-30 (finding R15-04) renegotiates these three pins. 0.3.13 pinned 10_000 and 80_000 as literals while the
+  // manifest named no such setting, so the suite proved two numbers in a source file and the operator-facing
+  // claim — "the setting exists" — stayed unproven, which is exactly how the 0.3.13 report came to say the
+  // setting "does not exist". The literal is no longer the point: what has to stay true is that the bound the
+  // code runs under is the bound the manifest publishes, and that both halves (the probe module and the state
+  // model) read one number. The shipped values are still 10 s and 80 000 ms; they are pinned through the
+  // manifest now, so changing one half without the other fails here rather than drifting.
+  const settings = manifest.contributes.configuration.properties;
+  assert.equal(settings["researchStack.integrationCooldownSeconds"].default * 1000, probe.PROBE_COOLDOWN_MS, "one probe per published window: enough that a double press cannot hammer a live service, short enough that the operator's deliberate 'I have installed Zotero — check it now' is not refused because an automatic check spent the window");
+  assert.equal(integrations.PROBE_COOLDOWN_MS, probe.PROBE_COOLDOWN_MS, "the state model's own default is the window the probe module publishes, so the two halves cannot drift apart");
+  assert.equal(integrations.probeCooldown({ lastProbeAt: Date.now(), now: Date.now() }).waitMs, probe.PROBE_COOLDOWN_MS, "and the window a press is measured against is that same number, read from the model rather than repeated here");
+  assert.equal(settings["researchStack.integrationTimeoutMs"].default, probe.PROBE_TIMEOUT_MS, "the call has a stated timeout (NF11-03), so a hung service cannot hold the panel open — and the timeout the code uses is the timeout Settings offers");
+  assert.equal(settings["researchStack.integrationTimeoutMs"].minimum, probe.PROBE_TIMEOUT_MIN_MS, "the Settings floor is the clamp's floor");
+  assert.equal(settings["researchStack.integrationTimeoutMs"].maximum, probe.PROBE_TIMEOUT_MAX_MS, "and the Settings ceiling is the clamp's ceiling: the UI and the code state one range, not two");
+  assert.equal(settings["researchStack.integrationCooldownSeconds"].minimum, probe.PROBE_COOLDOWN_MIN_SECONDS, "the same for the check budget, in the unit the operator sets it in");
+  assert.equal(settings["researchStack.integrationCooldownSeconds"].maximum, probe.PROBE_COOLDOWN_MAX_SECONDS, "so a hand-edited settings.json cannot carry a range the clamp then contradicts");
+  // The bound is derived from the worker it bounds, and the derivation is the number's meaning: 34 s is the
+  // worker's Zotero worst case (5 + 5 + 12 + 12 — `src/research_stack/integrations.py` probe_zotero,
+  // `research.py` ZOTERO_ROOT_TIMEOUT_SECONDS and ZOTERO_LISTING_TIMEOUT_SECONDS), 35 s is the hosted side
+  // (`provider_budget.py` CALL_CEILING_MS 20 000 plus the one 15 s request already in flight when that ceiling
+  // is reached, `research.py` REQUEST_TIMEOUT_SECONDS). A bound under 69 s can cut one half off mid-check.
+  assert.ok(probe.PROBE_TIMEOUT_MS > 34_000 + 35_000, "the published bound is above the worker's own worst case, so a Zotero still loading its library is not killed mid-check");
+  assert.ok(probe.PROBE_TIMEOUT_MIN_MS > 34_000, "and even the lowest bound the clamp will accept is above the Zotero-only worst case — the case the second listing request exists for");
 
   const receipt = probe.interpretReceipt({ zotero: { outcome: "not-running", code: "ZOTERO_NO_ANSWER", installed: true }, semantic_scholar: { outcome: "rate-limited", code: "HTTP_429", retryAfter: "31 seconds" } });
   assert.deepEqual(Object.keys(receipt), ["zotero", "semanticScholar"], "the worker's underscore names become the host's camelCase names here, once: a caller that indexes the receipt by `semantic-scholar` gets nothing and silently records no verdict");
@@ -156,6 +178,54 @@ test("the probe boundary builds one reviewed worker call and refuses an unknown 
   assert.equal(probe.interpretReceipt(null).semanticScholar.outcome, "unreachable", "for both services, so neither is left claiming it was checked");
   assert.match(probe.describeProbeFailure("semantic-scholar", { outcome: "rate-limited", retryAfter: "31 seconds" }), /31 seconds/, "the failure sentence names the window the service asked for");
   assert.match(probe.describeProbeFailure("zotero", { outcome: "not-running" }), /Start it, then check again/, "and names the action the operator can take");
+});
+
+test("the two integration settings are clamped to the range the manifest states, and a clamp is said out loud (HR-30)", () => {
+  const defaults = probe.probeBounds({});
+  assert.deepEqual(defaults, { timeoutMs: probe.PROBE_TIMEOUT_MS, cooldownSeconds: probe.PROBE_COOLDOWN_MS / 1000, cooldownMs: probe.PROBE_COOLDOWN_MS, timeoutClamped: false, cooldownClamped: false, clamped: [] },
+    "an operator who set nothing gets the published bounds, and nothing is reported as clamped: a default nobody chose is not a correction, and a card that claimed it had corrected one would be lying about a setting that does not exist here");
+
+  const raised = probe.probeBounds({ integrationTimeoutMs: 150_000, integrationCooldownSeconds: 45 });
+  assert.equal(raised.timeoutMs, 150_000, "a value inside the range is the value the worker call runs under — the setting drives behaviour, it is not decoration beside a fixed number");
+  assert.deepEqual([raised.cooldownSeconds, raised.cooldownMs], [45, 45_000], "the budget is set in whole seconds and handed to the cooldown helper in milliseconds, converted in one place");
+  assert.deepEqual(raised.clamped, [], "and a value used as it was set is not reported as clamped");
+
+  // Below the floor the Toolkit would honour the setting only by killing the case the setting is about: a Zotero
+  // whose library is still loading, whose second listing request is the one that answers.
+  for (const value of [-1, 0, 1, 39_999]) {
+    const low = probe.probeBounds({ integrationTimeoutMs: value });
+    assert.equal(low.timeoutMs, probe.PROBE_TIMEOUT_MIN_MS, `${value} ms is refused: the clamp keeps the bound above the worker's Zotero-only worst case`);
+    assert.equal(low.timeoutClamped, true, `and ${value} ms is reported as clamped, never accepted quietly`);
+    assert.equal(low.clamped.length, 1, "one sentence per clamp");
+    assert.match(low.clamped[0], /researchStack\.integrationTimeoutMs/, "the sentence names the setting the operator has to open to fix it");
+    assert.match(low.clamped[0], new RegExp(`is ${value} ms`), "names what was set");
+    assert.match(low.clamped[0], new RegExp(`${probe.PROBE_TIMEOUT_MIN_MS} ms was used`), "and names what the check actually ran under");
+  }
+  for (const value of [300_001, 3_600_000]) {
+    const high = probe.probeBounds({ integrationTimeoutMs: value });
+    assert.equal(high.timeoutMs, probe.PROBE_TIMEOUT_MAX_MS, `${value} ms is refused: past the ceiling the Toolkit holds its window open on a check whose services are not answering`);
+    assert.equal(high.timeoutClamped, true, "and the replacement is stated");
+    assert.match(high.clamped[0], new RegExp(`above the ${probe.PROBE_TIMEOUT_MAX_MS} ms`), "naming the ceiling it exceeded");
+  }
+  // A settings.json is hand-editable, so a value that is not a finite number arrives: it falls back to the
+  // published bound and says it fell back. It never becomes 0, and 0 would be the worst possible reading.
+  for (const value of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, "80000", "fast", null, true, {}, [], 7n]) {
+    const broken = probe.probeBounds({ integrationTimeoutMs: value });
+    assert.equal(broken.timeoutMs, probe.PROBE_TIMEOUT_MS, `${typeof value === "bigint" ? "7n" : JSON.stringify(value) ?? String(value)} is not a number this release can use, so the published bound stands`);
+    assert.equal(broken.timeoutClamped, true, "and the fallback is reported, not silently applied");
+    assert.match(broken.clamped[0], /not a number this release can use/, "in words that say why the bound changed");
+  }
+  for (const [value, expected] of [[0, probe.PROBE_COOLDOWN_MIN_SECONDS], [1, probe.PROBE_COOLDOWN_MIN_SECONDS], [4, probe.PROBE_COOLDOWN_MIN_SECONDS], [301, probe.PROBE_COOLDOWN_MAX_SECONDS], [86_400, probe.PROBE_COOLDOWN_MAX_SECONDS]]) {
+    const budget = probe.probeBounds({ integrationCooldownSeconds: value });
+    assert.deepEqual([budget.cooldownSeconds, budget.cooldownMs], [expected, expected * 1000], `a ${value}-second check budget is used as ${expected} s, the range the manifest states`);
+    assert.equal(budget.cooldownClamped, true, "and the clamp is said, so a card counting down a different number from settings.json is explained rather than mysterious");
+    assert.match(budget.clamped[0], /researchStack\.integrationCooldownSeconds/, "naming the setting it came from");
+  }
+  assert.deepEqual([probe.probeBounds({ integrationCooldownSeconds: 7.4 }).cooldownMs, probe.probeBounds({ integrationCooldownSeconds: 7.6 }).cooldownMs], [7_000, 8_000], "fractional seconds are used as whole seconds, the unit every countdown and refusal is stated in");
+  assert.deepEqual(probe.probeBounds({ integrationTimeoutMs: 150_000, integrationCooldownSeconds: 0 }).clamped.map((sentence) => sentence.includes("integrationCooldownSeconds")), [true], "only the half that was out of range is reported: a clamp sentence per changed setting, and silence about the half the operator set correctly");
+  // The clamp is a pure function of the values handed to it: no editor object, no clock, no default pulled from
+  // a second source — which is what makes the manifest pins above the whole of the anti-drift evidence.
+  assert.equal(probe.probeBounds({ integrationTimeoutMs: 150_000 }).timeoutMs, probe.probeBounds({ integrationTimeoutMs: 150_000 }).timeoutMs, "the same setting read twice resolves to the same bound, so no caller sees a different number");
 });
 
 test("no module in this release can reach a socket, a process or the editor itself", () => {

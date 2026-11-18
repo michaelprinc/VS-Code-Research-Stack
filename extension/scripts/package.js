@@ -149,6 +149,9 @@ async function main() {
       // 0.3.11: the integration onboarding. Staged explicitly like every other shipped module, so
       // nothing reaches the artifact that this list did not name.
       "integrations.js", "integrationstore.js", "integrationprobe.js",
+      // 0.3.14 (HR-11, HR-12): the preset→Copilot selection module. `extension.js` requires it at
+      // activation, so a package that contributes the command without this module activates and fails.
+      "presetselect.js",
     ]) {
       fs.copyFileSync(path.join(projectRoot, file), path.join(stageRoot, file));
     }

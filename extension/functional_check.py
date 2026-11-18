@@ -28,12 +28,13 @@ TOOL_SCHEMA_OVERHEAD_TOKENS = 40
 SERVER_BUDGETS = {
     'research_stack.mcp_server': 5,
     'research_stack.recommended_server': 8,
-    'research_stack.lab_server': 10,
+    # 0.3.14: embed_corpus joins the record-store server (HR-01), so its measured budget moves 10 -> 11.
+    'research_stack.lab_server': 11,
 }
 EXPECTED_TOOLS = {
     'research_stack.mcp_server': {'read_document', 'read_text_source', 'search_local_text', 'write_docx', 'write_markdown'},
     'research_stack.recommended_server': {'check_citation', 'prepare_zotero_import', 'search_literature', 'zotero_library', 'zotero_write', 'search', 'zotero_collections', 'zotero_item'},
-    'research_stack.lab_server': {'claims_export', 'claims_read', 'claims_write', 'evidence_read', 'index_corpus',
+    'research_stack.lab_server': {'claims_export', 'claims_read', 'claims_write', 'embed_corpus', 'evidence_read', 'index_corpus',
                                   'search_corpus', 'store_maintenance', 'store_status', 'unindex_corpus', 'verify_sources'},
 }
 
@@ -108,7 +109,9 @@ async def lab_checks(client, root):
     if not exported.get('references') or exported['references'][0]['reference'] != 'notes.md' or len(exported['references'][0]['sha256']) != 64:
         raise ValueError('Claim export validation failed.')
     status = result_value(await client.call_tool('store_status', {}))
-    if status.get('action') != 'status' or not status.get('store') or status.get('schemaVersion') != 3:
+    # Schema 4 (0.3.14) is the store this build writes: schema 3 plus the chunk_vectors table. A store
+    # that reports 3 here would mean the check ran against a worker that never migrated it.
+    if status.get('action') != 'status' or not status.get('store') or status.get('schemaVersion') != 4:
         raise ValueError('Store status validation failed.')
     if status.get('freshness', {}).get('verified') != 1:
         raise ValueError('Store status does not report the freshness of the source it indexed.')
@@ -120,6 +123,25 @@ async def lab_checks(client, root):
     changed = result_value(await client.call_tool('verify_sources', {}))
     if changed.get('changed') != ['notes.md'] or changed.get('verified'):
         raise ValueError('A source that changed after indexing was not reported as changed.')
+    # 0.3.14 (HR-01, HR-02, HR-06): the retrieval modes are proven over the real MCP transport, not only
+    # in the Python suite. The vectors are computed from the chunk text the index already holds — no
+    # source is re-read here — a hybrid hit names both contributing rankers, and an unknown mode is a
+    # refusal that names the three accepted ones.
+    vectors = result_value(await client.call_tool('embed_corpus', {}))
+    # Indexing already wrote the vectors for the chunks it stored, so this call reuses them: what is
+    # proven here is that the current index is fully scoreable by the named backend, not that a row
+    # was rewritten.
+    if not vectors.get('after', {}).get('vectorCount') or vectors['after'].get('state') != 'ready':
+        raise ValueError('The stored index is not fully scoreable by the retrieval backend.')
+    hybrid = result_value(await client.call_tool('search_corpus', {'query': 'evidence provenance', 'mode': 'hybrid'}))
+    if not hybrid.get('hits') or hybrid['hits'][0].get('retrieval', {}).get('fusedScore') is None:
+        raise ValueError('Hybrid retrieval did not report both contributing rankers.')
+    vector_hits = result_value(await client.call_tool('search_corpus', {'query': 'evidence provenance', 'mode': 'vector'}))
+    if not vector_hits.get('hits') or not vector_hits['hits'][0].get('retrieval', {}).get('vectorScore'):
+        raise ValueError('Vector retrieval did not report its own score.')
+    unknown_mode = result_value(await client.call_tool('search_corpus', {'query': 'evidence', 'mode': 'semantic'}))
+    if unknown_mode.get('resultState') != 'error' or 'SEARCH_MODE' not in json.dumps(unknown_mode):
+        raise ValueError('An unknown retrieval mode must be refused with the modes the store answers in.')
     unconfirmed = result_value(await client.call_tool('store_maintenance', {'action': 'vacuum'}))
     if unconfirmed.get('resultState') != 'error' or 'CONFIRM_REQUIRED' not in json.dumps(unconfirmed):
         raise ValueError('Store maintenance confirmation rule not enforced.')
@@ -138,7 +160,8 @@ async def lab_checks(client, root):
         raise ValueError('Stored claim evidence became unresolvable after re-indexing.')
     return {'chunksIndexed': indexed['chunksStored'], 'claimId': claim_id, 'indexFingerprint': indexed['indexFingerprint'],
             'backupCreated': True, 'evidenceResolved': True, 'claimsExported': True, 'evidenceRetainedAfterUnindex': True,
-            'freshnessVerified': True, 'changedSourceDetected': True}
+            'freshnessVerified': True, 'changedSourceDetected': True,
+            'vectorsBuilt': vectors['after']['vectorCount'], 'hybridRetrieval': True, 'retrievalModesRefused': True}
 
 
 async def smoke():
@@ -216,7 +239,7 @@ async def smoke():
             'tokensEstimate': sum(item['tokensEstimate'] for item in servers)}
         return {'ok': True, 'pdfRead': True, 'docxRead': True, 'sourceHashesAndLocators': True,
             'markdownWrite': True, 'docxWrite': True, 'lexicalSearch': True, 'researchAdapter': True,
-            'corpusIndex': True, 'recordStore': True, 'toolAnnotations': True, 'toolCacheHints': True,
+            'corpusIndex': True, 'recordStore': True, 'vectorRetrieval': True, 'toolAnnotations': True, 'toolCacheHints': True,
             'lab': lab, 'tools': tools, 'researchTools': research_tools, 'labTools': lab_tools,
             'toolSurface': surface, 'externalProvidersChecked': False}
 

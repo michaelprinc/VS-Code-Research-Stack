@@ -17,7 +17,7 @@ Record optional capability selections before running tests. A disabled or creden
 - [x] M3-04: Record DuckDB ownership/concurrency/provenance candidate and ADR-008; data worker/evidence tests remain pending.
 - [x] M3-07: Record opt-in, provider-specific browser/connector boundary and ADR-011; no capability selected or validated.
 - [ ] M3-04/M3-08: Approve cross-store journal, backup consistency and migration/reindex contracts.
-- [x] M3-04/M3-05: Implement dependency-free Markdown source/chunk identity and deterministic BM25 prototype (`src/research_stack/full.py`); persistent/vector implementation remains pending.
+- [x] M3-04/M3-05: Implement dependency-free Markdown source/chunk identity and deterministic BM25 prototype (`src/research_stack/full.py`); persistent/vector implementation remains pending. *(Half of this line changed in 0.3.14, 17 November 2026: the record store now keeps persistent retrieval vectors — `chunk_vectors` in schema 4, backend `rsk-hashing-v1`, 256 dimensions, standard library only, `embed_corpus` to build them, `search_corpus` answering `lexical | vector | hybrid` in `src/research_stack/records.py`. What remains pending is this plan's own route: a revision-pinned CPU embedding model, Qdrant, DuckDB, the Research-RAG MCP, benchmarked retrieval quality against the frozen targets above, and the cross-store journal and reindex contracts. `qdrant-local-service`, `cpu-embedding-runtime-and-model` and `duckdb-research-record-store` are still `kind: "planned"` in `extension/components.json`, and G3 has not passed.)*
 
 ## B. Planned local service/model installation
 

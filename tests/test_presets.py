@@ -70,7 +70,40 @@ def test_no_preset_exceeds_the_client_ceiling_and_the_widest_uses_the_budget():
         assert total <= ceiling, f"{preset['id']}: {total} tools"
     widest = max(REGISTRY['presets'], key=lambda item: len(item['tools']) + sum(x['toolsEstimate'] for x in item['thirdParty']))
     assert len(widest['tools']) + sum(x['toolsEstimate'] for x in widest['thirdParty']) > REGISTRY['budget']['accuracyBand']
-    assert widest['id'] == 'research-lab-max'
+    assert widest['id'] == 'research-max-github-full', "0.3.14: the widest surface is the full GitHub max preset, not an estimate-shaped lab preset"
+    assert len(widest['tools']) + sum(x['toolsEstimate'] for x in widest['thirdParty']) == REGISTRY['budget']['clientCeiling'] - REGISTRY['budget']['minimumHeadroom'], \
+        "and it sits exactly on the headroom rule: 16 toolkit verbs + 92 named GitHub tools = 108 of 128"
+
+
+def test_a_third_party_entry_names_every_tool_it_counts():
+    """HR-11: a preset may not report a third-party number it cannot name the tools of.
+
+    0.3.13 carried `github-default: 52`, `playwright-core: 24` and `zotero-community: 15` — counts with
+    no tool list behind them, which the phase-15 research map shows to be wrong as well (45 names for
+    the default toolsets, 27 read-only). 0.3.14 allows only entries that name the tools, with the count
+    derived from that list, so a preset cannot claim more tools than it selects.
+    """
+    for preset in REGISTRY['presets']:
+        for entry in preset['thirdParty']:
+            assert isinstance(entry['tools'], list) and entry['tools'], f"{preset['id']}: {entry['id']} names no tools"
+            assert entry['toolsEstimate'] == len(entry['tools']), f"{preset['id']}: {entry['id']} counts {entry['toolsEstimate']} but names {len(entry['tools'])}"
+            assert len(set(entry['tools'])) == len(entry['tools']), f"{preset['id']}: {entry['id']} names a tool twice"
+            assert all(name == name.strip() and ' ' not in name for name in entry['tools']), f"{preset['id']}: {entry['id']} has a name that is not a tool name"
+            assert entry['note'] and len(entry['note']) > 40, f"{preset['id']}: {entry['id']} states no basis"
+
+
+def test_the_retired_presets_stay_resolvable_and_carry_no_unnamed_surface():
+    """DD15-07: a saved 0.3.13 preference must resolve to a stated retirement, not to a silent fallback."""
+    retired = [item for item in REGISTRY['presets'] if item.get('retired')]
+    assert {item['id'] for item in retired} == {'research-lab', 'research-lab-max'}
+    for item in retired:
+        assert item['thirdParty'] == [], f"{item['id']}: a retired preset may not keep an unnamed surface"
+        assert item['successor'] and all(name in {preset['id'] for preset in REGISTRY['presets']} for name in item['successor']), \
+            f"{item['id']}: a retirement must name presets that actually exist"
+        assert 'retired' in item['label'].lower(), f"{item['id']}: the label says what it is"
+        # Still registered in the worker, so an existing MCP configuration keeps working unchanged.
+        assert set(enabled_tools(item['id'])) == set(item['tools'])
+    assert all(not item.get('retired') or not item['defaultFor'] for item in REGISTRY['presets'])
 
 
 def test_missing_environment_keeps_the_previous_full_behaviour():
@@ -134,14 +167,25 @@ def test_every_shipped_tool_is_reachable_by_some_preset_and_has_a_title(monkeypa
         assert 3 < len(title) <= 64
 
 
-def test_the_corpus_goals_are_the_only_presets_that_enable_record_store_tools():
+def test_the_document_goals_never_enable_record_store_tools_and_the_store_goals_do():
+    """Renegotiated in 0.3.14 (R15-01). 0.3.13 could claim "only the corpus goals touch the store"
+    while its widest preset — `research-lab-max`, 100 tools — carried not one store verb. The rule is
+    now stated the other way round: the goals that are about a single document or a citation must not
+    touch the store, and every wide goal must."""
     for preset in ('read-and-cite', 'find-in-notes', 'verify-citations', 'zotero-handoff', 'research-core', 'research-lab', 'research-lab-max'):
         assert not (enabled_tools(preset) & LAB_TOOLS), f'{preset} must not start the corpus tools'
     assert enabled_tools('corpus-lab') == LAB_TOOLS | frozenset({'read_text_source'})
     workflow = enabled_tools('research-workflow')
-    assert workflow & LAB_TOOLS == frozenset({'index_corpus', 'search_corpus', 'evidence_read', 'claims_read', 'claims_write'}), \
-        'the Full workflow gets the journey verbs, not the destructive maintenance verbs'
+    assert workflow & LAB_TOOLS == frozenset({
+        'index_corpus', 'embed_corpus', 'search_corpus', 'evidence_read', 'verify_sources',
+        'claims_read', 'claims_write', 'claims_export', 'store_status',
+    }), 'the Full workflow gets the journey verbs up to the export and the freshness check, not the destructive pair'
     assert 'store_maintenance' not in workflow and 'unindex_corpus' not in workflow
+    # The defect that opened this release: a wide preset with no store verb in it.
+    for preset in ('research-max-github-full', 'research-max-github-limited', 'research-max-no-github'):
+        assert {'index_corpus', 'embed_corpus', 'search_corpus', 'evidence_read', 'claims_read', 'claims_write'} <= enabled_tools(preset), preset
+    assert 'store_maintenance' not in enabled_tools('research-max-github-full') and 'store_maintenance' not in enabled_tools('research-max-github-limited')
+    assert 'search_local_text' not in enabled_tools('research-max-no-github') and 'store_maintenance' in enabled_tools('research-max-no-github')
     assert LAB_TOOLS <= ALL_TOOLS and not (LAB_TOOLS & (DOCUMENT_TOOLS | RESEARCH_TOOLS))
 
 

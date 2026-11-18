@@ -14,15 +14,39 @@ const integrations = require("./integrations");
 // 10 s, not 30 s (0.3.11 phase 13, J7): the automatic check that follows "Activate" used to spend a 30 s
 // budget, and the operator's deliberate "I have installed Zotero — check it now" was then refused. A press is
 // not a stampede. The window still stops double-presses and cross-window repeats; `integrations.js` publishes
-// the same number as its own default, and a test asserts the two agree.
+// the same number as its own default, and a test asserts the two agree. Since 0.3.14 this is a default, not a
+// law: `researchStack.integrationCooldownSeconds` moves it, and `probeBounds` is the only place that happens.
 const PROBE_COOLDOWN_MS = 10_000;
 // 80 s, not 20 s (0.3.11 phase 13). Zotero answers its local API only after the library has loaded, and its
 // own Connector allows 15 s for one request. The worker's Zotero stages are 5 + 5 + 12 + 12 (the retry) = 34 s
 // worst case; the hosted side is bounded by the budget module's wall-clock ceiling (20 s) plus the one request
 // already in flight when that ceiling is reached (15 s). This bound is above the sum of the two plus start-up.
 // It is a kill bound, not a promise that a check finishes: a check that runs this long is a check whose
-// services are not answering, and the receipt says so.
+// services are not answering, and the receipt says so. Since 0.3.14 it is the published default of
+// `researchStack.integrationTimeoutMs`; the clamp below is what keeps a value an operator set above that sum.
 const PROBE_TIMEOUT_MS = 80_000;
+// HR-30 (0.3.14, finding R15-04): a default with no stated range is a number an operator cannot safely
+// change, and the two settings `researchStack.integrationTimeoutMs` and `researchStack.integrationCooldownSeconds`
+// are now real settings. The range below is derived from the worker this call runs in, not invented here.
+// Timeout: the Zotero stages are 5 + 5 + 12 + 12 = 34 s of request time (`research.py` ZOTERO_ROOT_TIMEOUT_SECONDS
+// and ZOTERO_LISTING_TIMEOUT_SECONDS, read through `integrations.py` probe_zotero), the hosted side is the shared
+// budget's wall-clock ceiling `CALL_CEILING_MS = 20 000` plus the one 15 s request already in flight when that
+// ceiling is reached (`provider_budget.py` and `research.py` REQUEST_TIMEOUT_SECONDS) = 35 s. The published 80 s is
+// above 34 + 35 with room for the interpreter start-up and the receipt write. The floor is 40 s — above the 34 s a
+// Zotero-only check can spend, so the second listing, the one a library that is still loading makes the first
+// request pay for, is never cut off — with about 6 s of start-up. The ceiling is 300 s: past five minutes the check
+// is one whose services are not answering, and saying so is the Toolkit's job, not waiting longer.
+// Cooldown: the window is measured from the moment a finished check was recorded (`extension.js` writes `lastProbeAt`
+// after the worker answers), so its floor is about presses, not about request pacing — the worker's own
+// one-request-per-second floor (`research.py` MIN_REQUEST_INTERVAL_SECONDS) is a separate guard. 5 s is the shortest
+// window that still tells a double press or a press in a second window apart from a deliberate re-check; 300 s is
+// the longest countdown the card will name.
+// The manifest states the same four numbers to the Settings UI, and VS Code shows them without enforcing them on a
+// hand-edited settings.json — which is why `probeBounds` clamps when it reads them instead of trusting the manifest.
+const PROBE_TIMEOUT_MIN_MS = 40_000;
+const PROBE_TIMEOUT_MAX_MS = 300_000;
+const PROBE_COOLDOWN_MIN_SECONDS = 5;
+const PROBE_COOLDOWN_MAX_SECONDS = 300;
 // The worker names its providers with underscores; the host names them the way the panel does.
 const WORKER_IDS = { zotero: "zotero", "semantic-scholar": "semantic_scholar" };
 const OUTCOMES = ["ready", "not-installed", "not-running", "api-disabled", "rate-limited", "auth-required", "unreachable", "unknown"];
@@ -145,8 +169,43 @@ function describeProbeFailure(provider, probe) {
   return `${lines[report.outcome] || `${name}: the readiness worker reported "${report.outcome ?? "nothing"}", which this release does not understand.`}${report.outcome === "ready" ? "" : `${pause}${said}`}`;
 }
 
+/** One clamp, in one place (HR-30): what the operator set becomes what the callers use. `undefined` means the
+ *  operator set nothing, which is the published default and not a clamp. Anything else that is not a finite
+ *  number — a string, a boolean, NaN, an Infinity, a list — is replaced, and the replacement is *said*: `clamped`
+ *  holds one sentence per value the Toolkit changed, naming the setting, what was set and what was used, so a
+ *  panel or a log can show that the bound in force is not the one in settings.json. A value in range is used as
+ *  given, rounded to a whole unit; nothing here reads a setting, a clock or the editor. */
+function probeBounds({ integrationTimeoutMs, integrationCooldownSeconds } = {}) {
+  const described = (value) => {
+    if (value === null) return "nothing";
+    if (typeof value === "string") return `"${value.slice(0, 40)}"`;
+    if (typeof value === "number") return String(value);
+    if (Array.isArray(value)) return "a list";
+    if (typeof value === "object") return "an object";
+    return `a ${typeof value}`;
+  };
+  const bounded = ({ value, setting, unit, min, max, fallback }) => {
+    if (value === undefined) return { used: fallback, clamped: null };
+    const given = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
+    if (given === null) return { used: fallback, clamped: `${setting} is ${described(value)}, which is not a number this release can use, so the check ran under its published ${fallback}${unit}.` };
+    if (given < min) return { used: min, clamped: `${setting} is ${given}${unit}, below the ${min}${unit} the Toolkit will run a check at, so ${min}${unit} was used.` };
+    if (given > max) return { used: max, clamped: `${setting} is ${given}${unit}, above the ${max}${unit} the Toolkit will wait for a check, so ${max}${unit} was used.` };
+    return { used: given, clamped: null };
+  };
+  const timeout = bounded({ value: integrationTimeoutMs, setting: "researchStack.integrationTimeoutMs", unit: " ms", min: PROBE_TIMEOUT_MIN_MS, max: PROBE_TIMEOUT_MAX_MS, fallback: PROBE_TIMEOUT_MS });
+  const cooldown = bounded({ value: integrationCooldownSeconds, setting: "researchStack.integrationCooldownSeconds", unit: " seconds", min: PROBE_COOLDOWN_MIN_SECONDS, max: PROBE_COOLDOWN_MAX_SECONDS, fallback: PROBE_COOLDOWN_MS / 1000 });
+  // `cooldownMs` is what `integrations.probeCooldown` and the panel's countdown take; the seconds are the unit
+  // the operator set and the unit the sentence is written in. Both are returned so no caller re-derives one from the other.
+  return {
+    timeoutMs: timeout.used, cooldownSeconds: cooldown.used, cooldownMs: cooldown.used * 1000,
+    timeoutClamped: timeout.clamped !== null, cooldownClamped: cooldown.clamped !== null,
+    clamped: [timeout.clamped, cooldown.clamped].filter(Boolean),
+  };
+}
+
 module.exports = {
   PROBE_COOLDOWN_MS, PROBE_TIMEOUT_MS, FACT_PROVIDERS, MAX_FACTS_BYTES,
-  probeArgv, probeEnvironment, interpretReceipt, describeProbeFailure,
+  PROBE_TIMEOUT_MIN_MS, PROBE_TIMEOUT_MAX_MS, PROBE_COOLDOWN_MIN_SECONDS, PROBE_COOLDOWN_MAX_SECONDS,
+  probeArgv, probeEnvironment, interpretReceipt, describeProbeFailure, probeBounds,
   factsArgv, interpretFacts, factRejectionReason,
 };

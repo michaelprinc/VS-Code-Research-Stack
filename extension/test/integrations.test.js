@@ -12,8 +12,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const integrations = require("../integrations");
 // The check window belongs to the probe module. The model's own default has to agree with it, so the test reads
-// the published number instead of repeating it: the window can move without the suite going stale.
-const { PROBE_COOLDOWN_MS } = require("../integrationprobe");
+// the published number instead of repeating it: the window can move without the suite going stale. Since 0.3.14
+// the window is also a setting (HR-30), so the range and the clamp are read from the same export.
+const { PROBE_COOLDOWN_MS, PROBE_COOLDOWN_MIN_SECONDS, PROBE_COOLDOWN_MAX_SECONDS, probeBounds } = require("../integrationprobe");
 
 const AT = "2026-11-08T14:00:00.000Z";
 const LATER = "2026-11-08T14:05:00.000Z";
@@ -467,7 +468,7 @@ test("the Zotero card stops offering Activate once there is nothing left to acti
   assert.ok(offers(zoteroView(integrations.beginOnboarding(integrations.emptyRegistry(), "zotero", AT)), "activate"), "a guide left half-way is offered again");
   assert.ok(!offers(zoteroView(integrations.skipOnboarding(integrations.emptyRegistry(), "zotero", AT)), "activate"), "an operator who closed the guide is not pitched it again");
   const ready = zoteroView(integrations.recordProbe(integrations.emptyRegistry(), "zotero", { outcome: "ready", code: "OK", installed: true }, AT));
-  assert.ok(!offers(ready, "activate"), "a Zotero that answered is ready: pressing Activate would re-open the modal and spend the shared 30-second check budget on the button the operator did not mean to press");
+  assert.ok(!offers(ready, "activate"), "a Zotero that answered is ready: pressing Activate would re-open the modal and spend the shared check budget — `researchStack.integrationCooldownSeconds`, 10 s by default — on the button the operator did not mean to press");
   assert.ok(offers(ready, "check"), "and the button they meant to press is still offered");
   assert.ok(offers(zoteroView(integrations.recordProbe(integrations.emptyRegistry(), "zotero", { outcome: "not-running", code: "ZOTERO_NO_ANSWER", installed: true }, AT)), "activate"), "a Zotero that is there but quiet still has its guide open");
   const scholar = (registry) => integrations.integrationViews(registry, { now: Date.parse(AT) }).find((item) => item.id === "semantic-scholar");
@@ -501,6 +502,25 @@ test("the model says whether a check can run here at all, and how long the share
   assert.deepEqual(integrations.integrationViews(justChecked, { now: at + 1_000 }).map((view) => view.probeWaitMs), [remaining, remaining], "immediately after a check both cards name the remaining wait the cooldown helper itself computes — one budget, one number, because one press checks both services");
   assert.deepEqual(integrations.integrationViews(justChecked, { now: Date.parse(LATER) }).map((view) => view.probeWaitMs), [0, 0], "five minutes on, the budget has refreshed");
   assert.deepEqual(integrations.integrationViews(justChecked).map((view) => view.probeWaitMs), [0, 0], "a view built with no clock reports no wait rather than reading a clock this module does not own");
+});
+
+test("an operator-set check budget moves the card's countdown and the refusal together, never one of them (HR-30)", () => {
+  const at = Date.parse(AT);
+  const justChecked = integrations.recordProbe(integrations.emptyRegistry(), "zotero", { outcome: "ready", code: "OK", installed: true }, AT);
+  const defaultWait = integrations.probeCooldown({ lastProbeAt: justChecked.lastProbeAt, now: at + 1_000 }).waitMs;
+  const wide = probeBounds({ integrationCooldownSeconds: PROBE_COOLDOWN_MAX_SECONDS });
+  const narrow = probeBounds({ integrationCooldownSeconds: PROBE_COOLDOWN_MIN_SECONDS });
+  assert.ok(wide.cooldownMs > PROBE_COOLDOWN_MS && narrow.cooldownMs < PROBE_COOLDOWN_MS, "the range the release publishes straddles its default, so the setting can genuinely move the window in both directions");
+  // 0.3.13 kept the window in two places — the probe module's constant and this module's default — and the card
+  // counted down one while the press was refused by the other. These two assertions are the drift test: change
+  // one half and the card's number and the refusal's number stop agreeing.
+  const raised = integrations.integrationViews(justChecked, { now: at + 1_000, cooldownMs: wide.cooldownMs });
+  assert.deepEqual(raised.map((view) => view.probeWaitMs), [wide.cooldownMs - 1_000, wide.cooldownMs - 1_000], "with the widest window the release accepts, both cards count down that window — the card shows the resolved setting, not a literal this module carries");
+  assert.ok(raised[0].probeWaitMs > defaultWait, "and the wait the operator is shown grew by the same amount the press would be refused for");
+  const lowered = integrations.integrationViews(justChecked, { now: at + narrow.cooldownMs + 1_000, cooldownMs: narrow.cooldownMs });
+  assert.deepEqual(lowered.map((view) => view.probeWaitMs), [0, 0], "at the floor the card says the press is allowed as soon as the operator's own window has passed");
+  assert.equal(integrations.probeCooldown({ lastProbeAt: justChecked.lastProbeAt, now: at + narrow.cooldownMs + 1_000 }).allowed, false, "while the published default would still have refused the same press: the two cases differ only by the resolved setting, which is exactly the half-drift HR-30 forbids");
+  assert.deepEqual(integrations.integrationViews(justChecked, { now: at + 1_000 }).map((view) => view.probeWaitMs), [defaultWait, defaultWait], "and a caller that hands in no window gets the published default, so nothing moved for an operator who set nothing");
 });
 
 test("the panel accepts a result only for a request it asked for, bounds its pending ids, and never prints the word undefined (M3, M4, M5, M6)", () => {

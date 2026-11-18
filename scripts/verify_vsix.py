@@ -45,6 +45,11 @@ EXPECTED = {
     "extension/integrations.js",
     "extension/integrationstore.js",
     "extension/integrationprobe.js",
+    # 0.3.14: the preset → Copilot tool-selection module. `extension/extension.js` requires './presetselect',
+    # so a package that ships the command without the module that builds its text activates and then fails
+    # to load. It is pure text-in/text-out: no socket, no process, no filesystem, so it joins neither the
+    # reviewed network members nor the reviewed process-boundary members below.
+    "extension/presetselect.js",
     # 0.3.10: the Marketplace tile icon. vsce rejects an SVG icon outright and rejects a declared icon
     # that is not in the package, so the PNG is an audited member rather than a stray file.
     "extension/media/toolkit.png",
@@ -246,7 +251,28 @@ MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 # extension/package.json +75 (the files allowlist) and extension.vsixmanifest +170 (the licence and support assets
 # vsce records). Nothing was moved out and no reviewed file was dropped, so the ceiling is not lowered: it stays
 # 1 572 864 (1.5 MiB) — 78 791 bytes of headroom, 5.3 % of the payload.
-MAX_UNPACKED_BYTES = 1_572_864
+# 0.3.14 (phase 15: hybrid retrieval in the record store, three max presets whose external tools are named, the
+# bundle force-update with its archive, and the two integration settings) re-measures it a sixth time. Measured on the
+# artifact this tree builds: 121 members, 560 523 bytes packed, 1 707 234 bytes unpacked. Attribution, member by
+# member against the 0.3.13 artifact (119 members, 499 345 packed, 1 494 073 unpacked). Two new members:
+# extension/presetselect.js +24 697 (the pure preset → Copilot tool-selection module `extension/extension.js` now
+# requires) and extension/worker/src/research_stack/vectors.py +9 936 (the dependency-free retrieval backend the
+# worker now ships). The changed members: extension/bundles.js 32 954 → 84 217 (+51 263: the archive, its index and
+# log, and restore), extension/extension.js 126 315 → 157 355 (+31 040: four new commands and the preset surface),
+# extension/worker/src/research_stack/records.py 72 257 → 102 315 (+30 058: schema 4, the vector state and the fusion
+# ranking), extension/presets.json 12 149 → 25 975 (+13 826: the three max presets with their exact tool lists and the
+# two retired presets), extension/worker/README.md 22 172 → 33 053 (+10 881) with extension/readme.md 10 213 → 17 274
+# (+7 061) and extension/changelog.md 2 306 → 5 956 (+3 650) as the release text, extension/integrationprobe.js
+# 12 241 → 17 642 (+5 401: the two settings and their bounds), extension/guides/onboarding.md +4 914,
+# extension/guides/toolkit.md +2 040, extension/guides/research-corpus-index.md +1 107 and
+# extension/guides/cpu-embedding-runtime-and-model.md +1 261 (what the release actually says), extension/package.json
+# +3 554 (the new commands, settings and preset ids), extension/worker/src/research_stack/lab_server.py +3 172
+# (`embed_corpus` and the retrieval modes) and extension/media/controls.js +2 443; the rest of the growth is the
+# remaining guides and worker sources. Nothing was moved out of the package and no reviewed member was dropped, so the
+# ceiling is raised rather than the payload trimmed: 1 769 472 bytes (1.6875 MiB), which leaves 62 238 bytes of
+# headroom, 3.6 % of the payload. The root README carries no hash or byte figures: a hash cannot be written into a file
+# the hashed payload contains, so the figures live in `.agent/QUALITY_STATE.md` and T15-21 of the acceptance record.
+MAX_UNPACKED_BYTES = 1_769_472
 SENSITIVE_NAMES = re.compile(r"(^|/)(\.env(\.|$)|\.venv|node_modules|\.git|corpus|models?|secrets?)(/|$)", re.I)
 # The capability scan is about starting a process or opening a socket. A method call on an object
 # (`SOME_PATTERN.exec(text)` on a RegExp, which `extension/lockfile.js` uses to read a version) is

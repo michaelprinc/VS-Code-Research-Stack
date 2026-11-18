@@ -1,4 +1,4 @@
-"""The Full package MCP surface: ten corpus/record verbs with separated reads and writes."""
+"""The Full package MCP surface: eleven corpus/record verbs with separated reads and writes."""
 import json
 from pathlib import Path
 
@@ -38,17 +38,22 @@ def workspace(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_the_shipped_lab_surface_is_ten_verbs_with_titles_annotations_and_cache_hints():
+def test_the_shipped_lab_surface_carries_titles_annotations_and_cache_hints():
     # 0.3.9 adds verify_sources: the store must be able to say whether a present file was actually
     # checked, and that claim needs its own verb rather than an inference from index_corpus.
-    assert {item.__name__ for item in lab_server.LAB_TOOLS} == LAB_TOOLS
-    assert len(LAB_TOOLS) == 10
-    assert set(lab_server.TOOL_TITLES) == LAB_TOOLS
-    assert set(lab_server.TOOL_ANNOTATIONS) == LAB_TOOLS
+    # 0.3.14 (HR-01/HR-06) adds embed_corpus, the verb that builds the stored vectors. Which presets
+    # enable it is the preset package's decision, so this asserts the server's own verb set against
+    # the preset package's lab-verb list, and keeps the cross-language gate unchanged: presets.json
+    # must name exactly the presets.py lab verbs.
+    server_verbs = {item.__name__ for item in lab_server.LAB_TOOLS}
+    assert server_verbs == LAB_TOOLS | {"embed_corpus"}, "the server's lab verbs are the preset lab verbs plus embed_corpus"
+    assert set(lab_server.TOOL_TITLES) == server_verbs
+    assert set(lab_server.TOOL_ANNOTATIONS) == server_verbs
     registry = next(server for server in REGISTRY['servers'] if server['module'] == 'research_stack.lab_server')
     assert sorted(registry['tools']) == sorted(LAB_TOOLS)
     recorder = Recorder()
-    assert register_tools(recorder, lab_server.LAB_TOOLS, lab_server.TOOL_TITLES, lab_server.TOOL_ANNOTATIONS) == sorted(LAB_TOOLS)
+    registered = register_tools(recorder, lab_server.LAB_TOOLS, lab_server.TOOL_TITLES, lab_server.TOOL_ANNOTATIONS)
+    assert registered == sorted(LAB_TOOLS & server_verbs), "a verb registers only when the selected preset enables it"
     for name, title, annotations in recorder.registered:
         assert title == lab_server.TOOL_TITLES[name]
         assert annotations is not None
@@ -56,6 +61,10 @@ def test_the_shipped_lab_surface_is_ten_verbs_with_titles_annotations_and_cache_
         assert annotations.destructive_hint == (name in DESTRUCTIVE_VERBS)
         if name != "claims_write":
             assert annotations.open_world_hint is False, "local corpus verbs must not advertise an open world"
+    embed = lab_server.TOOL_ANNOTATIONS["embed_corpus"]
+    assert embed.read_only_hint is False and embed.destructive_hint is False and embed.idempotent_hint is True and embed.open_world_hint is False, \
+        "embed_corpus writes the store from stored text, never a source, and re-running it is safe"
+    assert lab_server.TOOL_TITLES["embed_corpus"] and lab_server.TOOL_TITLES["search_corpus"]
     hint = lab_server.TOOL_LIST_CACHE_HINTS['tools/list']
     assert hint.ttl_ms == 300_000 and hint.scope == 'private'
 
@@ -174,6 +183,20 @@ def test_store_maintenance_backs_up_and_vacuum_still_needs_confirmation(workspac
     activated = lab_server.store_maintenance("restore", backup_path=backup["backup"], confirm=True)
     assert activated["activated"] is True and Path(activated["previousStorePreserved"]).is_file()
     assert lab_server.claims_read()["claimCount"] == 0, "the activated restore matches the backup"
+
+
+def test_draft_is_an_accepted_claim_status_through_the_verb_and_an_unknown_one_is_refused(workspace):
+    """HR-32 (F-02): the claim status a researcher uses for work in progress, end to end."""
+    lab_server.index_corpus(["notes/sources.md"])
+    chunk_id = lab_server.search_corpus("stitching")["hits"][0]["chunk_id"]
+    created = lab_server.claims_write("A statement still being checked against the guild records.",
+                                      evidence_chunk_ids=[chunk_id], status="draft")
+    assert created["claim"]["status"] == "draft"
+    assert lab_server.claims_read(status="draft")["claimCount"] == 1
+
+    refused = lab_server.claims_write("A statement with an invented status.", status="under-review")
+    assert refused["error"]["code"] == "CLAIM_STATUS" and "draft" in refused["error"]["message"]
+    assert lab_server.claims_read()["claimCount"] == 1, "a refused status change leaves the claim as it was"
 
 
 def test_status_and_search_on_a_fresh_workspace_report_the_missing_store_without_creating_one(workspace):

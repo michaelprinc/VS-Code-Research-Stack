@@ -39,8 +39,11 @@ const REVIEWED = {
   "integrations.js": [],
   "integrationstore.js": ["integrations.js"],
   "integrationprobe.js": ["integrations.js"],
+  // 0.3.14 (HR-11, HR-12): the preset→Copilot selection module. JSON text in, JSON text out: no file, no
+  // socket, no process, no other module, no credential. The write and the consent stay in the controller.
+  "presetselect.js": [],
   "ui.js": [],
-  "extension.js": ["ui.js", "diagnostics.js", "runtime.js", "installer.js", "setuplog.js", "status.js", "preflight.js", "steps.js", "hosttools.js", "runner.js", "bundles.js", "updates.js", "reports.js", "integrations.js", "integrationstore.js", "integrationprobe.js"],
+  "extension.js": ["ui.js", "diagnostics.js", "runtime.js", "installer.js", "setuplog.js", "status.js", "preflight.js", "steps.js", "hosttools.js", "runner.js", "bundles.js", "updates.js", "reports.js", "integrations.js", "integrationstore.js", "integrationprobe.js", "presetselect.js"],
 };
 const DATA_FILES = ["components.json", "presets.json", "package.json", "vsix-manifest.json"];
 

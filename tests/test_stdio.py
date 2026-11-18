@@ -93,7 +93,7 @@ def test_the_lab_store_command_reports_success_on_a_cp1252_stream(tmp_path: Path
     text = decoded(result.stdout)
     assert "\uFFFD" not in text, f"the runner would decode this as a replacement character: {text}"
     report = json.loads(text)
-    assert report["ok"] is True and report["tableCount"] == 8, report
+    assert report["ok"] is True and report["tableCount"] == 9, report
     assert Path(report["store"]).is_file(), "the store the report names does not exist"
     assert Path(report["profile"]).is_file()
 

@@ -2,7 +2,7 @@
   "name": "research-stack-toolkit",
   "displayName": "Research Stack Toolkit (Phase 4 Preview)",
   "description": "Set up package components, verify real MCP reading and research tools, and keep components updated.",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "publisher": "michaelprinc",
   "repository": {
     "type": "git",
@@ -68,7 +68,10 @@
             "research-workflow",
             "research-lab",
             "research-lab-max",
-            "corpus-lab"
+            "corpus-lab",
+            "research-max-github-full",
+            "research-max-github-limited",
+            "research-max-no-github"
           ],
           "enumItemLabels": [
             "Follow the package default",
@@ -78,13 +81,16 @@
             "Prepare a Zotero import",
             "Read, search, cite and write",
             "Full research workflow (index, evidence, claims)",
-            "Documents, citations and third-party evidence",
-            "Maximum research lab (128-tool budget)",
-            "Index, search and record claims"
+            "Documents + third-party evidence (retired)",
+            "Maximum research lab (retired)",
+            "Index, search and record claims",
+            "Maximum research: GitHub full plus the whole store",
+            "Maximum research: GitHub as read-only evidence",
+            "Maximum research: the whole local store, no GitHub"
           ],
           "default": "package-default",
           "scope": "application-overridable",
-          "description": "Which tools your assistant is offered, chosen by the goal you are working on rather than by MCP server. 'package-default' follows the preset recommended for the selected package. Set it in your user profile or override it per workspace folder. Nothing is installed or removed."
+          "description": "Which tools your assistant is offered, chosen by the goal you are working on rather than by MCP server. 'package-default' follows the preset recommended for the selected package. Set it in your user profile or override it per workspace folder. Nothing is installed or removed. A preset retired in a later release keeps its id and its label in this list on purpose, so a preference you saved then still resolves instead of falling back in silence; the Toolkit's panel and preset picker name the presets that replace it and refuse a new choice of a retired one."
         },
         "researchStack.showStatusBar": {
           "type": "boolean",
@@ -111,6 +117,22 @@
           "maximum": 3600,
           "scope": "application",
           "description": "How long a component step may run before it is reported as timed out. The first run can download a managed Python 3.12 and the locked packages."
+        },
+        "researchStack.integrationTimeoutMs": {
+          "type": "number",
+          "default": 80000,
+          "minimum": 40000,
+          "maximum": 300000,
+          "scope": "application",
+          "description": "How long one integration check (Zotero and Semantic Scholar readiness) may run before the Toolkit stops its own worker and reports the check as timed out. The default 80000 ms sits above the worker's worst case — 34 s for the three Zotero stages and the one retry of the listing that a still-loading library makes, plus 35 s for the hosted side — so a slow Zotero is reported instead of being cut off mid-check. The bound covers the whole check, not one request: at the minimum 40000 ms a Zotero-only check still gets its full worst case, while a check that asks both services may have its slower half cut off. It cannot make a service answer, cannot raise the worker's own per-request limits (5 s and 12 s for Zotero, 15 s for a provider request), and does not apply to component setup — that is researchStack.setupTimeoutSeconds."
+        },
+        "researchStack.integrationCooldownSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 5,
+          "maximum": 300,
+          "scope": "application",
+          "description": "How long every window of this VS Code profile waits after one integration check before \"Check now\" will start another one. The window belongs to the profile record, not to a window, so several open windows cannot re-ask the same services at once, and the countdown on the card and the refusal an operator gets are the same number. 10 seconds is the shipped default: long enough that a double press or a second window does not hammer a live service, short enough that the deliberate \"I have installed Zotero — check it now\" is not refused. Below 5 seconds the window no longer separates a double press from a deliberate re-check; above 300 seconds the card would name a countdown longer than a person can wait through. Fractional seconds are used as whole seconds. It cannot make a check finish sooner, does not change the worker's own pacing floor of one request per second, and does not apply to the daily version check — that has its own window."
         },
         "researchStack.checkForUpdates": {
           "type": "boolean",
@@ -223,6 +245,26 @@
       {
         "command": "researchToolkit.showBundleStatus",
         "title": "Show Topic Bundle Status",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.forceUpdateTopicBundle",
+        "title": "Force Update Topic Skill Bundle (Archive First)",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.showBundleArchiveHistory",
+        "title": "Show Bundle Archive History",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.restoreBundleArchive",
+        "title": "Restore Bundle Archive Version",
+        "category": "Research Toolkit"
+      },
+      {
+        "command": "researchToolkit.configurePresetTools",
+        "title": "Configure Preset Tools for Copilot",
         "category": "Research Toolkit"
       },
       {
@@ -404,6 +446,7 @@
     "package.json",
     "preflight.js",
     "presets.json",
+    "presetselect.js",
     "probe.py",
     "reports.js",
     "runner.js",
@@ -416,7 +459,7 @@
     "worker"
   ],
   "scripts": {
-    "test": "node --test test/unit.test.js test/diagnostics.test.js test/guides.test.js test/runtime.test.js test/presets.test.js test/installer.test.js test/bundles.test.js test/runner.test.js test/hosttools.test.js test/preflight.test.js test/setuplog.test.js test/status.test.js test/steps.test.js test/lockfile.test.js test/lockfile-adversarial.test.js test/module-boundaries.test.js test/updates.test.js test/reports.test.js test/integrations.test.js test/onboarding.test.js test/credential-security.test.js test/integration-host.test.js test/gui-status.test.js",
+    "test": "node --test test/unit.test.js test/diagnostics.test.js test/guides.test.js test/runtime.test.js test/presets.test.js test/presetselect.test.js test/installer.test.js test/bundles.test.js test/runner.test.js test/hosttools.test.js test/preflight.test.js test/setuplog.test.js test/status.test.js test/steps.test.js test/lockfile.test.js test/lockfile-adversarial.test.js test/module-boundaries.test.js test/updates.test.js test/reports.test.js test/integrations.test.js test/onboarding.test.js test/credential-security.test.js test/integration-host.test.js test/gui-status.test.js",
     "test:host": "node test/run-host-test.js",
     "test:panel": "node ../scripts/panel_renderer_check.js",
     "package": "uv run --locked python ../scripts/build_guide_index.py && uv run --locked python ../scripts/build_worker_bundle.py && node scripts/package.js",

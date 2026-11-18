@@ -1,6 +1,9 @@
 "use strict";
 
 const crypto = require("node:crypto");
+// 0.3.14 (HR-12): reading and replacing the workspace `.mcp.json` needs real file calls, so the
+// controller imports the same promises `fs` module `bundles.js` and `runtime.js` already use.
+const fsAsync = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const TOOLKIT_VERSION = require("./package.json").version;
@@ -15,7 +18,7 @@ const RECENT_PRESET_STATE_KEY = "researchStack.recentPresets";
 const RECENT_PRESET_LIMIT = 3;
 const { controlPanelHtml } = require("./ui");
 const { baseInventory, checkInventory, inventoryText } = require("./diagnostics");
-const { requireLocal, managedRuntime, setupRuntime, functionalCheck, bundle, discoverRuntimes, rollbackRuntime, WORKER_FOLDER, WORKER_VERSION, MANAGED_FOLDER } = require("./runtime");
+const { requireLocal, managedRuntime, setupRuntime, functionalCheck, bundle, directory, discoverRuntimes, rollbackRuntime, WORKER_FOLDER, WORKER_VERSION, MANAGED_FOLDER } = require("./runtime");
 const installer = require("./installer");
 const setuplog = require("./setuplog");
 const statusModel = require("./status");
@@ -23,6 +26,10 @@ const { clearStaleLock, inspectLock, setupWindowMs } = require("./preflight");
 const { clearHostToolCache } = require("./hosttools");
 const { PYTHON_FLAGS, asRunProcess } = require("./runner");
 const bundles = require("./bundles");
+// 0.3.14 (HR-11, HR-12): the pure preset→Copilot selection module. It reads nothing and writes nothing;
+// it turns one preset's named GitHub tool list into the text the Copilot harness reads, and refuses a
+// preset whose stated tool count is not the length of that list.
+const presetSelect = require("./presetselect");
 // 0.3.10: the published-version check and the problem-report builder. `updates.js` is the one reviewed
 // module in the package that may reach the network; `scripts/verify_vsix.py` names it on the shipped
 // bytes and `test/module-boundaries.test.js` counts which modules do in the source tree.
@@ -51,13 +58,37 @@ const MACHINE_FACT_READ_TIMEOUT_MS = 5_000;
 
 /** Presets offered for a package: the goal list changes with the package choice. */
 function presetsForPackage(packageId) {
-  return presetCatalog.presets.filter((preset) => preset.packages.includes(packageId));
+  // A retired preset (DD15-07) is never offered: 0.3.14 does not present a surface whose third-party
+  // tools it cannot name. It stays in PRESETS_BY_ID and in the worker, so an operator who saved it in
+  // 0.3.13 keeps the surface they had instead of silently receiving a different one.
+  return presetCatalog.presets.filter((preset) => !preset.retired && preset.packages.includes(packageId));
 }
 
 function defaultPresetFor(packageId) {
   const presets = presetsForPackage(packageId);
   const fallback = presets[0] || presetCatalog.presets[0];
   return (presets.find((preset) => (preset.defaultFor || []).includes(packageId)) || fallback).id;
+}
+
+/**
+ * DD15-07: what a retired preset has to say out loud. A retired preset is never offered by a package and
+ * never a package default, but a preference saved in 0.3.13 still resolves to it — that is the point of
+ * retiring instead of deleting. So the replacement is named where the operator is looking (panel state,
+ * the preset Quick Pick) rather than being implied by a row that is missing.
+ * Returns undefined when the preset is not retired. Successors are named by id and label; the sentence
+ * also says whether this package can actually take one, because naming only a preset the operator cannot
+ * choose here would be advice they cannot follow. Nothing in this text claims the retirement changed
+ * anything in the workspace: the preset still carries the same verbs, and no file was rewritten to retire it.
+ */
+function presetRetirement(preset, packageId) {
+  if (!preset || !preset.retired) return undefined;
+  const successors = (preset.successor || []).map((id) => PRESETS_BY_ID.get(id)).filter(Boolean);
+  const offered = successors.filter((item) => !item.retired && item.packages.includes(packageId));
+  const names = successors.map((item) => `${item.id} (${item.label})`).join(", ") || "none named";
+  const where = offered.length
+    ? `Replaced by: ${offered.map((item) => `${item.id} (${item.label})`).join(", ")}.`
+    : `No replacement is offered by the ${packageId} package; the presets that replace it — ${names} — are offered by ${[...new Set(successors.flatMap((item) => item.packages))].join(" / ")}.`;
+  return `Tools preset "${preset.label}" (${preset.id}) is retired in 0.3.14: its third-party surface was an unnamed toolset estimate, which 0.3.14 presets no longer allow. ${where} Your saved value still resolves to it until you choose one.`;
 }
 
 /** Measured tokens for the toolkit tools a goal enables, from the real tools/list receipt. */
@@ -225,17 +256,34 @@ function activateWith(vscode, context, diagnosticServices) {
     changed.fire();
     return integrationRegistry;
   }
+  /**
+   * HR-30 (finding R15-04): the one place the two integration settings are read, and the one place their
+   * values are clamped. `integrationprobe.js` publishes the defaults and the range; this function hands the
+   * operator's numbers to that clamp and gives every caller the same result, so the timeout the worker call
+   * runs under, the window the card counts down and the window a refused press is told are one resolved
+   * value rather than three numbers kept in three files. A value the clamp replaced is not invisible: the
+   * sentence naming the setting, what was set and what was used is written to the Toolkit output channel
+   * beside the receipt it governed — this release does not show the bound on the card, and does not claim to.
+   */
+  function integrationBounds() {
+    const config = vscode.workspace.getConfiguration("researchStack");
+    return integrationProbe.probeBounds({
+      integrationTimeoutMs: config.get("integrationTimeoutMs", integrationProbe.PROBE_TIMEOUT_MS),
+      integrationCooldownSeconds: config.get("integrationCooldownSeconds", integrationProbe.PROBE_COOLDOWN_MS / 1000),
+    });
+  }
   /** The panel sees states and sentences. It never sees a stored key — only whether one exists. */
   function integrationPanelState() {
     const canProbe = probeCapability();
+    const bounds = integrationBounds();
     return {
       // J4: the host states whether a check is possible here, and the model decides what the card says about it.
-      views: integrations.integrationViews(integrationRegistry, { now: new Date().toISOString(), canProbe }),
+      views: integrations.integrationViews(integrationRegistry, { now: new Date().toISOString(), canProbe, cooldownMs: bounds.cooldownMs }),
       canProbe,
       // Names only: what the operator already configured outside the Toolkit, so it is reported and
       // preserved rather than silently replaced (DD11-08).
       environment: integrationStore.environmentFootprint(process.env),
-      cooldownMs: integrationProbe.PROBE_COOLDOWN_MS,
+      cooldownMs: bounds.cooldownMs,
       lastProbeAt: integrationRegistry.lastProbeAt || null,
       // INT-15: stated, not swallowed — the reason the machine record was not used, when it was not.
       factsNote: integrationFactsNote,
@@ -247,7 +295,8 @@ function activateWith(vscode, context, diagnosticServices) {
   }
   function integrationView(provider) {
     if (!integrations.PROVIDERS.includes(provider)) throw new TypeError("Unknown integration.");
-    return integrations.integrationViews(integrationRegistry, { now: new Date().toISOString(), canProbe: probeCapability() }).find((item) => item.id === provider);
+    const bounds = integrationBounds();
+    return integrations.integrationViews(integrationRegistry, { now: new Date().toISOString(), canProbe: probeCapability(), cooldownMs: bounds.cooldownMs }).find((item) => item.id === provider);
   }
   /** A readiness probe needs a worker, a trusted local folder, and the operator having asked for it. */
   async function runIntegrationProbe(provider) {
@@ -255,7 +304,10 @@ function activateWith(vscode, context, diagnosticServices) {
     if (!vscode.workspace.isTrusted || vscode.env.remoteName || !folder || folder.uri.scheme !== "file") {
       throw new Error("Integrations are checked only in a trusted local workspace folder. A remote or untrusted workspace gets no local access.");
     }
-    const cooldown = integrations.probeCooldown({ lastProbeAt: integrationRegistry.lastProbeAt, now: new Date().toISOString(), cooldownMs: integrationProbe.PROBE_COOLDOWN_MS });
+    // HR-30: resolved once per press, then handed to the window the press is measured against, to the worker
+    // call, and to the log line that reports the receipt — the same numbers for all three.
+    const bounds = integrationBounds();
+    const cooldown = integrations.probeCooldown({ lastProbeAt: integrationRegistry.lastProbeAt, now: new Date().toISOString(), cooldownMs: bounds.cooldownMs });
     // J7: the number given is the wait that remains, not the age of the last check, and it says what to do next.
     if (!cooldown.allowed) throw new Error(`The next integration check is allowed in ${Math.ceil(cooldown.waitMs / 1000)} s. Several VS Code windows share one check budget, so wait that long and press Check now again — the last verdict is still on the card, and nothing you did was lost.`);
     const runtime = await probeRuntime(folder);
@@ -272,7 +324,7 @@ function activateWith(vscode, context, diagnosticServices) {
     }
     const executed = await asRunProcess(diagnosticServices || {})(runtime.python,
       [...PYTHON_FLAGS, "-m", "research_stack.cli", ...integrationProbe.probeArgv({ providers: provider ? [provider] : integrations.PROVIDERS })],
-      { timeout: integrationProbe.PROBE_TIMEOUT_MS, cwd: folder.uri.fsPath, env: { ...process.env, ...integrationProbe.probeEnvironment({ registry: integrationRegistry, apiKey }) } });
+      { timeout: bounds.timeoutMs, cwd: folder.uri.fsPath, env: { ...process.env, ...integrationProbe.probeEnvironment({ registry: integrationRegistry, apiKey }) } });
     if (executed.exitCode !== 0) throw new Error(`The integration check failed: ${String(executed.stderr || "").slice(-300) || "the worker refused without a message."}`);
     let receipt;
     try { receipt = JSON.parse(executed.stdout); } catch { throw new Error("The integration check returned unreadable data. Nothing was recorded from it."); }
@@ -290,7 +342,7 @@ function activateWith(vscode, context, diagnosticServices) {
     await saveIntegrations(next);
     const ids = provider ? [provider] : integrations.PROVIDERS;
     const sentences = ids.map((id) => {
-      const view = integrations.integrationViews(next, { now: at }).find((item) => item.id === id);
+      const view = integrations.integrationViews(next, { now: at, cooldownMs: bounds.cooldownMs }).find((item) => item.id === id);
       // The worker's own sentence is the specific one; the model's is the one that names what it means
       // for the operator (a 429 keeps the authorization, a refused local API is not a missing app). The
       // provider's name leads it: a verdict that does not say which service it is about is not actionable.
@@ -304,9 +356,13 @@ function activateWith(vscode, context, diagnosticServices) {
       .map((item) => integrationProbe.describeProbeFailure(item.id, item.outcome))
       .filter(Boolean);
     output.clear();
+    // HR-30: a bound the clamp replaced is stated before the receipt it governed, so an operator who set a
+    // number outside the range can see which number this check actually ran under. Written before the receipt
+    // block, never after it, because the block stays the last line the panel path and the tests read.
+    for (const sentence of bounds.clamped) output.appendLine(`Setting clamped: ${sentence}`);
     // The worker's own sentences come from a run that may have been handed the API key, so they are
     // scrubbed before anything is written to a channel an operator might paste somewhere.
-    output.appendLine(`Integration check ${at}\n${integrationStore.redactSecrets(JSON.stringify(probed, null, 2), [apiKey]).text}\n\n${sentences.join("\n")}${failures.length ? `\n${failures.join("\n")}` : ""}`);
+    output.appendLine(`Integration check ${at} — the worker call ran under a ${bounds.timeoutMs} ms bound and the next check is allowed in ${bounds.cooldownSeconds} s\n${integrationStore.redactSecrets(JSON.stringify(probed, null, 2), [apiKey]).text}\n\n${sentences.join("\n")}${failures.length ? `\n${failures.join("\n")}` : ""}`);
     output.show(true);
     // J1: the verdict has to reach the panel that asked for it. "Done." told the operator nothing, and when the
     // state did not change the card re-rendered identically, so the press looked like a no-op.
@@ -321,7 +377,9 @@ function activateWith(vscode, context, diagnosticServices) {
    * and the credential-shaped names this editor process happens to carry are removed from it before it is
    * built. A record this release cannot use is refused with the reason stated, kept in `integrationFactsNote`
    * so the panel and the Quick Pick can say it out loud, and the profile record is left exactly as it was.
-   * J3: the call carries its own short bound (`MACHINE_FACT_READ_TIMEOUT_MS`), not the probe's 20 s.
+   * J3: the call carries its own short bound (`MACHINE_FACT_READ_TIMEOUT_MS`), not the readiness check's — that
+   * one reaches two services and is now the operator's setting (`researchStack.integrationTimeoutMs`); a local
+   * file read by the Toolkit's own worker does not inherit it.
    */
   async function readIntegrationFacts() {
     integrationFactsNote = null;
@@ -344,7 +402,8 @@ function activateWith(vscode, context, diagnosticServices) {
     for (const name of integrationStore.ENVIRONMENT_NAMES) delete environment[name];
     const executed = await asRunProcess(diagnosticServices || {})(runtime.python,
       [...PYTHON_FLAGS, "-m", "research_stack.cli", ...integrationProbe.factsArgv()],
-      // J3: a local file read by the Toolkit's own worker gets its own short bound, not the probe's 20 s.
+      // J3: a local file read by the Toolkit's own worker gets its own short bound, not the readiness check's:
+      // that bound reaches two services and the operator sets it, so this read must not follow it.
       { timeout: MACHINE_FACT_READ_TIMEOUT_MS, cwd: folder.uri.fsPath, env: environment });
     if (executed.exitCode !== 0) throw new Error(`The Toolkit could not read the machine installation record: ${String(executed.stderr || "").slice(-300) || "the worker refused without a message."} Nothing was changed.`);
     let parsed;
@@ -468,8 +527,32 @@ function activateWith(vscode, context, diagnosticServices) {
     const preset = selectedPreset();
     const estimate = presetEstimate(preset, toolSurface);
     return readinessText(packageId, inventory,
-      `${preset.label} · ${estimate.toolkitTools} toolkit tools${estimate.thirdPartyTools ? ` + ${estimate.thirdPartyTools} configured external tools (vendor estimates)` : ""} · ≈${Math.round(estimate.tokensEstimate / 100) / 10}k tokens (${estimateLabel(estimate)})`,
+      `${preset.label} · ${estimate.toolkitTools} toolkit tools${estimate.thirdPartyTools ? ` + ${estimate.thirdPartyTools} configured external tools${namedSurface(preset) ? " (tools the preset names)" : " (vendor estimates)"}` : ""} · ≈${Math.round(estimate.tokensEstimate / 100) / 10}k tokens (${estimateLabel(estimate)})`,
       installer.planView(packageId, receipt, WORKER_VERSION, planArtifacts));
+  }
+
+  /** True when every third-party entry of this preset names the tools it counts (HR-11). */
+  function namedSurface(preset) {
+    const entries = preset.thirdParty || [];
+    return entries.length > 0 && entries.every((item) => Array.isArray(item.tools) && item.tools.length === item.toolsEstimate);
+  }
+
+  /**
+   * Say what an external tool number actually is (HR-11). A preset that names its tools has a count that
+   * is the length of its own list; a preset that names nothing is carrying a vendor toolset estimate.
+   * Those are different claims and 0.3.14 does not use one wording for both. Neither wording claims that
+   * the server was started or measured here — this extension neither starts nor measures them — and a
+   * named count is still a vendor-published name list until the operator captures `tools/list` on their host.
+   */
+  function externalSurfaceText(preset) {
+    const entries = preset.thirdParty || [];
+    if (!entries.length) return "none";
+    return entries.map((item) => {
+      const named = Array.isArray(item.tools) ? item.tools.length : 0;
+      return named && named === item.toolsEstimate
+        ? `${item.label} — ${named} tools this preset names by name (vendor-published names, not measured by this extension)`
+        : `${item.label} ≈${item.toolsEstimate} tools (vendor toolset estimate)`;
+    }).join(" · ");
   }
 
   /** Say what the number is: measured from this worker, partly measured, or a vendor estimate. */
@@ -499,10 +582,13 @@ function activateWith(vscode, context, diagnosticServices) {
     const budget = presetCatalog.budget;
     return [
       `Research Stack Toolkit ${context.extension.packageJSON.version} · tools preset "${preset.id}"`,
+      // DD15-07: a summary of a retired preset has to say it is retired, or the operator pastes a surface
+      // description that 0.3.14 no longer offers into a note and treats it as current.
+      ...(presetRetirement(preset, selectedPackage(vscode)) ? [presetRetirement(preset, selectedPackage(vscode))] : []),
       `Goal: ${preset.goal}`,
       `Toolkit tools (${estimate.toolkitTools}): ${preset.tools.join(", ")}`,
       `Toolkit MCP servers offered: ${estimate.servers.join(", ") || "none"}`,
-      `External tools you configure: ${estimate.thirdPartyTools ? (preset.thirdParty || []).map((item) => `${item.label} ≈${item.toolsEstimate}`).join(" · ") : "none"}`,
+      `External tools you configure: ${externalSurfaceText(preset)}`,
       `Total against the client ceiling: ${estimate.totalTools} of ${budget.clientCeiling} · headroom ${estimate.headroom} · level ${estimate.level}`,
       `Tool definitions per request: ≈${estimate.tokensEstimate} tokens (${estimate.contextPercent}% of a ${Math.round(budget.contextWindowReference / 1000)}k window) · ${estimate.measured ? "measured from the installed worker's tools/list schemas" : `vendor estimate at ${budget.vendorTokensPerTool} tokens per tool`}`,
       toolSurface ? `Installed worker surface: ${toolSurface.toolCount} tools across ${toolSurface.servers.length} servers · ≈${toolSurface.tokensEstimate} tokens` : "Installed worker surface: not measured yet (run component setup).",
@@ -519,6 +605,9 @@ function activateWith(vscode, context, diagnosticServices) {
       type: "state", version: context.extension.packageJSON.version,
       selectedPackage: packageId, packages: PACKAGE_OPTIONS,
       toolsPresetSetting: toolsPresetSetting(vscode), selectedToolsPreset: selectedPresetId(vscode),
+      // DD15-07: the retirement is stated in the state, not left for the panel to infer from a missing row.
+      // Text when the preset in force is retired, undefined otherwise — so a live preset gains no new claim.
+      presetRetirement: presetRetirement(selectedPreset(), packageId),
       appliedToolsPreset: appliedPreset, appliedPresetSignature: appliedPresetSignature,
       presetApplied: appliedPreset === selectedPresetId(vscode) && Boolean(appliedPresetSignature),
       toolsPresetScope: presetScope(vscode.workspace.getConfiguration("researchStack", folderSelected())), recentPresets: recentPresets(),
@@ -875,6 +964,241 @@ function activateWith(vscode, context, diagnosticServices) {
     output.clear(); output.appendLine(JSON.stringify(status, null, 2)); output.show(true);
     return status;
   }));
+  // 0.3.14 (HR-20…HR-23): the force update, the archive it writes, and the way back out of it. The plan
+  // names what an overwrite would replace; the dialog lists exactly that and never invents its own list.
+  const OVERWRITE_STATE_LABEL = {
+    outdated: "a copy this Toolkit installed, at an older catalog version",
+    "user-modified": "a file you changed after this Toolkit installed it",
+    conflict: "a file this Toolkit never installed",
+  };
+  /** One line per file a run would overwrite, each named in the state the plan measured. */
+  function overwriteLines(files) {
+    return files.map((file) => `• ${file.target} — ${OVERWRITE_STATE_LABEL[file.state] || file.state}`).join("\n");
+  }
+  register("researchToolkit.forceUpdateTopicBundle", () => exclusive(async () => {
+    const folder = folderSelected(); const root = requireLocal(vscode, folder);
+    const picked = await topicBundleChoice(`Force-update a topic skill bundle in ${folder.name}`);
+    if (!picked) return undefined;
+    const plan = await bundles.planInstall({ workspaceRoot: root, catalog: picked.catalog, bundleId: picked.bundleId, force: true });
+    const archiveTo = plan.archivePreview.absoluteDirectory;
+    if (!plan.overwrites.length && !plan.wouldWrite) {
+      void vscode.window.showInformationMessage(`Nothing to force-update for ${plan.bundleId} in ${folder.name}: `
+        + `${plan.counts.identical || 0} file(s) already match the catalog, and ${plan.conflicts.length} file(s) the Toolkit will not write. Nothing was written and no archive was made.`);
+      return plan;
+    }
+    // Two different decisions wear the same command: replacing bytes that are already there, and writing only
+    // what is missing. The dialog says which one it is asking for, because "overwrite" would be a lie when
+    // nothing is being replaced and no archive will be made.
+    const overwriting = plan.overwrites.length > 0;
+    const detail = overwriting
+      ? `${plan.overwrites.length} file(s) in ${folder.name} would be overwritten:\n\n${overwriteLines(plan.overwrites)}\n\n`
+        + `${plan.forceOverwrites.length} of these are preserved by a normal install or repair: they are overwritten only because you asked for this.\n\n`
+        + `Before anything is written, what each of these files holds now is copied to:\n${archiveTo}\n\n`
+        + `The Toolkit deletes nothing. Every version it replaces stays in that archive, and "Restore a bundle archive" puts one back. A skill owned by another bundle is never written, whatever this command is asked to do.`
+      : `Nothing in ${folder.name} needs replacing for ${plan.bundleId}. ${plan.wouldWrite} reviewed file(s) are missing and will be written; `
+        + `${plan.counts.identical || 0} already match the catalog, and ${plan.conflicts.length} file(s) the Toolkit will not write.\n\n`
+        + `No file is overwritten, so no archive is made. A skill owned by another bundle is never written.`;
+    const confirm = overwriting ? "Archive these files and overwrite them" : "Write the missing files";
+    const choice = await vscode.window.showWarningMessage(
+      `Force-update ${plan.bundleId} ${plan.bundleVersion} in ${folder.name}${overwriting ? ` — overwrite ${plan.overwrites.length} file(s)?` : " — write only the missing files?"}`,
+      { modal: true, detail }, confirm);
+    if (choice !== confirm) return undefined;
+    // A receipt means this bundle was installed here, so the repair classification applies. Without one the
+    // run is an install that is allowed to replace the files standing in its way.
+    const installed = await bundles.readReceipt(root, picked.bundleId);
+    const receipt = installed
+      ? await bundles.repairBundle({ workspaceRoot: root, catalog: picked.catalog, bundleId: picked.bundleId, force: true })
+      : await bundles.installBundle({ workspaceRoot: root, catalog: picked.catalog, bundleId: picked.bundleId, force: true });
+    output.clear(); output.appendLine(JSON.stringify(receipt, null, 2)); output.show(true);
+    void vscode.window.showInformationMessage(receipt.archive
+      ? `Force update of ${plan.bundleId}: ${receipt.filesWritten} file(s) written; ${receipt.archive.files} file(s) archived at ${receipt.archive.absoluteDirectory}. Host skill discovery and workflow testing are not claimed by this run.`
+      : `Force update of ${plan.bundleId}: ${receipt.filesWritten} file(s) written, and nothing was replaced, so no archive was made.`);
+    return receipt;
+  }));
+  register("researchToolkit.showBundleArchiveHistory", () => exclusive(async () => {
+    const folder = folderSelected(); const root = requireLocal(vscode, folder);
+    const listed = await bundles.listArchives({ workspaceRoot: root });
+    if (!listed.archives.length) {
+      void vscode.window.showInformationMessage(`No archived bundle version for ${folder.name} yet. An archive is written only when a force update or a restore replaces a file, into ${listed.absoluteArchiveFolder}.`);
+      return listed;
+    }
+    const choice = await vscode.window.showQuickPick(listed.archives.map((entry) => ({
+      id: entry.archiveId, label: `${entry.bundleId} — ${entry.archiveId}`,
+      description: `${entry.archivedAt} · ${entry.reason} · ${entry.fileCount} file(s) · archived from ${entry.replacedVersion || "an unrecorded version"} · ${entry.absoluteArchiveDirectory}`,
+    })), { title: `Archived bundle versions in ${folder.name}`, matchOnDescription: true });
+    if (!choice) return undefined;
+    const entry = listed.archives.find((item) => item.archiveId === choice.id);
+    output.clear(); output.appendLine(JSON.stringify(entry.manifest, null, 2)); output.show(true);
+    void vscode.window.showInformationMessage(`Archive ${entry.archiveId}: ${entry.fileCount} file(s) of ${entry.bundleId}, archived ${entry.archivedAt} (${entry.reason}), at ${entry.absoluteArchiveDirectory}. Nothing is deleted from it.`);
+    return entry;
+  }));
+  register("researchToolkit.restoreBundleArchive", () => exclusive(async () => {
+    const folder = folderSelected(); const root = requireLocal(vscode, folder);
+    const listed = await bundles.listArchives({ workspaceRoot: root });
+    if (!listed.archives.length) {
+      void vscode.window.showInformationMessage(`Nothing to restore in ${folder.name}: no bundle archive exists yet at ${listed.absoluteArchiveFolder}.`);
+      return undefined;
+    }
+    const archivedBundles = [...new Map(listed.archives.map((entry) => [entry.bundleId, entry])).values()];
+    const bundleChoice = archivedBundles.length === 1 ? { id: archivedBundles[0].bundleId } : await vscode.window.showQuickPick(archivedBundles.map((entry) => ({
+      id: entry.bundleId, label: entry.bundleId,
+      description: `${listed.archives.filter((item) => item.bundleId === entry.bundleId).length} archived version(s) · newest ${entry.archivedAt}`,
+    })), { title: `Which bundle's archive do you want to restore in ${folder.name}?`, matchOnDescription: true });
+    if (!bundleChoice) return undefined;
+    const bundleId = bundleChoice.id;
+    const candidates = listed.archives.filter((entry) => entry.bundleId === bundleId);
+    const archiveChoice = await vscode.window.showQuickPick(candidates.map((entry) => ({
+      id: entry.archiveId, label: entry.archiveId,
+      description: `${entry.archivedAt} · ${entry.reason} · ${entry.fileCount} file(s) · ${entry.absoluteArchiveDirectory}`,
+    })), { title: `Which archived version of ${bundleId}?`, matchOnDescription: true });
+    if (!archiveChoice) return undefined;
+    const entry = candidates.find((item) => item.archiveId === archiveChoice.id);
+    const detail = `Writing back ${entry.fileCount} file(s) from ${entry.absoluteArchiveDirectory}:\n\n`
+      + entry.files.map((file) => `• ${file.path}`).join("\n")
+      + `\n\nWhatever those paths hold now is copied into a new archive under ${listed.absoluteArchiveFolder}/${bundleId}/ first, with reason "restore". Nothing is deleted, and a path the Toolkit cannot write safely — a link, a folder — is refused and reported rather than forced.`;
+    const choice = await vscode.window.showWarningMessage(`Restore ${bundleId} ${entry.archiveId} (${entry.archivedAt}) into ${folder.name}?`,
+      { modal: true, detail }, "Restore this archived version");
+    if (choice !== "Restore this archived version") return undefined;
+    const report = await bundles.restoreArchive({ workspaceRoot: root, bundleId, archiveId: entry.archiveId });
+    output.clear(); output.appendLine(JSON.stringify(report, null, 2)); output.show(true);
+    void vscode.window.showInformationMessage(report.archive
+      ? `Restored ${report.filesRestored} file(s) of ${bundleId} from archive ${entry.archiveId}; ${report.archive.files} file(s) they replaced are archived at ${report.archive.absoluteDirectory}.`
+      : `Restored ${report.filesRestored} file(s) of ${bundleId} from archive ${entry.archiveId}; nothing else was in place to archive.`);
+    return report;
+  }));
+  // 0.3.14 (HR-12, DD15-03): the one command that writes a preset's GitHub tool selection where the
+  // Copilot harness reads it. Nothing else writes it — no preset switch, no setup step, no panel refresh.
+  // The selection itself (the names, the derived count, the entry shapes and every refusal rule) is
+  // `presetselect.js`, which is pure and testable without an editor. This region owns only the operator's
+  // review, the bytes, and the copy of the bytes it replaces.
+  const PRESET_TOOLS_FOLDER = ".research-toolkit/preset-tools";
+  const WRITE_REMOTE_ENTRY = "Write the hosted entry (http)";
+  const WRITE_LOCAL_ENTRY = "Write the local entry (stdio)";
+  /** True when `file` is strictly inside `root`, the same containment test `bundles.js` applies. */
+  function underWorkspace(root, file) {
+    const relative = path.relative(root, file);
+    return relative !== "" && !path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`);
+  }
+  /** `2026-11-17T22:00:00.000Z` → `20261117T220000Z`: a stamp that is legal in a path on every host. */
+  function presetToolsStamp(date = new Date()) {
+    return `${date.toISOString().slice(0, 19).replace(/[-:]/g, "")}Z`;
+  }
+  /** Read `.mcp.json`. A link or a folder is refused; "there is no file yet" is an answer, not an error. */
+  async function readMcpFile(root) {
+    const target = path.join(root, presetSelect.MCP_FILE_NAME);
+    if (!underWorkspace(root, target)) throw presetSelect.refuse(presetSelect.REFUSALS.OUTSIDE_WORKSPACE, `Writing ${presetSelect.MCP_FILE_NAME} would land outside the workspace root. Nothing was written.`);
+    const info = await fsAsync.lstat(target).catch((error) => { if (error.code === "ENOENT") return undefined; throw error; });
+    if (!info) return { target, text: undefined };
+    if (info.isSymbolicLink() || !info.isFile()) {
+      throw presetSelect.refuse(presetSelect.REFUSALS.TARGET_IS_LINK, `${presetSelect.MCP_FILE_NAME} in this workspace is not a regular file, so its bytes are not something this Toolkit will rewrite. Nothing was written.`);
+    }
+    return { target, text: await fsAsync.readFile(target, "utf8") };
+  }
+  /** Copy the whole previous file into `.research-toolkit/preset-tools/` with `wx`: a copy is never rewritten, and it is read back to prove it holds what it claims. */
+  async function archiveMcpFileBytes(root, text) {
+    const folder = await directory(root, PRESET_TOOLS_FOLDER, true);
+    const stamp = presetToolsStamp();
+    for (let sequence = 1; sequence <= 9999; sequence += 1) {
+      const name = `${stamp}-${String(sequence).padStart(4, "0")}.json`;
+      const copy = path.join(folder, name);
+      // `directory()` returns the workspace root as the filesystem resolves it (a macOS temp dir is a link),
+      // so containment is checked against that resolved folder rather than against the caller's spelling.
+      if (!underWorkspace(folder, copy)) throw presetSelect.refuse(presetSelect.REFUSALS.OUTSIDE_WORKSPACE, `Copying ${presetSelect.MCP_FILE_NAME} would land outside ${PRESET_TOOLS_FOLDER}. Nothing was written.`);
+      try { await fsAsync.writeFile(copy, text, { flag: "wx" }); }
+      catch (error) {
+        if (error.code === "EEXIST") continue;
+        throw presetSelect.refuse(presetSelect.REFUSALS.BACKUP_WRITE_REFUSED, `The Toolkit could not copy the bytes it is about to replace (${error.code}). ${presetSelect.MCP_FILE_NAME} was left exactly as it was.`);
+      }
+      if (await fsAsync.readFile(copy, "utf8") !== text) {
+        throw presetSelect.refuse(presetSelect.REFUSALS.BACKUP_WRITE_REFUSED, `The copy at ${copy} does not hold the bytes it was given. ${presetSelect.MCP_FILE_NAME} was left exactly as it was.`);
+      }
+      return copy;
+    }
+    throw presetSelect.refuse(presetSelect.REFUSALS.BACKUP_WRITE_REFUSED, `No free copy name is left in ${PRESET_TOOLS_FOLDER} for stamp ${stamp}. ${presetSelect.MCP_FILE_NAME} was left exactly as it was.`);
+  }
+  /** Stage the reviewed text to a unique temporary name with `wx`, then rename it into place, and read it back. */
+  async function writeMcpFile(root, content) {
+    const target = path.join(root, presetSelect.MCP_FILE_NAME);
+    const temporary = `${target}.${crypto.randomUUID()}.tmp`;
+    if (!underWorkspace(root, target) || !underWorkspace(root, temporary)) {
+      throw presetSelect.refuse(presetSelect.REFUSALS.OUTSIDE_WORKSPACE, `Writing ${presetSelect.MCP_FILE_NAME} would land outside the workspace root. Nothing was written.`);
+    }
+    try { await fsAsync.writeFile(temporary, content, { flag: "wx" }); }
+    catch (error) { throw presetSelect.refuse(presetSelect.REFUSALS.MCP_FILE_WRITE_UNVERIFIED, `The Toolkit could not stage ${presetSelect.MCP_FILE_NAME} (${error.code}). The file you reviewed was not changed.`); }
+    const present = await fsAsync.lstat(target).catch((error) => { if (error.code === "ENOENT") return undefined; throw error; });
+    if (present && (present.isSymbolicLink() || !present.isFile())) {
+      await fsAsync.rm(temporary, { force: true });
+      throw presetSelect.refuse(presetSelect.REFUSALS.TARGET_IS_LINK, `${presetSelect.MCP_FILE_NAME} became a link or a folder while this command was running. The staged copy was discarded and nothing was written.`);
+    }
+    await fsAsync.rename(temporary, target);
+    if (await fsAsync.readFile(target, "utf8") !== content) {
+      throw presetSelect.refuse(presetSelect.REFUSALS.MCP_FILE_WRITE_UNVERIFIED, `${presetSelect.MCP_FILE_NAME} does not hold the text that was reviewed. The copy of what it replaced is still in ${PRESET_TOOLS_FOLDER}.`);
+    }
+    return target;
+  }
+  register("researchToolkit.configurePresetTools", () => exclusive(async () => {
+    const folder = folderSelected(); const root = requireLocal(vscode, folder);
+    const preset = selectedPreset();
+    const serverKey = "github";
+    const selection = presetSelect.selectionForPreset(preset);
+    if (!selection) {
+      // A preset that selects no GitHub surface has nothing to write, and saying so is the outcome.
+      const report = { presetId: preset.id, serverKey, githubToolsSelected: 0, written: false, reason: "this preset selects no GitHub MCP surface" };
+      output.clear(); output.appendLine(JSON.stringify(report, null, 2)); output.show(true);
+      void vscode.window.showInformationMessage(`Preset "${preset.id}" selects no GitHub MCP surface, so nothing was written in ${folder.name}. To take Copilot's built-in GitHub server out of the tool surface: add no "${serverKey}" entry to your MCP configuration, and uncheck the GitHub server group in Chat: Open Customizations → Tools.`);
+      return report;
+    }
+    const current = await readMcpFile(root);
+    // Both shapes are computed and shown before anything is written, so the button chooses between two
+    // reviewed plans rather than choosing a shape the operator has not seen.
+    const remote = presetSelect.mergeIntoMcpFile({ existingJson: current.text, preset, serverKey, variant: "remote" });
+    const local = presetSelect.mergeIntoMcpFile({ existingJson: current.text, preset, serverKey, variant: "local" });
+    const plan = remote.plan;
+    // Read the two entries back out of the text that would be written, so the dialog describes the bytes
+    // rather than a description this file maintains separately.
+    const hosted = JSON.parse(remote.content).mcpServers[serverKey];
+    const stdio = JSON.parse(local.content).mcpServers[serverKey];
+    const state = current.text === undefined ? "no MCP file in this workspace yet — one will be created"
+      : plan.replaced.length ? `the "${serverKey}" entry this Toolkit wrote before, which this replaces`
+        : `no "${serverKey}" entry yet — one will be added`;
+    const detail = [
+      `File: ${path.join(root, presetSelect.MCP_FILE_NAME)}`,
+      `Not .vscode/mcp.json: that deprecated editor shape ("servers") has no per-server tool allow-list, so a tool selection written there is ignored. The workspace-root ${presetSelect.MCP_FILE_NAME} with "mcpServers" is the file that carries one.`,
+      ``,
+      `Preset: "${preset.id}" — ${plan.selectionLabel}`,
+      `Server key: "${serverKey}"`,
+      `Toolsets (${plan.toolsets.length}): ${plan.toolsets.join(", ")}`,
+      `Tools Copilot may call (${plan.toolCount} exact names, in the entry's "tools" field): ${plan.tools.join(", ")}`,
+      `Server-side read-only switch: ${plan.readOnly ? "yes" : "no"}`,
+      plan.excluded.length ? `Write tools also named as excluded (${plan.excluded.length}): ${plan.excluded.join(", ")}` : `Write tools named as excluded: none — this preset's GitHub surface is not read-only.`,
+      ``,
+      `Hosted entry: type ${hosted.type}, url ${hosted.url}, headers ${Object.keys(hosted.headers).join(", ")}`,
+      `Local entry: type ${stdio.type}, command ${stdio.command} ${stdio.args.join(" ")}, env ${Object.keys(stdio.env).join(", ")}. Writing it does not mean a GitHub MCP server is installed here — this command installs nothing.`,
+      `Already in that file: ${state}${plan.preserved.length ? `; ${plan.preserved.length} other server entry(ies) preserved: ${plan.preserved.join(", ")}` : ""}${plan.preservedTopLevel.length ? `; other top-level members preserved: ${plan.preservedTopLevel.join(", ")}` : ""}`,
+      `Copy of what it replaces: ${path.join(root, PRESET_TOOLS_FOLDER)} under a UTC stamp${current.text === undefined ? " — this workspace has no MCP file yet, so there is nothing to copy" : ""}. Nothing in that folder is ever deleted or rewritten.`,
+      `Credential: the file will hold ${presetSelect.TOKEN_ENV_REFERENCE} only — never a token value. This command reads no secret and stores none.`,
+      `Not claimed: these ${plan.toolCount} names are GitHub's published catalog names as reviewed on 2026-11-17, not tools counted on this machine — no tools/list was captured here. ${plan.readOnly ? "A server-side read-only switch is a filter, not a permission boundary: it decides which tools the server offers, while your token decides what the account may do." : "This selection enables write tools: approval for each call still belongs to the host and to your token's scope."}`,
+    ].join("\n");
+    const choice = await vscode.window.showWarningMessage(`Write the GitHub selection of preset "${preset.id}" — ${plan.toolCount} tool(s) — into ${presetSelect.MCP_FILE_NAME} in ${folder.name}?`,
+      { modal: true, detail }, WRITE_REMOTE_ENTRY, WRITE_LOCAL_ENTRY);
+    if (choice !== WRITE_REMOTE_ENTRY && choice !== WRITE_LOCAL_ENTRY) return undefined;
+    const variant = choice === WRITE_LOCAL_ENTRY ? "local" : "remote";
+    const after = await readMcpFile(root);
+    if ((after.text ?? "") !== (current.text ?? "")) {
+      throw presetSelect.refuse(presetSelect.REFUSALS.TARGET_CHANGED_MID_RUN, `${presetSelect.MCP_FILE_NAME} changed after you reviewed it, so nothing was written. Run the command again to review the file as it is now.`);
+    }
+    const chosen = variant === "local" ? local : remote;
+    // A copy is kept whenever there were bytes to replace. It is kept even when the new text differs only
+    // in its marker timestamp, because "what was in the file before this command ran" is the question the
+    // copy answers, and a run that skipped the copy would answer it differently each time.
+    const previousCopy = current.text === undefined ? undefined : await archiveMcpFileBytes(root, current.text);
+    const target = await writeMcpFile(root, chosen.content);
+    const record = { ...chosen.plan, filePath: target, previousBytesCopiedTo: previousCopy || null };
+    output.clear(); output.appendLine(JSON.stringify(record, null, 2)); output.show(true);
+    const bytes = previousCopy ? `The file it replaces is copied at ${previousCopy}.` : "There was no MCP file before, so nothing was replaced.";
+    void vscode.window.showInformationMessage(`Configured preset "${preset.id}" for Copilot in ${folder.name}: ${chosen.plan.toolCount} GitHub tool name(s) selected into ${chosen.plan.fileName} (${variant} entry, server read-only ${chosen.plan.readOnly ? "on" : "off"})${chosen.plan.preserved.length ? `, ${chosen.plan.preserved.length} server entry(ies) you wrote preserved` : ""}. ${bytes} GitHub counts here are catalog names, not tools counted on this machine.`);
+    return record;
+  }));
   const mcpProvider = {
     onDidChangeMcpServerDefinitions: changed.event,
     async provideMcpServerDefinitions() {
@@ -983,8 +1307,8 @@ function activateWith(vscode, context, diagnosticServices) {
     const preset = selectedPreset();
     const estimate = presetEstimate(preset, toolSurface);
     const budget = presetCatalog.budget;
-    const narrower = presetCatalog.presets
-      .filter((item) => item.packages.includes(selectedPackage(vscode)) && item.id !== preset.id)
+    const narrower = presetsForPackage(selectedPackage(vscode))
+      .filter((item) => item.id !== preset.id)
       .map((item) => ({ preset: item, estimate: presetEstimate(item, toolSurface) }))
       .sort((left, right) => left.estimate.totalTools - right.estimate.totalTools)
       .slice(0, 3);
@@ -992,7 +1316,11 @@ function activateWith(vscode, context, diagnosticServices) {
       `Tool limit diagnosis · toolkit ${context.extension.packageJSON.version}`,
       `Client ceiling: ${budget.clientCeiling} tools can be enabled at once in Copilot agent mode. The toolkit cannot raise or enforce it.`,
       `Toolkit contribution now: ${estimate.toolkitTools} toolkit tools from ${estimate.servers.length} managed MCP server(s) (${estimate.servers.join(", ") || "none"}).`,
-      `External tools you configured: ${estimate.thirdPartyTools} (vendor-published toolset estimates; this extension neither starts nor measures those servers).`,
+      `External tools you configured: ${estimate.thirdPartyTools} ${estimate.thirdPartyTools === 0
+        ? "(none: this preset names no third-party surface)."
+        : namedSurface(preset)
+          ? `(the exact tool names this preset selects — ${externalSurfaceText(preset)}; a vendor-published name list, not a measurement, so confirm it with tools/list on your host).`
+          : "(vendor-published toolset estimates; this extension neither starts nor measures those servers)."}`,
       `Total estimate: ${estimate.totalTools} of ${budget.clientCeiling} · headroom ${estimate.headroom} · level ${estimate.level}.`,
       `Tool definitions per request: ≈${estimate.tokensEstimate} tokens (${estimate.contextPercent}% of a ${Math.round(budget.contextWindowReference / 1000)}k window)${estimate.measured ? ", measured from the installed worker" : ", vendor estimate"}.`,
       `Accuracy guidance: assistants start choosing less reliably above about ${budget.accuracyBand} enabled tools; this extension warns from ${budget.ceilingWarning}.`,
@@ -1567,6 +1895,14 @@ function activateWith(vscode, context, diagnosticServices) {
       retry: "researchToolkit.retryFailedSteps", clearLock: "researchToolkit.clearSetupLock", setupLog: "researchToolkit.openSetupLog", copySetup: "researchToolkit.copyInstallationDiagnostics",
       indexCorpus: "researchToolkit.indexSelectedSources", verifySources: "researchToolkit.verifySourceFreshness",
       installBundle: "researchToolkit.installTopicBundle", repairBundle: "researchToolkit.repairTopicBundle", bundleStatus: "researchToolkit.showBundleStatus",
+      // 0.3.14: accepted here so a panel control for them is one button in `ui.js` away, not a controller
+      // change. No such button is shipped yet: the three commands are reachable from the Command Palette, and
+      // an allowlist entry with no control is a route, not an offer.
+      forceBundleUpdate: "researchToolkit.forceUpdateTopicBundle", bundleArchives: "researchToolkit.showBundleArchiveHistory", restoreBundleArchive: "researchToolkit.restoreBundleArchive",
+      // 0.3.14 (HR-12): accepted here for the same reason and with the same caveat — the command writes a
+      // file, so it reaches the operator through the Command Palette until a control for it is reviewed.
+      // An allowlist entry with no button is a route, not an offer; no button is shipped for it yet.
+      configurePresetTools: "researchToolkit.configurePresetTools",
       report: "researchToolkit.reportProblem", checkUpdates: "researchToolkit.checkForUpdates", updateNow: "researchToolkit.updateExtension",
       integrations: "researchToolkit.manageIntegrations", checkIntegrations: "researchToolkit.checkIntegrations",
     };
@@ -1584,6 +1920,11 @@ function activateWith(vscode, context, diagnosticServices) {
         const packageId = selectedPackage(vscode);
         if (message.id !== DEFAULT_PRESET && (!PRESETS_BY_ID.has(message.id) || !PRESETS_BY_ID.get(message.id).packages.includes(packageId))) {
           throw new TypeError("Choose a tools preset offered by the selected package.");
+        }
+        // DD15-07: the panel's radio list never shows a retired preset, so this is the other way in — a
+        // message written by hand or replayed from an older panel. Refused, with the replacements named.
+        if (message.id !== DEFAULT_PRESET && PRESETS_BY_ID.get(message.id).retired) {
+          throw new TypeError(`Choose a tools preset this package still offers: ${presetRetirement(PRESETS_BY_ID.get(message.id), packageId)}`);
         }
         const target = message.scope === "workspaceFolder" ? vscode.ConfigurationTarget.WorkspaceFolder
           : message.scope === "workspace" ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
@@ -1789,6 +2130,10 @@ function activateWith(vscode, context, diagnosticServices) {
     if (selectedId === undefined) {
       const ordered = [...recent.filter((id) => offered.some((preset) => preset.id === id)).map((id) => offered.find((preset) => preset.id === id)),
         ...offered.filter((preset) => !recent.includes(preset.id))];
+      // DD15-07: a retired preset is not in this list, so an operator whose saved value is one would see
+      // only other people's goals. The retirement and its replacements are named on the row they can act on
+      // (follow the package default) and in the line they read before choosing anything.
+      const retirementHere = presetRetirement(PRESETS_BY_ID.get(currentId), packageId);
       const picked = await vscode.window.showQuickPick(
         [...ordered, { id: DEFAULT_PRESET, label: "Follow the package default", goal: "Use the preset recommended for the selected package." }].map((preset) => {
           const estimate = presetEstimate(PRESETS_BY_ID.get(preset.id) || PRESETS_BY_ID.get(defaultPresetFor(packageId)), toolSurface);
@@ -1799,17 +2144,25 @@ function activateWith(vscode, context, diagnosticServices) {
             label: preset.label,
             detail: preset.goal,
             description: preset.id === DEFAULT_PRESET
-              ? `Default for this package: ${PRESETS_BY_ID.get(defaultPresetFor(packageId)).label}`
+              ? `Default for this package: ${PRESETS_BY_ID.get(defaultPresetFor(packageId)).label}${retirementHere ? ` · ${retirementHere}` : ""}`
               : `${estimate.toolkitTools} toolkit tools · ≈${Math.round(estimate.tokensEstimate / 100) / 10}k tokens (${estimateLabel(estimate)})${recentlyUsed}${applied}`,
           };
         }),
-        { title: "Choose a tools preset for your goal", placeHolder: "Fewer, goal-shaped tools usually make tool selection more reliable" },
+        { title: "Choose a tools preset for your goal", placeHolder: retirementHere
+          ? "Your saved preset is retired and is no longer offered; the presets that replace it are named on the last row" : "Fewer, goal-shaped tools usually make tool selection more reliable" },
       );
       if (!picked) return undefined;
       selectedId = picked.id;
     }
     if (selectedId !== DEFAULT_PRESET && (!PRESETS_BY_ID.has(selectedId) || !PRESETS_BY_ID.get(selectedId).packages.includes(packageId))) {
       throw new TypeError(`Unknown tools preset for the selected package: ${String(selectedId)}`);
+    }
+    // DD15-07: a retired id resolves when it is what the operator already saved, but it is not a choice the
+    // Toolkit will make now — choosing it again would put an unnamed third-party estimate back into the
+    // surface, which is exactly what 0.3.14 stopped allowing. The refusal names the replacements.
+    const chosen = selectedId === DEFAULT_PRESET ? undefined : PRESETS_BY_ID.get(selectedId);
+    if (chosen && chosen.retired) {
+      throw new TypeError(`Choose a tools preset this package still offers: ${presetRetirement(chosen, packageId)}`);
     }
     await updateSetting("toolsPreset", selectedId);
     if (selectedId !== DEFAULT_PRESET) rememberPreset(selectedId);
@@ -1884,6 +2237,6 @@ function activate(context) {
 module.exports = {
   activate, activateWith, readinessText, setupSummary, PACKAGE_OPTIONS, DEFAULT_PACKAGE, STATE_KEY,
   PRESET_STATE_KEY, RECENT_PRESET_STATE_KEY, DEFAULT_PRESET, PRESETS_BY_ID, presetCatalog,
-  presetsForPackage, defaultPresetFor, presetEstimate, presetViews, selectedPresetId, toolsPresetSetting,
+  presetsForPackage, defaultPresetFor, presetRetirement, presetEstimate, presetViews, selectedPresetId, toolsPresetSetting,
   presetScope, readRecentPresets,
 };

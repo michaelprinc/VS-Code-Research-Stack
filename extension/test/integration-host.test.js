@@ -291,8 +291,81 @@ test("the check is one worker call with the reviewed interpreter flags and no ke
     "the probe runs in the locked worker with the same interpreter flags the research tools use");
   assert.ok(!("SEMANTIC_SCHOLAR_API_KEY" in calls[0].options.env), "an integration nobody authorized is not handed a key");
   assert.ok(!calls[0].options.env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED, "nor the licence flag");
-  assert.equal(calls[0].options.timeout, integrationProbe.PROBE_TIMEOUT_MS, "the check is bounded by a timeout, so a hung service cannot hold the window open — and by the bound the probe module publishes, not by a number repeated here");
+  // HR-30 renegotiated this pin: it still says the call is bounded by the bound the probe module publishes, and
+  // it still holds — this harness sets no `researchStack.integrationTimeoutMs`, so the resolver returns the
+  // published default. The tests below cover the half 0.3.13 could not: a bound the operator set, and a bound
+  // the clamp had to replace.
+  assert.equal(calls[0].options.timeout, integrationProbe.probeBounds({}).timeoutMs, "the check is bounded by the bound the probe module publishes when the operator set nothing (NF11-03), read through the resolver the host actually calls — not by a number repeated here");
+  assert.equal(calls[0].options.timeout, integrationProbe.PROBE_TIMEOUT_MS, "and that resolver's answer with no setting present is the published default, so adding the setting did not move the shipped behaviour");
   assert.equal(calls[0].options.cwd, root, "the check runs in the selected workspace, the same place the research tools run");
+});
+
+test("the bound the operator set is the bound the worker call runs under, and a bound outside the range is clamped and said (HR-30)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const calls = [];
+  const services = { runProcess: async (executable, args, options) => { calls.push({ executable, args, options }); return { exitCode: 0, stdout: receipt(), stderr: "" }; } };
+
+  await run(makeHarness({ folders: foldersFor(root), initial: { ...GOAL, integrationTimeoutMs: 120_000 }, diagnosticServices: services }), "researchToolkit.checkIntegrations");
+  assert.equal(calls.length, 1, "one check is still exactly one worker call after the setting was added");
+  assert.equal(calls[0].options.timeout, integrationProbe.probeBounds({ integrationTimeoutMs: 120_000 }).timeoutMs, "the timeout handed to the worker call is the resolved bound for the value the operator set, read through the resolver rather than repeated here — this is the pin that fails if the setting stops driving behaviour");
+  assert.ok(calls[0].options.timeout > 34_000 + 35_000, "and a raised bound is above the worker's own worst case, which is what raising it is for");
+
+  const clamped = makeHarness({ folders: foldersFor(root), initial: { ...GOAL, integrationTimeoutMs: 1_000, integrationCooldownSeconds: 0 }, diagnosticServices: services });
+  await run(clamped, "researchToolkit.checkIntegrations");
+  const last = calls.at(-1);
+  assert.equal(last.options.timeout, integrationProbe.PROBE_TIMEOUT_MIN_MS, "a 1 s bound is refused rather than honoured: it would kill the Zotero stages before the retry that a still-loading library needs, which is the case the floor is derived from");
+  assert.equal(clamped.api.state().integrations.cooldownMs, integrationProbe.PROBE_COOLDOWN_MIN_SECONDS * 1000, "and the panel is told the floor of the check budget, not the 0 the operator typed, so the card cannot promise a press that the host would refuse");
+  const log = clamped.output.lines.join("\n");
+  assert.match(log, /Setting clamped: researchStack\.integrationTimeoutMs is 1000 ms, below the 40000 ms/, "the clamp is said out loud, naming the setting, what was set and what the check used");
+  assert.match(log, /Setting clamped: researchStack\.integrationCooldownSeconds is 0 seconds, below the 5 seconds/, "and the same sentence for the check budget");
+  assert.match(log, /the worker call ran under a 40000 ms bound and the next check is allowed in 5 s/, "the log line names the bounds the receipt actually came under, because the bound is a fact about the run an operator may be reporting");
+  assert.match(clamped.output.lines.at(-1), /Zotero — /, "the clamp sentences are written before the verdict block, so the block stays the last line the panel path and the other tests read");
+
+  await run(makeHarness({ folders: foldersFor(root), initial: { ...GOAL, integrationTimeoutMs: "80000" }, diagnosticServices: services }), "researchToolkit.checkIntegrations");
+  assert.equal(calls.at(-1).options.timeout, integrationProbe.PROBE_TIMEOUT_MS, "a settings.json that carries the bound as text falls back to the published bound instead of to 0 or to NaN");
+  assert.match(calls.at(-1).args.join(" "), /probe-integrations/, "and the check still ran: a bad number costs the operator a sentence, not the check");
+});
+
+test("an operator-set check budget changes the wait the panel reports, the seconds a refusal names, and when a press is allowed (HR-30)", async (t) => {
+  const { root } = await workerWorkspace(t);
+  const seeded = (lastProbeAt) => ({
+    schemaVersion: integrations.SCHEMA_VERSION, updatedAt: null, lastProbeAt,
+    providers: { zotero: { installation: "detected", authorization: "not-required", readiness: "ready", onboarding: "not-started", lastCheck: null, lastSuccessfulCheckAt: null } },
+  });
+  const launched = () => { const calls = []; return { calls, runProcess: async (executable, args, options) => { calls.push({ executable, args, options }); return { exitCode: 0, stdout: receipt(), stderr: "" }; } }; };
+
+  const raised = launched();
+  const raisedHarness = makeHarness({
+    folders: foldersFor(root), initial: { ...GOAL, integrationCooldownSeconds: 30 },
+    initialGlobalState: { [integrationStore.REGISTRY_STATE_KEY]: seeded(Date.now() - 1_000) },
+    diagnosticServices: raised,
+  });
+  await assert.rejects(() => run(raisedHarness, "researchToolkit.checkIntegrations"), /allowed in 29 s/, "the refusal names 29 seconds — what the operator's own 30-second budget leaves — not the shipped 10");
+  assert.equal(raised.calls.length, 0, "and the refusal ran nothing");
+  const panel = raisedHarness.api.state().integrations;
+  assert.equal(panel.cooldownMs, 30_000, "the panel is told the same window the refusal used, so the card cannot count down a different budget from the one the press is measured against");
+  const waits = panel.views.map((view) => view.probeWaitMs);
+  assert.equal(waits.length, 2, "both cards carry the wait, because one press checks both services");
+  for (const wait of waits) assert.ok(wait > 28_000 && wait <= 30_000, `the card reports ${wait} ms left under the resolved 30 s budget — the number the panel puts in the button's tooltip`);
+
+  const same = launched();
+  const shippedHarness = makeHarness({
+    folders: foldersFor(root), initial: GOAL,
+    initialGlobalState: { [integrationStore.REGISTRY_STATE_KEY]: seeded(Date.now() - 1_000) },
+    diagnosticServices: same,
+  });
+  await assert.rejects(() => run(shippedHarness, "researchToolkit.checkIntegrations"), /allowed in 9 s/, "the same record in a profile that set nothing is refused in 9 s: the only difference between the two harnesses is the setting");
+  assert.equal(shippedHarness.api.state().integrations.cooldownMs, integrationProbe.PROBE_COOLDOWN_MS, "and the shipped window is unchanged for a profile that set nothing, whatever the range now allows");
+
+  const shortened = launched();
+  const shortenedHarness = makeHarness({
+    folders: foldersFor(root), initial: { ...GOAL, integrationCooldownSeconds: 5 },
+    initialGlobalState: { [integrationStore.REGISTRY_STATE_KEY]: seeded(Date.now() - 6_000) },
+    diagnosticServices: shortened,
+  });
+  await run(shortenedHarness, "researchToolkit.checkIntegrations");
+  assert.equal(shortened.calls.length, 1, "six seconds after a check, a 5-second budget lets the press run: the setting shortens the wait the operator has to sit through, it is not only a number in the refusal");
+  assert.equal(shortened.calls[0].options.timeout, integrationProbe.PROBE_TIMEOUT_MS, "and shortening the budget does not touch the timeout the check itself runs under — the two settings bound two different things");
 });
 
 test("a rate-limited check keeps the authorization and the key, and records what the worker said", async (t) => {
@@ -863,12 +936,15 @@ test("nothing reads the machine record at activation, and the read is a panel me
   assert.equal(seen.length, 0, "opening a window ran no worker call at all");
   assert.ok(!seen.some((args) => args.includes("integration-facts")), "and no machine-fact read happened at activation");
   assert.equal(harness.events.secrets.length, 0, "and no secret was read");
-  assert.equal(harness.registered.size, 39, "the machine-fact path added no command: the count the payload check asserts is unchanged since 0.3.13 added the Zotero write-key command");
+  // 43: unchanged by the machine-fact path, and re-pinned when 0.3.14 added the three bundle archive
+  // commands (force update, archive history, restore) and the configure-preset-tools-for-Copilot command.
+  // The point of this assertion is that *this* path adds no command of its own.
+  assert.equal(harness.registered.size, 43, "the machine-fact path added no command: the count the payload check asserts is unchanged since 0.3.14 added the three bundle archive commands and the Copilot selection command");
   const panel = harness.api.openControlPanel();
   await panel.receive({ type: "readIntegrationFacts" });
   assert.equal(seen.length, 1, "the worker is asked only when the operator asks");
   assert.deepEqual(seen[0], ["-I", "-B", "-X", "utf8", "-m", "research_stack.cli", "integration-facts"], "and it is asked for the facts verb, not for a probe");
-  assert.equal(harness.registered.size, 39, "and the command count is still 39 after the read");
+  assert.equal(harness.registered.size, 43, "and the command count is still 43 after the read");
   const picker = makeHarness({ folders: foldersFor(root), initial: GOAL, quickPicks: ["Zotero", "What did this machine find?"], diagnosticServices: services });
   const before = seen.length;
   await run(picker, "researchToolkit.manageIntegrations");
@@ -1038,7 +1114,7 @@ test("a second check while one is running is refused with the reason, instead of
   assert.equal(harness.api.state().busy, false, "and the lock is released when it finishes");
 });
 
-test("opening the integrations flow reads the machine record on its own short bound, not the probe's 20 s (J3)", async (t) => {
+test("opening the integrations flow reads the machine record on its own short bound, whatever the operator set the check bound to (J3, HR-30)", async (t) => {
   const { root } = await workerWorkspace(t);
   const calls = [];
   const harness = makeHarness({ folders: foldersFor(root), initial: GOAL, quickPicks: ["Zotero", null], diagnosticServices: { runProcess: factsServices(undefined, undefined, calls) } });
@@ -1046,7 +1122,18 @@ test("opening the integrations flow reads the machine record on its own short bo
   assert.equal(calls.length, 1, "opening the flow still consults the machine record once — the deliberate read survives the fix");
   assert.deepEqual(calls[0].args, ["-I", "-B", "-X", "utf8", "-m", "research_stack.cli", "integration-facts"], "and it is still the facts verb and nothing else");
   assert.ok(calls[0].options.timeout > 0 && calls[0].options.timeout <= 5000, "the read is bounded by its own short bound (5 s at most): it is a local file read by the Toolkit's own worker, not a reach to two services");
-  assert.ok(calls[0].options.timeout < integrationProbe.PROBE_TIMEOUT_MS, "and it is shorter than the probe's bound, so opening this flow cannot hold the operator's lock for the whole check");
+  assert.ok(calls[0].options.timeout < integrationProbe.PROBE_TIMEOUT_MS, "and it is shorter than the probe's published bound, so opening this flow cannot hold the operator's lock for the whole check");
+  // 0.3.13 could only say this against a literal. Now the check bound is the operator's, so the claim that
+  // matters is stronger: raising it must not lengthen a local file read, and the guard must survive the setting.
+  const raised = [];
+  const raisedHarness = makeHarness({
+    folders: foldersFor(root), initial: { ...GOAL, integrationTimeoutMs: integrationProbe.PROBE_TIMEOUT_MAX_MS },
+    quickPicks: ["Zotero", null], diagnosticServices: { runProcess: factsServices(undefined, undefined, raised) },
+  });
+  await run(raisedHarness, "researchToolkit.manageIntegrations");
+  assert.equal(raised.length, 1, "the raised bound changes nothing about how many times the machine record is read");
+  assert.ok(raised[0].options.timeout > 0 && raised[0].options.timeout <= 5000, "the facts read keeps its own 5 s bound at the ceiling of the check bound: `researchStack.integrationTimeoutMs` bounds the readiness check, not every worker call the integrations flow makes");
+  assert.equal(raisedHarness.api.state().integrations.cooldownMs, integrationProbe.PROBE_COOLDOWN_MS, "and reading the settings for the flow did not spend the check budget or change it");
 });
 
 test("opening the integrations flow while a check is running skips the machine-record read and says why (J3)", async (t) => {

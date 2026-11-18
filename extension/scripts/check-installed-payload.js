@@ -239,8 +239,16 @@ async function main() {
     await panel.receive({ type: "ready" });
     const state = panel.messages.at(-1);
     assert.equal(state.version, version);
-    assert.equal(state.presets.length, 9, "Full offers the whole preset range");
-    assert.equal(state.toolSurface.toolCount, 20, "the preset-selectable surface is still 20 tools after 0.3.13: 5 document/recommended readers, 5 research verbs (search_literature, check_citation, zotero_library, zotero_write, prepare_zotero_import), 10 store verbs");
+    // 10, not 9: `presets.json` registers twelve presets for the Full package and 0.3.14 retires two of them
+    // (`research-lab`, `research-lab-max`), which stay resolvable for a workspace that saved one but are never
+    // offered. Twelve minus the two retired is what the panel has to list.
+    assert.equal(state.presets.length, 10, "Full offers the whole preset range, retired presets excepted");
+    // 21, not 20: the corpus server gained `embed_corpus` in 0.3.14, so the surface a preset selects from is
+    // 5 document tools, 5 research verbs (search_literature, check_citation, zotero_library, zotero_write,
+    // prepare_zotero_import) and 11 store verbs. The three deprecated research aliases are registered only by
+    // the unmanaged `all` surface, so they are not counted here — 24 is what `all` publishes, 21 is what a
+    // preset can reach, and no preset carries more than 20 toolkit tools.
+    assert.equal(state.toolSurface.toolCount, 21, "the preset-selectable surface is 21 verbs after 0.3.14: 5 document, 5 research, 11 store verbs");
     assert.equal(state.installPlan.package.id, "full");
     assert.equal(state.installPlan.steps.length, 4, "Full declares four component steps");
     assert.deepEqual(state.installPlan.counts, { installed: 3, outdated: 1, omittedOptional: 0 }, "the receipt plus produced files drive step status");
@@ -248,11 +256,15 @@ async function main() {
     assert.ok(state.installPlan.steps.every((step) => step.status !== "installed" || step.artifacts), "an installed step reports the files that prove it");
     assert.equal(state.installPlan.components.managed, 11);
     assert.equal(state.installPlan.components.planned, 5);
-    const widest = state.presets.find((item) => item.id === "research-lab-max");
+    // The widest surface 0.3.14 offers is the GitHub-full max preset, not the retired `research-lab-max`:
+    // 16 toolkit tools beside the 92 GitHub tool names the preset selects, 108 total — 20 under the 128-tool
+    // ceiling, which is the headroom the budget reserves, and every one of those 92 is a named tool rather
+    // than a vendor estimate.
+    const widest = state.presets.find((item) => item.id === "research-max-github-full");
     assert.equal(widest.estimate.measured, true);
-    // 100, not 101: 0.3.13 consolidated the Zotero surface, so the widest preset carries 9 toolkit tools
-    // (5 document + 4 read-only research verbs) beside the 91 external tools it names, 28 under the ceiling.
-    assert.equal(widest.estimate.totalTools, 100);
+    assert.equal(widest.estimate.totalTools, 108);
+    assert.equal(widest.estimate.thirdPartyTools, 92, "the external half of the widest preset is the list it names, not an estimate");
+    assert.equal(state.toolBudget.clientCeiling - widest.estimate.totalTools, state.toolBudget.minimumHeadroom);
     assert.ok(widest.estimate.totalTools <= state.toolBudget.clientCeiling);
     assert.match(panel.webview.html, /id="preset-list"/);
     assert.match(panel.webview.html, /id="preset-estimate"/);
@@ -272,11 +284,13 @@ async function main() {
     assert.match(state.installation.line, /component setup|Installation/, state.installation.line);
     assert.equal(state.installation.toolkitVersion, version, "the installation card is labelled with the packaged release");
     report.commands = registered.size;
-    assert.equal(registered.size, 39, "every declared command is registered (25 through 0.3.8, the five 0.3.9 corpus, freshness and bundle commands, the three 0.3.10 update and problem-report commands, the five 0.3.11 integration commands, and the 0.3.13 Zotero write-key command)");
+    assert.equal(registered.size, 43, "every declared command is registered (25 through 0.3.8, the five 0.3.9 corpus, freshness and bundle commands, the three 0.3.10 update and problem-report commands, the five 0.3.11 integration commands, the 0.3.13 Zotero write-key command, the three 0.3.14 bundle force-update, archive-history and archive-restore commands, and the 0.3.14 configure-preset-tools-for-Copilot command)");
     for (const command of ["researchToolkit.retryFailedSteps", "researchToolkit.clearSetupLock", "researchToolkit.openSetupLog", "researchToolkit.copyInstallationDiagnostics",
       "researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness", "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus",
       "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension",
-      "researchToolkit.manageIntegrations", "researchToolkit.checkIntegrations", "researchToolkit.activateIntegration", "researchToolkit.setIntegrationApiKey", "researchToolkit.resetIntegration"]) {
+      "researchToolkit.manageIntegrations", "researchToolkit.checkIntegrations", "researchToolkit.activateIntegration", "researchToolkit.setIntegrationApiKey", "researchToolkit.resetIntegration",
+      "researchToolkit.forceUpdateTopicBundle", "researchToolkit.showBundleArchiveHistory", "researchToolkit.restoreBundleArchive",
+      "researchToolkit.configurePresetTools"]) {
       assert.equal(typeof registered.get(command), "function", `${command} ships registered`);
     }
     // 0.3.11: the integration card ships in the packaged panel, and the packaged state carries the
@@ -320,16 +334,21 @@ async function main() {
     assert.ok(panel.webview.html.includes("The Toolkit sends nothing by itself."), "packaged panel states that a problem report is sent by the operator, not by the Toolkit");
     const diagnosis = await registered.get("researchToolkit.diagnoseToolLimit")();
     assert.match(diagnosis, /Client ceiling: 128 tools/);
-    assert.match(diagnosis, /Toolkit contribution now: 11 toolkit tools from 3 managed MCP server\(s\)/, "the Full default preset spans all three servers");
+    // 15, not 11: 0.3.14 gives the Full default the retrieval and provenance verbs (`embed_corpus`,
+    // `verify_sources`, `claims_export`, `store_status`) so the whole journey is one preset, not a preset plus
+    // a manual switch to the corpus goal.
+    assert.match(diagnosis, /Toolkit contribution now: 15 toolkit tools from 3 managed MCP server\(s\)/, "the Full default preset spans all three servers");
     values.set("toolsPreset", "corpus-lab");
     const summary = await registered.get("researchToolkit.copyPresetSummary")();
     const corpusPreset = extension.presetCatalog.presets.find((item) => item.id === "corpus-lab");
-    assert.equal(corpusPreset.tools.length, 11, "the corpus goal carries all ten store verbs plus the notes reader (0.3.9 adds verify_sources)");
+    // 12, not 11: `embed_corpus` joins the corpus goal in 0.3.14, so the whole store surface is one preset.
+    assert.equal(corpusPreset.tools.length, 12, "the corpus goal carries all eleven store verbs plus the notes reader that reopens a hit");
     assert.ok(corpusPreset.tools.includes("verify_sources"), "the shipped corpus preset can ask whether an indexed source still matches the file");
-    assert.match(summary, new RegExp(`Toolkit tools \\(11\\): ${corpusPreset.tools.join(", ")}`), "the copied summary lists the shipped corpus verbs");
+    assert.ok(corpusPreset.tools.includes("embed_corpus"), "the shipped corpus preset can build the vectors its own search modes score");
+    assert.match(summary, new RegExp(`Toolkit tools \\(12\\): ${corpusPreset.tools.join(", ")}`), "the copied summary lists the shipped corpus verbs");
     assert.match(summary, /measured from the installed worker's tools\/list schemas/);
     assert.equal(vscode.clipboard, summary);
-    assert.match(api.state().readiness, /Selected tools preset: Index, search and record claims · 11 toolkit tools/);
+    assert.match(api.state().readiness, /Selected tools preset: Index, search and record claims · 12 toolkit tools/);
     assert.match(api.state().readiness, /Package setup for Full: 3 of 4 component steps installed, 1 outdated for this toolkit release/);
     assert.equal(vscode.tree.getChildren()[2].label, "Tools preset: Index, search and record claims");
     assert.equal(vscode.tree.getChildren()[3].label, "Components: 3/4 steps ready");

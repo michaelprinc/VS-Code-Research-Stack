@@ -23,10 +23,20 @@ test("manifest exposes GUI and package commands with matching contributions and 
   assert.equal(manifest.devDependencies, undefined);
   assert.equal(manifest.scripts, undefined);
   assert.equal(manifest.private, undefined);
-  const shippedAllowlist = ["CHANGELOG.md", "LICENSE.txt", "README.md", "SECURITY.md", "SUPPORT.md", "bundles", "bundles.js", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "integrationprobe.js", "integrations.js", "integrationstore.js", "lockfile.js", "media", "package.json", "preflight.js", "presets.json", "probe.py", "reports.js", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "updates.js", "worker"].sort();
+  const shippedAllowlist = ["CHANGELOG.md", "LICENSE.txt", "README.md", "SECURITY.md", "SUPPORT.md", "bundles", "bundles.js", "components.json", "diagnostics.js", "extension.js", "functional_check.py", "guides", "hosttools.js", "installer.js", "integrationprobe.js", "integrations.js", "integrationstore.js", "lockfile.js", "media", "package.json", "preflight.js", "presets.json", "presetselect.js", "probe.py", "reports.js", "runner.js", "runtime.js", "setuplog.js", "status.js", "steps.js", "ui.js", "updates.js", "worker"].sort();
   assert.deepEqual([...manifest.files].sort(), shippedAllowlist,
-    "the shipped allowlist names every module the controller requires, including the 0.3.6 setup modules, the 0.3.7 lock reader, the 0.3.9 bundle installer, the 0.3.10 update and report modules and the 0.3.11 integration modules");
-  assert.deepEqual(manifest.contributes.configuration.properties["researchStack.toolsPreset"].enum, ["package-default", "read-and-cite", "find-in-notes", "verify-citations", "zotero-handoff", "research-core", "research-workflow", "research-lab", "research-lab-max", "corpus-lab"]);
+    "the shipped allowlist names every module the controller requires, including the 0.3.6 setup modules, the 0.3.7 lock reader, the 0.3.9 bundle installer, the 0.3.10 update and report modules, the 0.3.11 integration modules and the 0.3.14 Copilot selection module");
+  // 13 ids, not 10: 0.3.14 adds `research-max-github-full`, `research-max-github-limited` and
+  // `research-max-no-github`, and deliberately keeps the two retired ids so a preference saved in 0.3.13 is
+  // still a value the editor accepts instead of one it discards in silence (DD15-07). The list is derived
+  // from the preset registry, so a preset that joins the settings without joining the registry is caught;
+  // the length is pinned because this list is the shipped settings surface.
+  const registryPresets = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "presets.json"), "utf8")).presets;
+  const registryIds = registryPresets.map((item) => item.id);
+  assert.deepEqual(manifest.contributes.configuration.properties["researchStack.toolsPreset"].enum, ["package-default", ...registryIds]);
+  assert.equal(manifest.contributes.configuration.properties["researchStack.toolsPreset"].enum.length, 13, "twelve shipped presets plus the package default, two of them retired but still resolvable");
+  assert.deepEqual(registryPresets.filter((item) => item.retired).map((item) => item.id).sort(), ["research-lab", "research-lab-max"],
+    "exactly two presets are retired in this release, and both stay in the enum");
   assert.equal(manifest.contributes.configuration.properties["researchStack.toolsPreset"].default, "package-default");
   assert.equal(manifest.contributes.configuration.properties["researchStack.toolsPreset"].scope, "application-overridable", "a preset can be overridden per workspace folder");
   assert.ok(manifest.contributes.commands.some((item) => item.command === "researchToolkit.selectToolsPreset"));
@@ -50,19 +60,24 @@ test("the settings contributions describe the shipped presets and commands witho
   }
   const categories = new Set(manifest.contributes.commands.map((item) => item.category));
   assert.deepEqual([...categories], ["Research Toolkit"], "the new commands appear in the same Command Palette group as the rest");
-  assert.equal(manifest.contributes.commands.length, 39, "30 through 0.3.9, the three 0.3.10 update and problem-report commands, the five 0.3.11 integration commands, and the 0.3.13 Zotero write-key command");
+  // 43, not 42: 0.3.14 adds the three bundle commands HR-20…HR-23 needs — the force update, the archive
+  // history and the restore — and the one HR-12 command that writes a preset's GitHub tool selection for
+  // Copilot. The number is pinned so a command cannot join the palette unreviewed.
+  assert.equal(manifest.contributes.commands.length, 43, "30 through 0.3.9, the three 0.3.10 update and problem-report commands, the five 0.3.11 integration commands, the 0.3.13 Zotero write-key command, the three 0.3.14 bundle force-update, archive-history and archive-restore commands, and the 0.3.14 configure-preset-tools-for-Copilot command");
   for (const command of ["researchToolkit.indexSelectedSources", "researchToolkit.verifySourceFreshness",
     "researchToolkit.installTopicBundle", "researchToolkit.repairTopicBundle", "researchToolkit.showBundleStatus",
     "researchToolkit.reportProblem", "researchToolkit.checkForUpdates", "researchToolkit.updateExtension",
     "researchToolkit.manageIntegrations", "researchToolkit.checkIntegrations", "researchToolkit.activateIntegration",
-    "researchToolkit.setIntegrationApiKey", "researchToolkit.setZoteroWriteKey", "researchToolkit.resetIntegration"]) {
+    "researchToolkit.setIntegrationApiKey", "researchToolkit.setZoteroWriteKey", "researchToolkit.resetIntegration",
+    "researchToolkit.forceUpdateTopicBundle", "researchToolkit.showBundleArchiveHistory", "researchToolkit.restoreBundleArchive",
+    "researchToolkit.configurePresetTools"]) {
     assert.ok(manifest.contributes.commands.some((item) => item.command === command), `${command} is contributed, not just registered`);
   }
 });
 
 test("activation registers both disposable commands and reports the profile preference", async () => {
   const harness = makeHarness();
-  assert.equal(harness.registered.size, 39, "every contributed command is registered, including the 0.3.10 update and report commands, the 0.3.11 integration commands and the 0.3.13 Zotero write-key command");
+  assert.equal(harness.registered.size, 43, "every contributed command is registered, including the 0.3.10 update and report commands, the 0.3.11 integration commands, the 0.3.13 Zotero write-key command, the three 0.3.14 bundle archive commands and the 0.3.14 configure-preset-tools command");
   for (const integrationCommand of ["researchToolkit.manageIntegrations", "researchToolkit.checkIntegrations", "researchToolkit.activateIntegration", "researchToolkit.setIntegrationApiKey", "researchToolkit.resetIntegration"]) {
     assert.equal(typeof harness.registered.get(integrationCommand), "function", `${integrationCommand} is registered so the panel and the command palette can offer it`);
   }
@@ -87,7 +102,7 @@ test("activation registers both disposable commands and reports the profile pref
   assert.equal(harness.values.get("selectedPackage"), "basic");
   assert.equal(harness.output.shown, true);
   for (const subscription of harness.context.subscriptions) subscription.dispose();
-  assert.equal(harness.disposed.length, 40, "every registered command and the status item are disposed with the extension");
+  assert.equal(harness.disposed.length, 44, "every registered command and the status item are disposed with the extension (43 commands as of 0.3.14, plus the status bar item and the output channel)");
 });
 
 test("GUI saves packages/options, reuses its panel, and syncs external settings with sidebar/status", async () => {
@@ -320,5 +335,67 @@ test("a Marketplace that has not published this extension is reported as such, n
   assert.equal(harness.events.updateChecks.length, 1);
   const said = harness.events.messages.find((item) => /No published version/.test(item.text));
   assert.ok(said, "the panel wording says what was found");
+});
+
+// HR-20 / T15-14 at the command level: what the module proves is that a force plan names the files it would
+// overwrite. This proves the command shows them to the operator, in a modal, before a single byte is written,
+// and that declining the modal changes nothing on disk.
+test("the force update command names every file it is about to overwrite, and where its bytes go first", async () => {
+  const os = require("node:os");
+  const bundles = require("../bundles");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "research-force-bundle-"));
+  const edited = path.join(root, ".github/skills/theological-research/references/methods.md");
+  const operatorText = "# Method notes I wrote after the Toolkit installed this file.\n\nNone of it came from the catalog.\n";
+  try {
+    const catalog = await bundles.readCatalog(path.join(__dirname, "..", "bundles", "catalog.json"));
+    await bundles.installBundle({ workspaceRoot: root, catalog, bundleId: "theological-research" });
+    await fs.promises.writeFile(edited, operatorText);
+
+    // Declining the dialog first, so the confirming run below is measured against a workspace nothing has touched yet.
+    const declined = makeHarness({
+      folders: [{ name: "Force <draft>", uri: { scheme: "file", fsPath: root } }],
+      quickPicks: ["theological-research"], confirmPrompt: false,
+    });
+    assert.equal(await declined.registered.get("researchToolkit.forceUpdateTopicBundle")(), undefined, "declining returns nothing");
+    assert.ok(declined.events.messages.some((item) => item.kind === "warning" && item.options && item.options.modal),
+      "and it really was asked: the decline is an answer to a question, not a missing question");
+    assert.equal(fs.readFileSync(edited, "utf8"), operatorText, "the operator's file still holds what they wrote");
+    assert.equal((await bundles.listArchives({ workspaceRoot: root, bundleId: "theological-research" })).count, 0, "and no archive appeared for a run that never happened");
+
+    const harness = makeHarness({
+      folders: [{ name: "Force <draft>", uri: { scheme: "file", fsPath: root } }],
+      quickPicks: ["theological-research"],
+    });
+    const receipt = await harness.registered.get("researchToolkit.forceUpdateTopicBundle")();
+    const asked = harness.events.messages.filter((item) => item.kind === "warning" && item.options && item.options.modal);
+    assert.equal(asked.length, 1, "the force update asks once, through a modal, before it writes anything");
+    const detail = asked[0].options.detail;
+    assert.match(detail, /\.github\/skills\/theological-research\/references\/methods\.md/, "the dialog names the file by its workspace path, not by a count");
+    assert.match(detail, /a file you changed after this Toolkit installed it/, "and says which kind of file it is, because an operator's file and an older installed copy are not the same decision");
+    assert.ok(detail.includes(path.join(root, bundles.ARCHIVE_FOLDER, "theological-research")), "and states the folder the replaced bytes will be copied into before the overwrite");
+    assert.equal(receipt.archive.reason, "force-update");
+    assert.equal(receipt.archive.files, 1, "only the file the operator changed was archived");
+    assert.deepEqual(receipt.repair.overwritten.map((item) => item.path), [".github/skills/theological-research/references/methods.md"]);
+    assert.ok(receipt.repair.overwritten[0].archivedTo, "and the receipt says where the replaced bytes were kept");
+    assert.equal(fs.readFileSync(receipt.repair.overwritten[0].archivedTo, "utf8"), operatorText,
+      "the archived copy the receipt names holds the bytes the operator wrote, so the overwrite is undoable");
+    const listed = await bundles.listArchives({ workspaceRoot: root, bundleId: "theological-research" });
+    assert.equal(listed.count, 1);
+    assert.equal(listed.archives[0].manifest.files[0].sha256, require("node:crypto").createHash("sha256").update(operatorText).digest("hex"),
+      "the manifest hash is the hash of the bytes actually archived");
+    // A second force run over a workspace that now matches the catalog has nothing to replace, so it asks nothing,
+    // writes nothing and invents no archive: an empty force is reported, not performed.
+    const again = makeHarness({
+      folders: [{ name: "Force <draft>", uri: { scheme: "file", fsPath: root } }],
+      quickPicks: ["theological-research"],
+    });
+    const empty = await again.registered.get("researchToolkit.forceUpdateTopicBundle")();
+    assert.equal(empty.overwrites.length, 0, "the second run has no file to overwrite");
+    assert.equal(again.events.messages.filter((item) => item.kind === "warning").length, 0, "so it never asks");
+    assert.ok(again.events.messages.some((item) => /Nothing to force-update/.test(item.text)), "and says so plainly");
+    assert.equal((await bundles.listArchives({ workspaceRoot: root, bundleId: "theological-research" })).count, 1, "still one archive, from the one run that replaced bytes");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 

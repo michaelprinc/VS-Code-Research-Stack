@@ -1,4 +1,114 @@
-# Quality state — Research Stack Toolkit 0.3.13 (Zotero work internalized into the Toolkit's own worker)
+# Quality state — Research Stack Toolkit 0.3.14 (retrieval in the store, presets that name their tools, bundles that can be overwritten safely)
+
+> **PHASE 15 IMPLEMENTED AND VERIFIED ON THE BUILD HOST — 17/18 November 2026. No tag on 0.3.14.** The release was
+> driven by an operator's 0.3.13 report (Czech, sections ⚠1–5 and §8 "Co 0.3.13 nedělá"): retrieval planned but not
+> implemented, `lab-state.json` not refreshed by the store's own writes, `researchStack.integrationTimeoutMs` named in
+> the worker README but absent from Settings, the changelog describing a preset surface that was never shipped, the
+> guide saying "Install the 0.3.12 VSIX", and a bundle repair path that could not overwrite a bundle the operator had
+> edited. Plan of record: [specs/phase-15-hybrid-retrieval-presets-bundles/spec.md](../specs/phase-15-hybrid-retrieval-presets-bundles/spec.md)
+> (HR-01…HR-33, DD15-01…DD15-12), [tasks.md](../specs/phase-15-hybrid-retrieval-presets-bundles/tasks.md),
+> [acceptance.md](../specs/phase-15-hybrid-retrieval-presets-bundles/acceptance.md) (**T15-01…T15-21, all 21 proven**),
+> with per-package notes `implementation-P2-retrieval.md`, `implementation-P3-bundle-archive.md`,
+> `implementation-P4-integration-settings.md`, `implementation-P5b-copilot-selection.md`,
+> `implementation-P5c-preset-surface.md`, `implementation-P7-docs.md` and the working checkpoint
+> [phase-15-PROGRESS.md](phase-15-PROGRESS.md). The GitHub tool inventory the presets were built from is the tracked
+> [research/github-mcp-tool-map-2026-11-17.md](../research/github-mcp-tool-map-2026-11-17.md).
+>
+> **What shipped.** (1) Retrieval inside the record store: `search_corpus(mode = lexical | vector | hybrid)`, the new
+> `embed_corpus` verb, a dependency-free CPU backend (`rsk-hashing-v1`, 256 dimensions, signed feature hashing over
+> words and 3/4-character n-grams, int16-quantised, stored base64 in the same SQLite file — standard library only, no
+> model, no download, no new dependency), reciprocal-rank fusion (k = 60, 0.5 / 0.25 / 0.25), schema **4** with a
+> reviewed `_migrate_3_to_4` that invents no vector, and a `lab-state.json` that every store verb refreshes from a
+> `SELECT` on the same database. `draft` is an accepted claim status. (2) Presets that name what they count: cap raised
+> **12 → 20** toolkit tools, three max presets (`research-max-github-full` 16 + **92 named** GitHub tools = 108 with
+> exactly 20 tools of headroom; `research-max-github-limited` 20 + 42 named read-only tools with all 35 write tools
+> named as excluded; `research-max-no-github` 20 + none), `research-workflow` 11 → **15** verbs and `corpus-lab` 11 →
+> **12** so the whole journey is one preset, and `research-lab` / `research-lab-max` **retired but resolvable** — the
+> unnamed "91 estimated external tools" they carried is exactly what 0.3.14 refuses to publish. (3)
+> `researchToolkit.configurePresetTools` + `extension/presetselect.js`: the one writer of a preset's GitHub tool
+> selection into the workspace `.mcp.json` (`mcpServers.github`, per-server `tools` allow-list), with 28 named refusals,
+> a `//researchStackPreset` authorship marker, `${GITHUB_PERSONAL_ACCESS_TOKEN}` written instead of any token, and the
+> bytes it replaces copied to `.research-toolkit/preset-tools/`. (4) Bundle force-update that can overwrite a bundle the
+> operator edited, after a modal names every file and its state, with each replaced file archived under
+> `.research-toolkit/bundles/archive/<bundleId>/<stamp>/` beside an `index.json` and an `archive.log` whose last field
+> is the **absolute** archive path, plus `Show Bundle Archive History` and `Restore Bundle Archive Version`. (5) The two
+> settings the worker README promised since 0.3.12: `researchStack.integrationTimeoutMs` (40 000–300 000 ms, default
+> 80 000) and `researchStack.integrationCooldownSeconds` (5–300 s, default 10), resolved in one place
+> (`integrationprobe.probeBounds()`) and reported as the bound actually in force. (6) F-01: a rollback now names the
+> checker version and the runtime version and says what the weaker proof proves.
+>
+> **0.3.14 measured on the Linux development host that built it.** Node **525 tests, 525 pass, 0 fail, 0 skipped**.
+> Python **444 passed, 0 failed** across 22 files. Panel renderer check **9 assertions, 9 pass, 0 not proven** (rows H
+> and I added for the four new panel controls and the retirement text). Artifact
+> **`research-stack-toolkit-0.3.14.vsix`, 121 members, 560 523 packed, 1 707 234 unpacked** under the re-measured
+> ceiling **1 769 472** (headroom 62 238, 3.6 %), sha256
+> `82cf6b8274df87b039b1b85bbf5740bebed2e1c7995476f2dc2da17e667fbae0`; `verify-package` and `check:payload` both
+> `result: passed`. The +213 161 bytes over 0.3.13 are attributed member by member above `MAX_UNPACKED_BYTES`.
+> `uv.lock` was re-resolved with uv 0.13.6, never hand-edited. **Tool budget:** 21
+> preset-selectable verbs (5 documents + 5 research + 11 store; `all` publishes 24 with the three reviewed aliases),
+> every preset ≤ 20 toolkit tools, widest total 108 of 128.
+>
+> **What 0.3.14 does not claim.** No `tools/list` was ever captured against a GitHub MCP server: 92 / 57 / 35 / 42 are
+> vendor catalog **name** counts from 2026-11-17. That the Copilot harness honours a per-server `tools` allow-list, and
+> tolerates the unknown marker member, is vendor-documented, not observed here. `rsk-hashing-v1` is a lexical signature,
+> not a semantic model, and its ranking was never measured against the operator's own corpus; no cosine threshold exists
+> anywhere. Qdrant, DuckDB, a learned embedding model, Playwright and the institutional adapters stay `kind: "planned"`;
+> no OCR, no automatic acquisition of papers, no notebook kernel execution, no Zotero delete or merge. G1–G4 remain
+> open, the reference-host / Extension Host / browser receipts for 0.3.9–0.3.14 were never produced, and
+> `extension/test/browser.test.js` has never executed in this container. One shipped file keeps a stale 0.3.13 claim —
+> `extension/bundles/theological-research/references/my-library.md` still says the toolkit provides no vector store; it
+> is hashed by `extension/bundles/catalog.json` and was not re-hashed in this release.
+>
+> The 0.3.13 record follows, kept as history exactly as it was written.
+
+## Defects found and closed in 0.3.14
+
+| Finding (operator report / audit) | What was wrong | What the shipped build does |
+| --- | --- | --- |
+| ⚠1 / §8 "vector and hybrid retrieval is only planned" | `search_corpus` accepted only `lexical`; the store carried a `vectorSearch: "not-implemented"` marker. | `mode = lexical \| vector \| hybrid` with reciprocal-rank fusion; `embed_corpus(overwrite)`; `vectorSearch` is gone from the workspace writer and `retrieval` reports the state that a `SELECT` measured. |
+| ⚠2 "lab-state.json drifts after the store's own writes" | Indexing through MCP updated SQLite but left the JSON counters behind. | Every store verb refreshes `lab-state.json` (schema 2) from the same database; a refresh failure is reported as a named reason with `nextAction`, never as a silently stale number. |
+| ⚠3 `researchStack.integrationTimeoutMs` documented but missing | The worker README named it since 0.3.12; Settings had no such key, and the probe's bound was hard-coded. | `integrationTimeoutMs` (40 000–300 000 ms, default 80 000) and `integrationCooldownSeconds` (5–300 s, default 10) are contributed settings, resolved once in `integrationprobe.probeBounds()` and named in the probe result. Out-of-range values clamp with a note saying what was clamped. |
+| ⚠4 changelog describes a preset surface that was never shipped | 0.3.13 published "9 toolkit tools + 91 estimated external tools = 100" for presets whose tool lists did not exist. | Every preset's third-party count is a **named** list whose length is its `toolsEstimate` (HR-11); estimates without names are refused by test and by code; `research-lab` and `research-lab-max` are retired, labelled as retired, and no longer offered. |
+| ⚠5 / R15-05 guide says "Install the 0.3.12 VSIX" | `extension/guides/toolkit.md:7` and `worker-0.3.13/installation.json` in five guides. | Guides name the 0.3.14 VSIX and `worker-0.3.14/installation.json`, and the 0.3.13 preset table is annotated in place with a pointer to the current one. |
+| Bundle cannot be force-updated after the operator edited it | `planInstall()` stopped at `user-modified` and `conflict`, so a hand-edited bundle could not be brought back to the Toolkit's source without deleting files by hand. | `force` reaches `user-modified` and `conflict` (never `shared-with-other-bundle`), only after a modal lists each file and its measured state; replaced bytes are archived before any write. |
+| F-01 rollback proof was weaker than its wording | A rollback verified the checker, not the runtime it replaced, and said only "verified". | `rollbackRuntime` returns `checkerVersion`, `checkerMatchesRuntime` and a `verificationNote` that states which of the two was checked. |
+| F-02 a retired preset could still be chosen | The Quick Pick and the settings enum carried `research-lab` / `research-lab-max` with estimates that no longer held. | Retired presets are filtered out of every picker, marked in the settings enum labels, refused on a new choice, and still resolvable for an existing saved value. |
+
+## Open items and risks carried into the next round (0.3.14)
+
+1. **No `tools/list` receipt.** 92 published GitHub names (57 read-only, 35 write), the 42-name limited subset and the
+   21 / 14 toolset lists come from the vendor catalog as read on 2026-11-17, recorded in
+   [research/github-mcp-tool-map-2026-11-17.md](../research/github-mcp-tool-map-2026-11-17.md). A live `tools/list`
+   against `…/mcp/x/all` and `…/mcp/readonly` has never been captured here, so a name could be stale or renamed.
+2. **Copilot behaviour is vendor-documented, not observed.** That `mcpServers[].tools` gates which tools the harness
+   offers, and that `.mcp.json` tolerates the `//researchStackPreset` member, is what GitHub documents; nothing in this
+   repository measured it.
+3. **Retrieval quality is unmeasured.** `rsk-hashing-v1` is a 256-dimensional signed feature-hash signature: it finds
+   lexically similar text, not paraphrase. No cosine threshold, no ranking-quality measurement against the operator's
+   own corpus (8 sources / 2 067 chunks, not present in this container), no recall/precision figures anywhere.
+4. **`extension/bundles/theological-research/references/my-library.md:10` still says the toolkit provides no vector
+   store.** Re-hashing that bundle means moving `extension/bundles/catalog.json` and the bundle version; this release
+   deliberately did not do it. Highest-value documentation fix in the next round.
+5. **A stale hashed-bundle claim, one unmeasured backend, no reference-host receipts** — the Extension Host and browser
+   renderer receipts are outstanding since 0.3.9, `extension/test/browser.test.js` has never executed here (the panel
+   renderer check is the substitute), `scripts/verify_mcp.py:46` names a Windows executable and cannot run on POSIX, and
+   `npm run test:host` was not run.
+6. **Payload headroom is thin:** 62 238 bytes, 3.6 % of 1 769 472. A further guide expansion or another preset with a
+   full name list needs the ceiling re-measured before it lands, not after.
+
+## Next highest-value action (0.3.14, current)
+
+1. Capture a real `tools/list` from the GitHub MCP server on a host with a token, and reconcile it against the 92 / 57 /
+   35 map; where the server disagrees, correct `extension/presets.json` and the map in the same commit.
+2. Re-hash the theological-research bundle so `references/my-library.md` describes schema 4 and the retrieval modes,
+   and move its catalog entry — the last shipped file that still contradicts the build.
+3. Measure retrieval on the operator's corpus: same 20 queries under `lexical`, `vector` and `hybrid`, ranked side by
+   side, and record whether hybrid actually helps or only reorders ties. That is the evidence the mode needs before it
+   becomes a default.
+4. Produce the 0.3.14 Extension Host and browser-renderer receipts on a real host (four new panel controls and the
+   retirement text have only the panel renderer check behind them).
+
+## 0.3.13 (Zotero work internalized into the Toolkit's own worker) — the record that preceded 0.3.14
 
 > **PHASE 14 IMPLEMENTED, VERIFIED AND COMMITTED — 14 November 2026, commit `a42af03`; the presentation-correction
 > round that follows it is committed as `56a990f`, `6607db9`, `c4f8816`, `39cb936`, `650416f` and `bcbf6fe`. No tag
@@ -456,7 +566,7 @@ named npm script~~ **done in round 2 — it is `npm run test:panel`**; (3) run `
 folder.
 
 
-## Next highest-value action (0.3.13, current)
+## Next highest-value action (0.3.13, superseded by the 0.3.14 action list above)
 
 **On the operator's Windows machine, and nowhere else in this container.** Two runs, in this order:
 

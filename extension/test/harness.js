@@ -170,6 +170,18 @@ function makeHarness({ pickedId = "full", cancel = false, failUpdate = false, in
           const wanted = quickAnswers.shift();
           return wanted === null || wanted === undefined ? undefined : items.find((item) => item.label === wanted);
         }
+        // 0.3.14 (HR-20…HR-23): the bundle commands ask which bundle, then which archived version. Same rule
+        // as the integration picks above — `quickPicks` stands for what the operator chose, in order, matched
+        // on the id the controller passed in, so an option the controller did not offer cannot be answered. A
+        // test that passes no `quickPicks` keeps the old failure: an unhandled Quick Pick is a question nobody
+        // answered, and the controller must not run on as if it had.
+        if (quickAnswers.length) {
+          const wanted = quickAnswers.shift();
+          if (wanted === null || wanted === undefined) return undefined;
+          const answer = items.find((item) => item.id === wanted || item.label === wanted);
+          if (!answer) throw new Error(`the harness was asked to choose "${wanted}" but "${options.title}" did not offer it`);
+          return answer;
+        }
         throw new Error(`the harness has no Quick Pick answer for "${options.title}"`);
       },
     },

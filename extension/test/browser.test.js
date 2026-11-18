@@ -132,8 +132,8 @@ async function main() {
     assert.equal(harness.values.get("toolsPreset"), "find-in-notes");
     await page.getByText("Saved: Search my own notes", { exact: true }).waitFor();
     await page.locator("#preset-details summary").click();
-    await page.locator("#preset-estimate").getByText("2 of 128").waitFor();
-    await page.locator("#preset-estimate").getByText("Toolkit tools in this preset: search_local_text, read_document.").waitFor();
+    await page.locator("#preset-estimate").getByText("3 of 128").waitFor();
+    await page.locator("#preset-estimate").getByText("Toolkit tools in this preset: search_local_text, read_text_source, read_document.").waitFor();
     await page.locator("#preset-note").getByText(/Focused preset/).waitFor();
     await page.evaluate(() => window.toolkitMessage({ type: "setPreset", id: "research-lab-max" }));
     await page.getByText("Choose a tools preset offered by the selected package.", { exact: true }).waitFor();
@@ -154,20 +154,31 @@ async function main() {
     await harness.registered.get("researchToolkit.refresh")();
     await page.getByText("Saved: Full", { exact: true }).waitFor();
     await page.getByText("Saved: Search my own notes", { exact: true }).waitFor();
-    assert.equal(await page.locator("#preset-list .preset").count(), 7, "Full offers the whole preset range");
-    await page.locator("#preset-list").getByText("Maximum research lab (128-tool budget)", { exact: true }).click();
+    assert.equal(await page.locator("#preset-list .preset").count(), 10, "Full offers the whole shipped range: twelve presets in the registry less the two retired ones");
+    assert.equal(await page.locator("#preset-list").getByText("Maximum research lab (retired)", { exact: true }).count(), 0, "a retired preset has no card in the picker (DD15-07)");
+    await page.locator("#preset-list").getByText("Maximum research: GitHub full plus the whole store", { exact: true }).click();
     await page.getByRole("button", { name: "Save tools preset" }).click();
     await page.waitForFunction(() => !document.getElementById("save-preset").disabled);
-    assert.equal(harness.values.get("toolsPreset"), "research-lab-max");
-    await page.locator("#preset-note").getByText(/Close to the limit: 100 of 128 tools/).waitFor();
-    await page.locator("#preset-estimate").getByText("100 of 128").waitFor();
+    assert.equal(harness.values.get("toolsPreset"), "research-max-github-full");
+    await page.locator("#preset-note").getByText(/Close to the limit: 108 of 128 tools/).waitFor();
+    await page.locator("#preset-estimate").getByText("108 of 128").waitFor();
+    await page.locator("#preset-estimate").getByText("92 named tools").waitFor();
     harness.values.set("selectedPackage", "basic");
     await harness.registered.get("researchToolkit.refresh")();
-    await page.getByText('Saved preset "research-lab-max" is not offered by this package · using Read and cite a document', { exact: true }).waitFor();
+    await page.getByText('Saved preset "research-max-github-full" is not offered by this package · using Read and cite a document', { exact: true }).waitFor();
     assert.equal(await page.locator('input[value="read-and-cite"]').isChecked(), true);
     harness.values.set("selectedPackage", "full");
     await harness.registered.get("researchToolkit.refresh")();
-    await page.getByText("Saved: Maximum research lab (128-tool budget)", { exact: true }).waitFor();
+    await page.getByText("Saved: Maximum research: GitHub full plus the whole store", { exact: true }).waitFor();
+    // DD15-07 in the real renderer: a preset retired after it was saved still resolves, and the panel says
+    // so and names the replacements instead of leaving the preset section blank.
+    harness.values.set("toolsPreset", "research-lab-max");
+    await harness.registered.get("researchToolkit.refresh")();
+    await page.getByText('Saved preset "research-lab-max" is retired in 0.3.14 and is no longer offered · choose one of the presets above to replace it', { exact: true }).waitFor();
+    await page.locator("#preset-note").getByText(/retired in 0\.3\.14/).waitFor();
+    await page.locator("#preset-note").getByText(/research-max-github-full/).waitFor();
+    harness.values.set("toolsPreset", "research-max-github-full");
+    await harness.registered.get("researchToolkit.refresh")();
     const receiptRoot = path.resolve(__dirname, "..", "..", "evidence", "quality-v" + TOOLKIT_VERSION + "-" + new Date().toISOString().slice(0, 10));
     fs.mkdirSync(receiptRoot, { recursive: true });
     for (const [name, width] of [["dark", 1100], ["light", 390], ["contrast", 1100]]) {
