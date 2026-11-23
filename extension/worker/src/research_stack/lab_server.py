@@ -102,7 +102,17 @@ def _failure(exc: Exception, **extra: object) -> dict[str, object]:
         # type is kept only as a category so a stored source text can never leak into the reply.
         message = f"STORE_UNEXPECTED: the store operation failed ({type(exc).__name__}). Inspect store_status before retrying."
         code = "STORE_UNEXPECTED"
-    return {"resultState": "error", "error": {"code": code, "message": message}, **extra}
+    error: dict[str, object] = {"code": code, "message": message}
+    # A refusal can carry its facts as data (``StoreError.detail``) so a client acts on the numbers
+    # instead of parsing a sentence. ``STORE_OVER_LIMIT_READ`` is the first user of this channel: it
+    # reports currentChunkCount, the limit, what scoring a slice would have meant, and the remediation
+    # (T16-04). ``code`` and ``message`` stay exactly as they were, so every 0.3.14 reader is unaffected.
+    detail = getattr(exc, "detail", None)
+    if isinstance(detail, dict):
+        for key, value in detail.items():
+            if key not in error:
+                error[key] = value
+    return {"resultState": "error", "error": error, **extra}
 
 
 def index_corpus(paths: list[str], mode: str = "index", accept_partial: bool = False) -> dict[str, object]:
@@ -138,8 +148,13 @@ def search_corpus(query: str, limit: int = 10, mode: str = "lexical") -> dict[st
     0.3.13 reply shape. ``vector`` ranks the stored hashed vectors and ``hybrid`` fuses the two
     rankings; those two modes add a ``retrieval`` block to the reply and a ``retrieval`` provenance
     record to every hit, so the client can see which ranker placed the chunk, at what rank, with what
-    score, and by which backend id. A mode that has nothing to score says why and names the verb to
-    run instead of quietly answering from a different ranker.
+    score, and by which backend id. In hybrid each hit also names the three fusion contributions and
+    whether the hit was found by the lexical ranker only, the vector ranker only, or both. A mode that
+    has nothing to score says why and names the verb to run instead of quietly answering from a
+    different ranker. A store that already holds more current chunks than the store ceiling is refused
+    with ``STORE_OVER_LIMIT_READ`` and the counts it would have scored a slice of: the ceiling is
+    checked in the same snapshot the chunks are read from, because ``index_corpus`` is not the only way
+    a store can exist (T16-04).
     """
     try:
         root = configured_root()
@@ -166,7 +181,10 @@ def embed_corpus(overwrite: bool = False) -> dict[str, object]:
     named backend — no model download, no network, no new dependency. Run it after indexing a store
     that predates vector retrieval, after a backend change, or whenever ``store_status`` reports the
     vector index as ``not-built``, ``partial`` or ``stale``. ``overwrite`` recomputes vectors that
-    already match the current backend; without it a matching vector is reused.
+    already match the current backend; without it a matching vector is reused. A reused vector is one
+    that also decodes: a row whose labels match but whose blob is unreadable is rebuilt and reported in
+    ``chunkAccounting.rebuiltUnreadableVector``. A store over the chunk ceiling is refused with
+    ``STORE_OVER_LIMIT_READ`` before any chunk is loaded (T16-04).
     """
     try:
         return {"writeMode": "store-only", "persistentIndex": True, **records.embed_chunks(configured_root(), overwrite=overwrite)}

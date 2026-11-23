@@ -1,0 +1,232 @@
+# Raw command output for the T16-07 / T16-12 pass (recorded 2026-11-23T04:5xZ, branch main, HEAD 5995dfa)
+
+## .venv/bin/python scripts/build_bundle_catalog.py --check
+bundles/catalog.json unchanged: 2 bundle(s), 16 files, 94166 bytes, 0 unresolved license(s), publishable=True
+exit=0
+
+## sha256 of the two trees this pass touched
+5dac3db8dd73898ef12b9bd3d90d34d1118614b26cf6e6f07d20a4b4039c83b2  templates/skill-bundles/theology/theological-research/references/my-library.md
+5dac3db8dd73898ef12b9bd3d90d34d1118614b26cf6e6f07d20a4b4039c83b2  extension/bundles/theological-research/references/my-library.md
+57a182cfb546783c5a3ffb95a38ca95f7021c699f71ed47b5afc82231a606af5  templates/skill-bundles/theology/theological-research/scripts/dedupe_records.py
+57a182cfb546783c5a3ffb95a38ca95f7021c699f71ed47b5afc82231a606af5  extension/bundles/theological-research/scripts/dedupe_records.py
+
+## node --test test/diagnostics.test.js
+✔ editor-only inventory proves controller version without deriving installation from desired profile (10.396562ms)
+✔ observed versions and smoke results stay separate from worker/MCP/service readiness (22.012007ms)
+✔ restricted and remote checks execute no tools or workspace probes (1.718943ms)
+✔ prepared source, malformed config, missing environment and runtime failures remain actionable (19.865467ms)
+✔ malformed Python output is reported without exposing its contents (19.275914ms)
+✔ changing selected folder discards a scan for the previous workspace (13.613204ms)
+✔ the BM25 line claims only what the reading check proved, and names the condition the vector modes need (295.718216ms)
+✔ component guide/docs actions accept only registry IDs and fixed upstream URLs (2.329137ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 676.287561
+
+## node --test test/bundles.test.js
+✔ T16-07: the shipped my-library.md states what the store actually does, in both trees (7.587967ms)
+T16-07 hashes for references/my-library.md — installed 2.0 fixture: 7a446e42369dbce74f7e70e3768ab7aff4c6bb41b5bc1ab640a5de00df66af03; shipped 2.1 catalog: 5dac3db8dd73898ef12b9bd3d90d34d1118614b26cf6e6f07d20a4b4039c83b2; operator edit: 1c0a7488b279f25612bbaeb3dfe62ed3588b2bfcadb4ce19571e15093149a3ba; restored into the workspace: 1c0a7488b279f25612bbaeb3dfe62ed3588b2bfcadb4ce19571e15093149a3ba
+✔ T16-07: the shipped 2.1 bundle upgrades an installed 2.0, spares an edited 2.0 copy, and gives it back from the archive (1044.328011ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3241.980982
+
+## node --test test/guides.test.js
+✔ every catalog component has a modular guide and a generated hub entry (61.582321ms)
+✔ offline guide links resolve within the packaged extension (129.607081ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 265.585113
+
+## node --test test/host-runner.test.js  (other package's file, reproduced in isolation)
+✔ the runner names the executable and a disposable root or refuses (1.28916ms)
+✖ a source-tree run says so, and the default target is the extension directory (2.869806ms)
+✔ an explicit development path is reported as the source tree, not as a candidate (1.83625ms)
+✔ a candidate VSIX and a development path cannot both be claimed (1.257979ms)
+✖ the profile directories have to live inside the disposable root (1.409327ms)
+✖ a candidate is identified by its digest and its member count, not by a filename (5.043053ms)
+✔ a candidate path that does not exist is refused before any host is launched (1.257548ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 4
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 728.384025
+✖ failing tests:
+✖ a source-tree run says so, and the default target is the extension directory (2.869806ms)
+✖ the profile directories have to live inside the disposable root (1.409327ms)
+✖ a candidate is identified by its digest and its member count, not by a filename (5.043053ms)
+
+## npm test  (full extension suite)
+✖ a source-tree run says so, and the default target is the extension directory (5.951289ms)
+✖ the profile directories have to live inside the disposable root (1.921224ms)
+✖ a candidate is identified by its digest and its member count, not by a filename (2.792242ms)
+ℹ tests 536
+ℹ pass 533
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+✖ failing tests:
+✖ a source-tree run says so, and the default target is the extension directory (5.951289ms)
+✖ the profile directories have to live inside the disposable root (1.921224ms)
+✖ a candidate is identified by its digest and its member count, not by a filename (2.792242ms)
+
+## .venv/bin/pytest -q  (full python suite; progress line + short summary; the counts line is derived below)
+........................................................................ [ 13%]
+........................................................................ [ 26%]
+........................................................................ [ 39%]
+.s...................................................................... [ 52%]
+.........................................F.FFFFF.FF..................... [ 65%]
+........................................................................ [ 78%]
+........................................................................ [ 91%]
+.............F.F............................                             [100%]
+=========================== short test summary info ============================
+FAILED tests/test_provider_release.py::test_the_card_can_say_consented_but_practically_unusable_and_names_no_credential
+FAILED tests/test_provider_release.py::test_openalex_sends_type_retracted_citation_count_only_when_select_asks_for_them
+FAILED tests/test_provider_release.py::test_crossref_created_is_the_registration_date_and_issued_is_the_publication_date
+FAILED tests/test_provider_release.py::test_crossref_reports_a_retraction_only_on_the_single_doi_route
+FAILED tests/test_provider_release.py::test_the_coverage_case_says_crossref_is_not_the_weaker_provider
+FAILED tests/test_provider_release.py::test_untitled_container_rows_are_a_measured_shape_not_a_missing_title_bug
+FAILED tests/test_provider_release.py::test_the_probe_is_paced_anonymous_and_sends_no_credential_header
+FAILED tests/test_provider_release.py::test_the_summary_and_receipt_are_the_same_measurement_as_the_fixtures
+FAILED tests/test_zotero_collections.py::test_a_43_item_filing_over_two_batches_is_proven_by_membership_and_loses_no_undo
+FAILED tests/test_zotero_collections.py::test_a_batch_that_stops_partway_names_what_arrived_and_the_next_batch_to_run
+
+## .venv/bin/pytest --collect-only -q  (per-file counts summed)
+files: 28 tests: 550
+
+## .venv/bin/pytest -q --tb=line tests/test_vsix.py tests/test_release_identity.py tests/test_bundle_dedupe_reports.py
+......................................                                   [100%]
+
+## dedupe_records.py (payload copy) against the 2000-record synthetic fixture
+fixture records: 2000
+default: exit=1 stderr_lines=45 stderr_bytes=5831 DROPPED_lines=40 stdout_bytes=29004 stdout_records=290 secs=2.26
+   summary: records in: 2000  kept: 290  dropped: 1710  flagged for review: 210
+--verbose: exit=1 stderr_lines=1924 stderr_bytes=250266 DROPPED_lines=1710 stdout_bytes=29004 stdout_records=290 secs=2.18
+   summary: records in: 2000  kept: 290  dropped: 1710  flagged for review: 210
+RST_DEDUPE_VERBOSE=1: exit=1 stderr_lines=1924 stderr_bytes=250266 DROPPED_lines=1710 stdout_bytes=29004 stdout_records=290 secs=2.15
+   summary: records in: 2000  kept: 290  dropped: 1710  flagged for review: 210
+stdout identical in all three runs: True
+flag stderr == env stderr: True
+suppression line: ['  … 1880 detail line(s) of 1920 not printed (1670 dropped record(s), 210 record(s) flagged for review). The full report on demand: pass --verbose or set RST_DEDUPE_VERBOSE=1. The summary counts above, the JSON on stdout and the exit code already account for every one of them.']
+
+---
+
+## Follow-up run after the SKILL.md correction (2026-11-23T05:1xZ)
+
+### sha256sum of both SKILL.md copies
+7bfbd1d9880a0382373030dd7d94123ffcf7349a6d943849756fd86d1b0b126c  templates/skill-bundles/theology/theological-research/SKILL.md
+7bfbd1d9880a0382373030dd7d94123ffcf7349a6d943849756fd86d1b0b126c  extension/bundles/theological-research/SKILL.md
+
+### build_bundle_catalog.py  /  --check
+bundles/catalog.json unchanged: 2 bundle(s), 16 files, 94664 bytes, 0 unresolved license(s), publishable=True
+bundles/catalog.json unchanged: 2 bundle(s), 16 files, 94664 bytes, 0 unresolved license(s), publishable=True
+check_exit=0
+
+### node --test test/bundles.test.js  (after the payload copy was restored byte-for-byte)
+✔ T16-07: the shipped my-library.md states what the store actually does, in both trees (7.756138ms)
+✔ T16-07: the shipped SKILL.md no longer tells the assistant there is no vector search (6.032325ms)
+✔ T16-07: the shipped 2.1 bundle upgrades an installed 2.0, spares an edited 2.0 copy, and gives it back from the archive (822.946089ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3106.36221
+
+### npm test  (extension/, full suite)
+ℹ tests 538
+ℹ pass 538
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+
+### pytest (full) — progress line, FAILED list, and the derived counts
+........................................................................ [ 78%]
+........................................................................ [ 91%]
+.F......FFF.FFFFFFFF................F.F.......                           [100%]
+FAILED tests/test_zotero_collections.py::test_plan_bodies_are_arrays_for_post_and_objects_for_put
+FAILED tests/test_zotero_collections.py::test_ensure_collection_takes_the_collection_that_is_already_there_and_writes_nothing
+FAILED tests/test_zotero_collections.py::test_ensure_collection_creates_the_parent_first_and_uses_the_key_it_created
+FAILED tests/test_zotero_collections.py::test_a_document_note_is_never_filed_and_the_refusal_precedes_the_write
+FAILED tests/test_zotero_collections.py::test_collection_items_is_the_only_read_that_answers_membership
+FAILED tests/test_zotero_collections.py::test_collection_listing_and_status_carry_the_numbers_and_the_path
+FAILED tests/test_zotero_collections.py::test_export_can_be_scoped_to_a_collection_and_still_carries_no_membership
+FAILED tests/test_zotero_collections.py::test_a_43_item_filing_over_two_batches_is_proven_by_membership_and_loses_no_undo
+FAILED tests/test_zotero_collections.py::test_a_collection_check_names_a_filing_that_answered_204_and_arrived_nowhere
+FAILED tests/test_zotero_collections.py::test_a_batch_that_stops_partway_names_what_arrived_and_the_next_batch_to_run
+FAILED tests/test_zotero_collections.py::test_a_version_conflict_is_named_and_blocks_the_next_apply_until_the_library_is_snapshotted
+FAILED tests/test_zotero_collections.py::test_write_gates_still_refuse_before_the_port_and_the_key_stays_out_of_every_record
+FAILED tests/test_zotero_library.py::test_snapshot_is_a_new_file_in_the_workspace_and_says_when_it_is_truncated
+FAILED tests/test_zotero_library.py::test_a_journal_too_small_for_the_write_refuses_the_write_before_it_happens
+derived from the progress line: 550 tests = 535 passed + 14 failed + 1 skipped (pytest prints no counts line in this environment)
+collected: 28 files, 550 tests
+
+---
+
+## Second follow-up run: zotero-vocabulary.md + catalog 2.2 (2026-11-23T09:2xZ)
+
+### sha256sum of both zotero-vocabulary copies
+075630b4c5cc44b1efe9e2075b2a9bc604243adc79103a5ef373e815411525d4  templates/skill-bundles/theology/theological-research/references/zotero-vocabulary.md
+075630b4c5cc44b1efe9e2075b2a9bc604243adc79103a5ef373e815411525d4  extension/bundles/theological-research/references/zotero-vocabulary.md
+
+### build_bundle_catalog.py  /  --check
+bundles/catalog.json unchanged: 2 bundle(s), 16 files, 100221 bytes, 0 unresolved license(s), publishable=True
+bundles/catalog.json unchanged: 2 bundle(s), 16 files, 100221 bytes, 0 unresolved license(s), publishable=True
+check_exit=0
+
+### node --test test/bundles.test.js
+✔ T16-07: the shipped my-library.md states what the store actually does, in both trees (7.821332ms)
+✔ T16-07: the shipped SKILL.md no longer tells the assistant there is no vector search (6.241946ms)
+✔ T16-07: the shipped zotero-vocabulary.md states what the 0.3.15 write path does, in both trees (8.179769ms)
+T16-07 hashes for references/my-library.md — installed 2.0 fixture: 7a446e42369dbce74f7e70e3768ab7aff4c6bb41b5bc1ab640a5de00df66af03; shipped 2.2 catalog: 5dac3db8dd73898ef12b9bd3d90d34d1118614b26cf6e6f07d20a4b4039c83b2; operator edit: 1c0a7488b279f25612bbaeb3dfe62ed3588b2bfcadb4ce19571e15093149a3ba; restored into the workspace: 1c0a7488b279f25612bbaeb3dfe62ed3588b2bfcadb4ce19571e15093149a3ba
+✔ T16-07: the shipped 2.2 bundle upgrades an installed 2.0, spares an edited 2.0 copy, and gives it back from the archive (942.284367ms)
+ℹ tests 33
+ℹ pass 33
+ℹ fail 0
+ℹ skipped 0
+
+### node --test test/guides.test.js
+✔ every catalog component has a modular guide and a generated hub entry (65.523297ms)
+✔ offline guide links resolve within the packaged extension (184.962228ms)
+ℹ tests 2
+ℹ pass 2
+ℹ fail 0
+
+### npm test (extension/)
+✖ probeEnvironment carries a key only to the probe that asked for it, and carries nothing for a service that is off (1.70973ms)
+ℹ tests 540
+ℹ pass 538
+ℹ fail 1
+ℹ skipped 1
+✖ failing tests:
+✖ probeEnvironment carries a key only to the probe that asked for it, and carries nothing for a service that is off (1.70973ms)
+
+### .venv/bin/python -m pytest tests/test_bundle_dedupe_reports.py -p no:cacheprovider
+.....                                                                    [100%]
+5 passed in 11.56s
+
+### node --test test/credential-security.test.js (other package's file, reproduced standalone)
+ℹ pass 9
+ℹ fail 1
+✖ failing tests:
+✖ probeEnvironment carries a key only to the probe that asked for it, and carries nothing for a service that is off (1.248774ms)

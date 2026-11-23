@@ -59,13 +59,19 @@ def check_citation(doi: str) -> dict[str, object]:
         return {"status": "unavailable", "error": exc.as_dict()}
 
 
-def zotero_library(action: str, key: str = "", query: str = "", limit: int = 25, export_format: str = "csljson") -> dict[str, object]:
-    """Read the local Zotero library through its loopback API: `status`, `collections`, `item`, `search`, `fulltext` or `export`. Nothing is written."""
+def zotero_library(action: str, key: str = "", query: str = "", limit: int = 25, export_format: str = "csljson", collection_key: str = "") -> dict[str, object]:
+    """Read the local Zotero library through its loopback API: `status`, `collections`, `collection_items`, `item`, `search`, `fulltext` or `export`. Nothing is written."""
     try:
         if action == "status":
             return research.zotero_library_status(fulltext_probe=query or "zotero")
         if action == "collections":
             return research.list_zotero_collections()
+        if action == "collection_items":
+            # The only read that answers membership: `GET /items?collection=<key>` is ignored by the local API
+            # and answers with the whole library (measured 19 November 2026, P5).
+            return research.zotero_collection_items(key, limit)
+        if action in research.ZOTERO_UNSUPPORTED_LIBRARY_ACTIONS:
+            return research.zotero_collection_tags(key)
         if action == "item":
             return research.get_zotero_item(key)
         if action == "search":
@@ -73,31 +79,87 @@ def zotero_library(action: str, key: str = "", query: str = "", limit: int = 25,
         if action == "fulltext":
             return research.zotero_fulltext(key=key, query=query)
         if action == "export":
-            return research.zotero_export(export_format, limit)
-        raise ResearchError("ZOTERO_ACTION_UNSUPPORTED", f"`zotero_library` reads {', '.join(('status', 'collections', 'item', 'search', 'fulltext', 'export'))}. A write is a separate tool, `zotero_write`.")
+            return research.zotero_export(export_format, limit, collection_key)
+        raise ResearchError("ZOTERO_ACTION_UNSUPPORTED", f"`zotero_library` reads {', '.join(research.ZOTERO_LIBRARY_ACTIONS)}. A write is a separate tool, `zotero_write`.")
     except ResearchError as exc:
         return {"readOnly": True, "error": exc.as_dict()}
 
 
-def zotero_write(action: str, changes: list[dict[str, object]] = [], key: str = "", journal_id: str = "", confirm: str = "") -> dict[str, object]:
-    """Write to the local Zotero library. `preview` sends nothing; `apply` needs confirm="write-to-zotero" and takes a library snapshot first; `undo` replays one journal backwards."""
+def zotero_write(action: str, changes: list[dict[str, object]] = [], key: str = "", journal_id: str = "", confirm: str = "", resume_after: int = 0, allow_journal_truncation: bool = False) -> dict[str, object]:
+    """Write to the local Zotero library. `preview` sends nothing; `apply` needs confirm="write-to-zotero", takes a library snapshot first and re-reads every collection it touched; `undo` replays one journal backwards."""
     try:
         if action == "preview":
-            return research.zotero_write_preview(changes)
+            preview = research.zotero_write_preview(changes)
+            return {**preview, "journalFit": zotero_store.journal_capacity_check(preview["planned"])}
         if action == "snapshot":
             return {"snapshot": zotero_store.write_snapshot(research.zotero_snapshot_document()), "zoteroModified": False}
         if action == "apply":
             if confirm != research.ZOTERO_WRITE_CONFIRM:
                 raise ResearchError("WRITE_CONFIRM_REQUIRED", f"A Zotero write needs confirm={research.ZOTERO_WRITE_CONFIRM!r}. Run `preview` first and read what it says you would change.")
+            blocked = zotero_store.read_write_block()
+            if blocked:
+                if blocked.get("corrupt"):
+                    # A marker that cannot be read is not the absence of a marker. Something stopped a write in
+                    # this workspace and the Toolkit can no longer say what; that is a reason to refuse, not a
+                    # reason to carry on as if the library were clean.
+                    raise ResearchError("ZOTERO_WRITE_BLOCK_UNREADABLE", "A blocked-write marker is in this workspace and cannot be read, so the Toolkit cannot say which write it stopped. No write is sent. `zotero_write(action=\"snapshot\")` reads the library again and replaces the marker, which is what clears it.", report=blocked)
+                raise ResearchError("ZOTERO_WRITE_BLOCKED", f"The last Zotero write in this workspace stopped on {blocked.get('code')}: {blocked.get('condition')}. Its version guards no longer describe this library, so no write is sent until the library is read again: `zotero_write(action=\"snapshot\")`, then `preview`, then `apply`.", report=blocked)
+            plan = research.zotero_write_preview(changes)["planned"]
+            fit = zotero_store.journal_capacity_check(plan)
+            if not fit["fits"] and not allow_journal_truncation:
+                raise ResearchError("ZOTERO_JOURNAL_TOO_SMALL", f"Nothing was written. One journal cannot hold all {fit['entries']} operations of this write: it would need {fit['bytesNeeded']} bytes and the cap is {fit['maxBytes']}. Split the write into smaller previews, or pass allow_journal_truncation=true to accept a journal that names what it left out.", evidence=fit["note"])
             snapshot = zotero_store.write_snapshot(research.zotero_snapshot_document())
-            result = research.zotero_write_apply(changes, confirm=confirm)
+            try:
+                result = research.zotero_write_apply(changes, confirm=confirm, resume_after=resume_after)
+            except ResearchError as exc:
+                report = exc.report or {}
+                blocked: dict[str, object] = {}
+                if report.get("blocked"):
+                    blocked = {**report["blocked"], "marked": zotero_store.mark_write_blocked(code=exc.code, condition=str(report["blocked"].get("condition")), detail={"stoppedAtIndex": report.get("stoppedAtIndex"), "appliedCount": len(report.get("applied") or []), "snapshot": snapshot.get("path")})}
+                # A batch that stopped partway is reported item by item: what arrived, what did not, and the
+                # next batch `resume_after` would run. Erasing that because the write ended in a refusal would
+                # leave the operator to guess which of their 43 items are in the collection now.
+                # An interrupted write still gets the membership comparison, when the collections it named could
+                # be read back at all. Review 2 (22 November 2026) named the gap: the receipt carried
+                # `collectionState` with no `collectionCheck`, so the operator saw numbers and no verdict.
+                interrupted_keys = sorted({str(entry.get("collectionKey")) for entry in (report.get("applied") or []) if isinstance(entry, dict) and entry.get("collectionKey")})
+                interrupted_checks: dict[str, object] = {}
+                if interrupted_keys:
+                    interrupted_checks["collectionCheck"] = zotero_store.collection_check(snapshot, {
+                        "applied": report.get("applied") or [],
+                        "collectionKeys": interrupted_keys,
+                        "collectionState": report.get("collectionState") or [],
+                        "createdKeys": report.get("createdKeys") or [],
+                    })
+                    if report.get("collectionStateNote"):
+                        interrupted_checks["collectionCheckNote"] = report["collectionStateNote"]
+                return {
+                    "dryRun": False,
+                    "zoteroModified": bool(report.get("applied")),
+                    "snapshot": snapshot,
+                    "applied": report.get("applied") or [],
+                    "notApplied": report.get("notApplied") or [],
+                    "nextBatch": report.get("nextBatch"),
+                    "createdKeys": report.get("createdKeys") or [],
+                    "serverFailures": report.get("serverFailures") or [],
+                    "libraryVersion": report.get("libraryVersion"),
+                    "collectionState": report.get("collectionState"),
+                    **interrupted_checks,
+                    "blocked": blocked or None,
+                    "error": exc.as_dict(),
+                }
             journal = zotero_store.write_journal(result["applied"], snapshot=snapshot)
             after = research.zotero_library_status()
-            return {**result, "snapshot": snapshot, "journal": journal, "countCheck": zotero_store.count_check(snapshot, after)}
+            checks: dict[str, object] = {"countCheck": zotero_store.count_check(snapshot, after)}
+            if result["collectionKeys"]:
+                checks["collectionCheck"] = zotero_store.collection_check(snapshot, result)
+            else:
+                checks["collectionCheck"] = {"checkedKeys": [], "consistent": False, "mismatch": False, "note": "No step of this write named a collection, so membership was not checked."}
+            return {**result, **checks, "snapshot": snapshot, "journal": journal, "journalFit": fit}
         if action == "undo":
             journal = zotero_store.read_journal(journal_id)
             result = research.zotero_write_undo(journal.get("entries"))
-            return {**result, "journalId": journal_id, "snapshot": journal.get("snapshot")}
+            return {**result, "journalId": journal_id, "snapshot": journal.get("snapshot"), "journalUndoComplete": journal.get("undoComplete", True)}
         raise ResearchError("ZOTERO_WRITE_ACTION_UNSUPPORTED", f"`zotero_write` offers {', '.join(('preview', 'apply', 'snapshot', 'undo'))}. `delete`, `merge` and `duplicate_check` are refused: the local API has no merge endpoint and no restore.")
     except (ResearchError, zotero_store.ResearchError) as exc:
         return {"dryRun": action != "apply", "zoteroModified": False, "error": exc.as_dict()}

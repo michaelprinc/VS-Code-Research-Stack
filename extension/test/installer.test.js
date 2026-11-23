@@ -5,6 +5,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const os = require("node:os");
 const { makeHarness } = require("./harness");
+const { fileLink } = require("./linkfixture");
 const { WORKER_FOLDER, bundle } = require("../runtime");
 const { readStatus, readLog } = require("../setuplog");
 const catalog = require("../components.json");
@@ -331,7 +332,7 @@ test("GUI setup, update and component actions drive the plan and report componen
   panel.dispose();
 });
 
-test("the notebook step identifies project ownership before any package management (T5-18)", async () => {
+test("the notebook step identifies project ownership before any package management (T5-18)", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-notebook-ownership-"));
   const project = (name, pyproject) => path.join(root, name, "notebooks/analysis");
   const write = async (name, pyproject) => {
@@ -363,10 +364,11 @@ test("the notebook step identifies project ownership before any package manageme
 
     await fs.mkdir(path.join(root, "linked", "notebooks/analysis"), { recursive: true });
     await fs.writeFile(path.join(root, "linked", "notebooks/analysis/real.toml"), `name = "research-stack-analysis"\ndependencies = ["ipykernel", "matplotlib"]\n`, "utf8");
-    await fs.symlink(path.join(root, "linked", "notebooks/analysis/real.toml"), path.join(root, "linked", "notebooks/analysis/pyproject.toml"));
-    const linked = await inspectNotebookProject(path.join(root, "linked", "notebooks/analysis"));
-    assert.equal(linked.owned, false, "a linked pyproject.toml is refused rather than followed");
-    assert.match(linked.reason, /is a link/);
+    if (fileLink(t, path.join(root, "linked", "notebooks/analysis/real.toml"), path.join(root, "linked", "notebooks/analysis/pyproject.toml"))) {
+      const linked = await inspectNotebookProject(path.join(root, "linked", "notebooks/analysis"));
+      assert.equal(linked.owned, false, "a linked pyproject.toml is refused rather than followed");
+      assert.match(linked.reason, /is a link/);
+    }
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -382,7 +384,8 @@ test("uv's symlinked interpreter counts as produced, not as a missing file (0.3.
   const base = path.join(root, "base-interpreter");
   await fs.writeFile(base, "#!python\n");
   await fs.rm(interpreter);
-  await fs.symlink(base, interpreter);
+  // uv may hand back a symlinked interpreter; the Toolkit must count it as produced, not as missing.
+  if (!fileLink(t, base, interpreter)) return;
   const artifacts = await verifyStepArtifacts(STEPS_BY_ID.get("worker"), root, null);
   assert.equal(artifacts.verified, true, JSON.stringify(artifacts.missing));
   const status = await refreshPlanStatus({ context: harness.context, folder, packageId: "basic" });

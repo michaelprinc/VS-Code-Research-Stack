@@ -46,14 +46,36 @@ BUNDLES: list[dict[str, object]] = [
     # licence question is answered and the bundle is publishable. The refusal gate below is unchanged.
     {
         "id": "theological-research",
-        "version": "2.0",
+        # 2.0 → 2.1 → 2.2 (0.3.15: T16-07, then the Zotero collections correction). Two things fix the
+        # next value:
+        #   - the payload changed, and a workspace receipt compares `bundleVersion` against the catalog to
+        #     plan an upgrade at all (HR-20), so the catalog version must move for reviewed bytes to reach a
+        #     workspace that already installed an earlier one. 2.1 fixed `references/my-library.md` (it
+        #     claimed the toolkit has no vector store, which 0.3.14 made false), `scripts/dedupe_records.py`
+        #     and the `SKILL.md` line that repeated the same stale claim. 2.2 fixes
+        #     `references/zotero-vocabulary.md`, which still described the Zotero write path as it was before
+        #     0.3.15: it named no `ensure_collection` and no rule against re-parenting
+        #     (`ZOTERO_COLLECTION_PARENT_MISMATCH`), no reserved special-collection names
+        #     (`ZOTERO_COLLECTION_NAME_RESERVED`), no rule that `collections` is not a writable item field
+        #     (`ZOTERO_WRITE_FIELD_REFUSED`), no `ZOTERO_COLLECTION_TAGS_UNSUPPORTED`,
+        #     `ZOTERO_NOTE_NOT_FILEABLE`, `ZOTERO_COLLECTION_LISTING_TRUNCATED`, the 25 × 4 = 100-operation
+        #     authorization, or the fact that none of it is verified against a live library (T14-20);
+        #   - the bundle's own marker, `metadata.version: "2.0"` in `SKILL.md` frontmatter (DD9-22, the
+        #     single version marker), is the PoC authors' revision and is not this Toolkit's to renumber.
+        # So 2.2 is this Toolkit's packaged revision of their 2.0, and the two numbers mean different
+        # things: the catalog version drives install/repair/upgrade, the frontmatter version stays what
+        # s. Denisa and Michal published. `extension/test/bundles.test.js` pins both.
+        "version": "2.2",
         "topic": "theology",
         "purpose": (
             "Scholarly theological research: frame the question, search in the languages the field "
             "is published in, keep bibliographic records reviewable, label access status and "
             "confidence, and write a report whose limits are stated. Version 2.0 of the PoC written "
             "by s. Denisa and Michal, packaged with the adaptations recorded in "
-            "docs/implementation/phase-9-document-ingestion/bundle-notes.md."
+            "docs/implementation/phase-9-document-ingestion/bundle-notes.md; catalog version 2.2 is "
+            "this Toolkit's repackaging of that same 2.0 PoC, changed only in what it states about the "
+            "toolkit's own retrieval, about how an update treats an edited bundle file, and about what "
+            "the Zotero write path does, refuses, and has not yet been verified against."
         ),
         "skills": ["theological-research"],
         "stagedTree": "templates/skill-bundles/theology/theological-research",
@@ -62,7 +84,7 @@ BUNDLES: list[dict[str, object]] = [
             "Python 3.12 or newer available as `python3` — only for the two optional scripts; they import the Python standard library only and need no pip install, no uv and no toolkit venv.",
             "Network access to api.crossref.org and api.openalex.org — only when you run scripts/crossref_lookup.py yourself. The toolkit installer and the control panel never run it and make no network request.",
             "No licensed database (ATLA or similar) is provisioned, connected or entitlement-checked by the toolkit; any such access belongs to the user's institution.",
-            "The toolkit provides a local lexical (BM25) index over text sources. It provides no vector or embedding search, no OCR and no scanned-image recognition.",
+            "The toolkit's Full package keeps a workspace record store (SQLite schema 4, `.research-toolkit/store/research.sqlite3`) that answers `search_corpus` in `lexical` — the stored BM25 ranker, and the default mode — or in `vector` or `hybrid`. The two vector modes read the store's own `chunk_vectors` table: `embed_corpus` builds it, a store that has no vectors reports `not-built` and refuses them with `VECTORS_MISSING` until it runs, and the bound is 20 000 current chunks. The backend is `rsk-hashing-v1`, a CPU lexical signature — no embedding model, no download, no vector database, no OCR and no scanned-image recognition.",
             "references/my-library.md installs as an empty template: the bundle ships with no record of the user's holdings.",
             "The host must read skills from .github/skills/<skill-id>/SKILL.md. The toolkit writes that path but cannot observe whether the host discovers it.",
         ],
@@ -109,8 +131,8 @@ BUNDLES: list[dict[str, object]] = [
         "payloadTree": "extension/bundles/document-corpus-bridge",
         "prerequisites": [
             "The Corpus index and record store component step has run in this workspace.",
-            "A preset that carries the store verbs: Index, search and record claims carries all ten; Full research workflow carries index_corpus and search_corpus.",
-            "The toolkit provides a local lexical (BM25) index over text sources. It provides no vector or embedding search, no OCR and no scanned-image recognition.",
+            "A preset that carries the store verbs: Index, search and record claims carries all eleven; Full research workflow carries nine of them — index_corpus, embed_corpus, search_corpus, evidence_read, verify_sources, claims_read, claims_write, claims_export and store_status — and leaves out unindex_corpus and store_maintenance. The measured figures are in extension/presets.json: the three max presets carry 11, 10 and 9 store verbs.",
+            "The toolkit's Full package answers `search_corpus` in `lexical` — the stored BM25 ranker, and the default mode this skill cites by — or in `vector` or `hybrid`. The two vector modes read the store's own `chunk_vectors` table, which `embed_corpus` builds; a store that has no vectors reports `not-built` and refuses them with `VECTORS_MISSING` until it runs. The backend is `rsk-hashing-v1`, a CPU lexical signature: no embedding model, no download, no vector database, no OCR and no scanned-image recognition.",
             "The host must read skills from .github/skills/<skill-id>/SKILL.md. The toolkit writes that path but cannot observe whether the host discovers it.",
         ],
         "provenance": {

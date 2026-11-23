@@ -1,0 +1,117 @@
+{
+  "proves": "Crossref names a retraction through `updated-by` with type `retraction`; the single-DOI route and the DOI filter carry it, and the bibliographic search route does not",
+  "measuredAt": "2026-11-23T05:45:27+00:00",
+  "doi": "10.1056/nejmoa1200303",
+  "title": "RETRACTED: Primary Prevention of Cardiovascular Disease with a Mediterranean Diet",
+  "routes": {
+    "singleDoiRoute": {
+      "hasUpdatedBy": true,
+      "retracted": true,
+      "date": "2013-04-04",
+      "dateField": "issued",
+      "citationCount": 3613,
+      "referenceCount": 38,
+      "updatedBy": [
+        {
+          "id": null,
+          "type": "retraction"
+        }
+      ]
+    },
+    "doiFilterRoute": {
+      "hasUpdatedBy": true,
+      "retracted": true,
+      "date": "2013-04-04",
+      "dateField": "issued",
+      "citationCount": 3613,
+      "referenceCount": 38,
+      "foundAmongRows": true
+    },
+    "bibliographicSearchRoute": {
+      "foundAmongRows": false,
+      "rowsReturned": 5,
+      "hasUpdatedBy": false,
+      "retracted": null,
+      "date": null,
+      "dateField": null,
+      "citationCount": null,
+      "referenceCount": null
+    }
+  },
+  "redactedRows": {
+    "singleDoiRoute": {
+      "DOI": "10.1056/nejmoa1200303",
+      "type": "journal-article",
+      "title": [
+        "RETRACTED: Primary Prevention of Cardiovascular Disease with a Mediterranean Die"
+      ],
+      "container-title": [
+        "New England Journal of Medicine"
+      ],
+      "issued": {},
+      "created": {
+        "date-time": "2013-02-25T06:00:59Z",
+        "timestamp": 1361772059000
+      },
+      "updated-by": [
+        {
+          "DOI": "10.1056/nejmc1806491",
+          "type": "retraction",
+          "label": "Retraction",
+          "source": "retraction-watch",
+          "updated": {
+            "date-parts": [
+              [
+                2018,
+                6,
+                13
+              ]
+            ],
+            "date-time": "2018-06-13T00:00:00Z",
+            "timestamp": 1528848000000
+          },
+          "record-id": "18405"
+        }
+      ],
+      "is-referenced-by-count": 3613,
+      "reference-count": 38
+    },
+    "doiFilterRoute": {
+      "DOI": "10.1056/nejmoa1200303",
+      "type": "journal-article",
+      "title": [
+        "RETRACTED: Primary Prevention of Cardiovascular Disease with a Mediterranean Die"
+      ],
+      "container-title": [
+        "New England Journal of Medicine"
+      ],
+      "issued": {},
+      "created": {
+        "date-time": "2013-02-25T06:00:59Z",
+        "timestamp": 1361772059000
+      },
+      "updated-by": [
+        {
+          "DOI": "10.1056/nejmc1806491",
+          "type": "retraction",
+          "label": "Retraction",
+          "source": "retraction-watch",
+          "updated": {
+            "date-parts": [
+              [
+                2018,
+                6,
+                13
+              ]
+            ],
+            "date-time": "2018-06-13T00:00:00Z",
+            "timestamp": 1528848000000
+          },
+          "record-id": "18405"
+        }
+      ],
+      "is-referenced-by-count": 3613,
+      "reference-count": 38
+    }
+  }
+}

@@ -35,7 +35,7 @@ RETRY_MAX_ATTEMPTS, RETRY_MAX_TOTAL_MS, JITTER_MAX_MS = 4, 6_000, 250
 CALL_CEILING_MS = 20_000  # no attempt loop outlives the caller's patience (DD12-05)
 RETRY_AFTER_MAX_MS = 60_000  # a longer block is reported, never waited out
 LOCK_STALE_MS, LOCK_POLL_MS, LOCK_MAX_WAITS = 30_000, 200, 25
-CLAIM_STALE_MS, CLAIM_WAIT_MS, CLAIM_POLL_MS = 30_000, 5_000, 250
+CLAIM_STALE_MS, CLAIM_WAIT_MS, CLAIM_POLL_MS = 30_000, 5_000, 250  # a claim lives as long as the request that made it, not as long as the failure that ended it
 CACHE_TTL_MS, CACHE_MAX_ENTRIES, CACHE_MAX_ENTRY_BYTES = 900_000, 16, 32_768
 BUDGET_DIR_NAME = "research-stack-toolkit"
 RETRYABLE_CODES = ("PROVIDER_RATE_LIMITED", "PROVIDER_UNAVAILABLE")
@@ -271,17 +271,71 @@ class ProviderBudget:
 
         return self._mutate("cache", change) is True
 
+    def _held(self, key: str) -> dict[str, Any] | None:
+        """The live claim on this key: None when nobody holds it or the holder is a process that is gone."""
+        held = (_read(self._path("cache")).get("claims") or {}).get(key)
+        if not isinstance(held, dict) or self.now_ms() - int(held.get("atMs") or 0) > CLAIM_STALE_MS:
+            return None
+        return held
+
+    def _release(self, key: str) -> None:
+        """Drop **this** caller's in-flight claim; another owner's claim is never touched.
+
+        Measured 21 November 2026 on the operator's machine (`provider-receipts/probe25_out.txt`): no failure
+        path ever removed a claim, so a request refused four times left the dead caller's owner id stamped on
+        the key, and the next caller read `False` out of the dedup expression and indexed it — `TypeError:
+        'bool' object is not subscriptable`. A provider failure poisoned the next request for the same query
+        for CLAIM_STALE_MS. The invariant the field fix verified the same day (`probe25b_out.txt`) states: a
+        claim lives as long as the request that made it, not as long as the failure that ended it.
+        """
+        def change(data: dict[str, Any]) -> tuple[bool, None]:
+            entries = data.get("entries") or {}
+            claims = data.get("claims") or {}
+            held = claims.get(key)
+            if not isinstance(held, dict) or held.get("owner") != self.owner:
+                return (False, None)
+            claims.pop(key, None)
+            data.clear()
+            data.update({"entries": entries, "claims": claims})
+            return (True, None)
+
+        self._mutate("cache", change)
+
     def _await(self, key: str) -> dict[str, Any] | None:
         """Wait a bounded time for the caller already asking this key. Never deadlock on it."""
         for _ in range(CLAIM_WAIT_MS // CLAIM_POLL_MS):
             hit = self._cached(key)
-            if hit is not None:
+            if isinstance(hit, dict):
                 return hit
-            held = (_read(self._path("cache")).get("claims") or {}).get(key)
-            if not isinstance(held, dict) or self.now_ms() - int(held.get("atMs") or 0) > CLAIM_STALE_MS:
+            if self._held(key) is None:
                 return None
             self.sleep_ms(CLAIM_POLL_MS)
         return None
+
+    def _claim(self, key: str) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """Who asks for this key: `(cache entry, deferral)`, or `(None, None)` when this caller holds the claim.
+
+        Four named arms instead of one nested expression, because the expression produced an entry, `None`
+        **or `False`** and `if hit is not None:` is True for `False` — the shape the 21 November crash came in.
+        """
+        hit = self._cached(key)
+        if isinstance(hit, dict):
+            return (hit, None)
+        if self._reserve(key, None):
+            return (None, None)
+        hit = self._await(key)
+        if isinstance(hit, dict):
+            return (hit, None)
+        if self._reserve(key, None):
+            return (None, None)  # the holder is past CLAIM_STALE_MS: its process is gone, the key is taken over
+        held = self._held(key)
+        if held is None:
+            # Nothing is in flight — the cache file could not be read or written — so dedup degrades to this
+            # process and the request goes, instead of reporting a request that is not happening.
+            return (None, None)
+        remaining = max(0, CLAIM_STALE_MS - (int(self.now_ms()) - int(held.get("atMs") or 0)))
+        return (None, self._defer({"reason": "in-flight", "waitMs": remaining or CLAIM_POLL_MS, "waitedMs": 0,
+                                   "blockedUntilMs": self.state()["blockedUntilMs"]}, 0))
 
     def _defer(self, step: dict[str, Any], attempts: int, exc: Exception | None = None) -> dict[str, Any]:
         """A degraded answer: no request was made, and the wait to respect is already computed."""
@@ -298,37 +352,51 @@ class ProviderBudget:
         """
         key = f"{'keyed' if self.keyed else 'anon'}:{cache_key}" if cache_key else None
         if key:
-            hit = self._cached(key) or (None if self._reserve(key, None) else self._await(key) or (self._reserve(key, None) and None))
-            if hit is not None:
-                return {"payload": hit["payload"], "headers": dict(hit.get("headers") or {}), "fromCache": True,
-                        "attempts": 0, "deferred": None, "retrievedAt": hit.get("fetchedAt")}
-        decision = self.acquire()
-        if decision["state"] == "deferred":
-            return self._defer(decision, 0)
-        backoff_ceiling = min(RETRY_MAX_TOTAL_MS, CALL_CEILING_MS)
-        # The ceiling is wall-clock, not sleeping-only (DD12-05). A request that times out has already spent
-        # the caller's patience; a loop that counts only the pauses it slept runs several times past the
-        # number its own name promises, which is what the readiness probe was being killed for.
-        loop_started = int(self.now_ms())
-        for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
-            try:
-                payload, response_headers = transport(url, headers)
-                out = {k.lower(): str(v) for k, v in (response_headers or {}).items() if k.lower() in CACHE_HEADERS}
-                if key:
-                    self._reserve(key, self._entry(payload, out))
-                return {"payload": payload, "headers": out, "fromCache": False, "attempts": attempt, "deferred": None}
-            except Exception as exc:
-                if getattr(exc, "code", "") not in RETRYABLE_CODES:
-                    raise
-                blocked = self.note_blocked(getattr(exc, "retry_after", None))
-                pause = backoff_ms(attempt, self.jitter())
-                if attempt == RETRY_MAX_ATTEMPTS or decision["waitedMs"] + pause > backoff_ceiling \
-                        or int(self.now_ms()) - loop_started + pause > CALL_CEILING_MS:
-                    return self._defer({"reason": "exhausted", "waitMs": pause, "waitedMs": decision["waitedMs"], "blockedUntilMs": blocked}, attempt, exc)
-                if not getattr(exc, "retry_after", None):
-                    blocked = self._block(int(self.now_ms()) + pause)
-                step = self.acquire(max(0, backoff_ceiling - decision["waitedMs"]))
-                if step["state"] != "allowed":
-                    return self._defer({**step, "reason": step["reason"] or "exhausted"}, attempt, exc)
-                decision["waitedMs"] += step["waitedMs"]
-        raise AssertionError("the attempt loop always returns or raises")
+            # Four named steps where 0.3.14 had one nested expression. Only a cache entry may be indexed below;
+            # a key a live caller already holds is a stated deferral, never a crash and never a duplicate request.
+            entry, deferral = self._claim(key)
+            if deferral is not None:
+                return deferral
+            if entry is not None:
+                return {"payload": entry["payload"], "headers": dict(entry.get("headers") or {}), "fromCache": True,
+                        "attempts": 0, "deferred": None, "retrievedAt": entry.get("fetchedAt")}
+        claimed = key is not None  # `_claim` returned no entry and no deferral, so this caller holds the key
+        try:
+            decision = self.acquire()
+            if decision["state"] == "deferred":
+                return self._defer(decision, 0)
+            backoff_ceiling = min(RETRY_MAX_TOTAL_MS, CALL_CEILING_MS)
+            # The ceiling is wall-clock, not sleeping-only (DD12-05). A request that times out has already spent
+            # the caller's patience; a loop that counts only the pauses it slept runs several times past the
+            # number its own name promises, which is what the readiness probe was being killed for.
+            loop_started = int(self.now_ms())
+            for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
+                try:
+                    payload, response_headers = transport(url, headers)
+                    out = {k.lower(): str(v) for k, v in (response_headers or {}).items() if k.lower() in CACHE_HEADERS}
+                    if key and self._reserve(key, self._entry(payload, out)):
+                        claimed = False  # the result is stored and the claim went with it, as T12-07 always did
+                    return {"payload": payload, "headers": out, "fromCache": False, "attempts": attempt, "deferred": None}
+                except Exception as exc:
+                    if getattr(exc, "code", "") not in RETRYABLE_CODES:
+                        raise  # a refusal the budget must not retry still hands the key back — see the finally
+                    blocked = self.note_blocked(getattr(exc, "retry_after", None))
+                    pause = backoff_ms(attempt, self.jitter())
+                    if attempt == RETRY_MAX_ATTEMPTS or decision["waitedMs"] + pause > backoff_ceiling \
+                            or int(self.now_ms()) - loop_started + pause > CALL_CEILING_MS:
+                        return self._defer({"reason": "exhausted", "waitMs": pause, "waitedMs": decision["waitedMs"], "blockedUntilMs": blocked}, attempt, exc)
+                    if not getattr(exc, "retry_after", None):
+                        blocked = self._block(int(self.now_ms()) + pause)
+                    step = self.acquire(max(0, backoff_ceiling - decision["waitedMs"]))
+                    if step["state"] != "allowed":
+                        return self._defer({**step, "reason": step["reason"] or "exhausted"}, attempt, exc)
+                    decision["waitedMs"] += step["waitedMs"]
+            raise AssertionError("the attempt loop always returns or raises")
+        finally:
+            # One guard covering every exit that stores no result: the deferral before the first request, a
+            # refusal the budget must not retry, the exhausted attempt loop, and a re-acquire that came back
+            # blocked. None of them released the claim in 0.3.14 — that is the leak measured on 21 November
+            # 2026 and reproduced in `tests/test_provider_budget.py`. `_release` is owner-guarded, so this
+            # cannot clear a claim a live sibling is still holding.
+            if key and claimed:
+                self._release(key)

@@ -12,6 +12,7 @@ import io
 import json
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 
 import pytest
 
@@ -51,13 +52,36 @@ class _Answer:
 
 
 class _ScriptedZotero:
-    """A loopback Zotero that answers the endpoints 0.3.13 uses and records every request it received."""
+    """A loopback Zotero that answers the endpoints 0.3.13 uses and records every request it received.
+
+    0.3.15 made the write answers the ones a real Zotero 10.0.8 gives (measured 19 November 2026): a POST
+    carries a JSON array — an object body is answered 400, not accepted — and answers
+    `{"success":{"0":"KEY"},"failed":{}}`; a write bumps the library version, reported in
+    `Last-Modified-Version`. A fixture that blessed the 0.3.13 shapes is how defect D1 and defect D2 survived
+    a test suite.
+    """
 
     def __init__(self, *, library: list[dict[str, object]] | None = None, fulltext_empty: bool = True) -> None:
         self.items = {ITEM_KEY: json.loads(json.dumps(ITEM_DATA))} if library is None else {str(row["key"]): row for row in library}
         self.fulltext_empty = fulltext_empty
         self.requests: list[dict[str, object]] = []
         self.writes: list[dict[str, object]] = []
+        self.library_version = 40
+
+    def _array_body(self, request) -> list[dict[str, object]]:  # type: ignore[no-untyped-def]
+        """The measured answer to a POST whose body is one object (P1)."""
+        document = json.loads(request.data or b"{}")
+        if not isinstance(document, list):
+            raise self._refused(400, "Bad Request", b'{"error":"Uploaded data must be a JSON array"}')
+        return document
+
+    def _created(self, rows: list[dict[str, object]]) -> _Answer:
+        self.library_version += 1
+        # Eight characters, because `ZOTERO_ITEM_KEY_PATTERN` is what the Toolkit demands of a key before it puts
+        # one in a request path. A fixture minting seven would bless a shape the Toolkit refuses.
+        success = {str(position): f"NEW{position:05d}" for position in range(len(rows))}
+        self.writes.append({"op": "post", "bodies": rows})
+        return _Answer(json.dumps({"success": success, "failed": {}}).encode(), {"last-modified-version": str(self.library_version)})
 
     def open(self, request, timeout=None):  # type: ignore[no-untyped-def]
         url = request.full_url
@@ -84,15 +108,12 @@ class _ScriptedZotero:
                 return _Answer(b"", {"zotero-server-id": "fixture-server"})
             if method == "POST":
                 self._require_key(headers)
-                name = json.loads(request.data or b"{}").get("name")
-                return _Answer(json.dumps({"key": "COLLEC11", "data": {"name": name}}).encode(), {})
-            return _Answer(json.dumps([{"key": "COLLEC11", "data": {"name": "CIC-1983", "parentCollection": False}}]).encode(), {"zotero-total-results": "1"})
+                return self._created(self._array_body(request))
+            return _Answer(json.dumps([{"key": "COLLEC11", "data": {"name": "CIC-1983", "parentCollection": False, "numItems": 0, "numCollections": 0}}]).encode(), {"zotero-total-results": "1"})
         if path.startswith("/users/0/items"):
             if method == "POST":
                 self._require_key(headers)
-                body = json.loads(request.data or b"{}")
-                self.writes.append({"op": "create_item", "body": body})
-                return _Answer(json.dumps({"key": "NEWITEM1", "version": 8, "data": body}).encode(), {})
+                return self._created(self._array_body(request))
             if "format=bibtex" in path or "format=csv" in path:
                 return _Answer(b"@article{a,\n title = {Kodex},\n annote = {access/metadata_only}\n}\n", {})
             if "format=csljson" in path:
@@ -114,9 +135,10 @@ class _ScriptedZotero:
                     raise self._refused(428, "Precondition Required", b'{"error":"If-Unmodified-Since-Version required"}')
                 if int(guard) != int(self.items[key]["version"]):
                     raise self._refused(412, "Precondition Failed", b'{"error":"version mismatch"}')
+                self.library_version += 1
                 self.items[key] = {"key": key, "version": int(guard) + 1, "data": json.loads(request.data or b"{}")}
                 self.writes.append({"op": "put", "key": key, "body": json.loads(request.data or b"{}")})
-                return _Answer(b"", {})
+                return _Answer(b"", {"last-modified-version": str(self.library_version)})
             return _Answer(json.dumps(self.items[key]).encode(), {})
         raise self._refused(404, "Not Found", b'{"error":"No such endpoint"}')
 
@@ -142,7 +164,9 @@ def test_status_reports_what_this_zotero_answers_without_guessing(zotero: _Scrip
     result = research.zotero_library_status()
     assert result["readOnly"] is True
     assert {"api-root", "collections", "items", "tags", "searches", "fulltext", "itemTypes"} <= set(result["answeredEndpoints"])
-    assert result["counts"] == {"items": "43", "tags": 2, "savedSearches": 0}
+    # 0.3.15 added `collectionCount` (defect D4): before a filing the operator has to know whether the
+    # collection they are naming exists at all, and 0.3.13 reported items, tags and saved searches only.
+    assert result["counts"] == {"items": "43", "tags": 2, "savedSearches": 0, "collectionCount": 1}
     assert result["writeKeyPresent"] is False
     assert result["serverId"] == "fixture-server"
     # An empty full-text answer is reported with what it does and does not mean.
@@ -217,11 +241,18 @@ def test_apply_without_the_confirmation_literal_never_reaches_zotero(zotero: _Sc
     assert zotero.requests == []
 
 
-def test_apply_without_a_key_reports_the_401_zotero_actually_gives(zotero: _ScriptedZotero) -> None:
+def test_apply_without_a_key_refuses_before_zotero_can_answer_401(zotero: _ScriptedZotero) -> None:
+    """What this proves is the refusal, not the 401: `_zotero_write_headers` stops the request at the Toolkit.
+
+    Renamed on review (22 November 2026) because its old name claimed the 401 was measured here and it cannot
+    be: a fixture's `WWW-Authenticate: Zotero-API-Key` answer only arrives when a keyless request reaches the
+    port, and this client never sends one. The 401 that arrives mid-batch, from a port that had been answering,
+    is proven in `test_zotero_collections.py::test_a_401_from_the_port_mid_batch_is_reported_operation_by_operation`.
+    """
     with pytest.raises(research.ResearchError) as error:
         research.zotero_write_apply([{"op": "create_collection", "name": "CIC-1983"}], confirm=research.ZOTERO_WRITE_CONFIRM)
     assert error.value.code == "ZOTERO_WRITE_KEY_MISSING"
-    assert zotero.requests == [], "the Toolkit refuses before it makes Zotero answer 401"
+    assert zotero.requests == [], "no request leaves without a key to carry, so no 401 is ever provoked"
 
 
 def test_every_write_carries_the_version_guard_that_keeps_428_off(zotero: _ScriptedZotero, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -302,15 +333,56 @@ def test_snapshot_is_a_new_file_in_the_workspace_and_says_when_it_is_truncated(m
 
 
 def test_journal_keeps_the_before_values_and_names_what_it_dropped(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """0.3.15 raised the journal cap to 65 536 bytes (defect D8) and made a dropped entry impossible to miss.
+
+    At the old 4 096 bytes the 43-operation filing the operator ran on 19 November 2026 (P9) lost most of its
+    entries, and the operator was never told: an undo cannot restore what the journal forgot to record. Both
+    halves are proven here — that a real filing fits, and that a journal which does not fit says so.
+    """
     monkeypatch.setenv("RESEARCH_STACK_WORKSPACE", str(tmp_path))
     applied = [{"op": "update_fields", "key": ITEM_KEY, "undoable": True, "before": {"title": "the title before the write " * 40}, "changedFields": ["title"]},
-               {"op": "create_item", "key": "NEWITEM1", "undoable": False, "before": {"note": "far too large to keep " * 400}, "changedFields": []}]
-    journal = zotero_store.write_journal(applied, snapshot={"path": ".research-toolkit/zotero-snapshots/x.json"})
+               {"op": "create_item", "key": "NEWITEM1", "undoable": False, "before": {}, "changedFields": [], "undoReason": "recorded as not undoable: the local API has no restore for a created item"}]
+    assert zotero_store.JOURNAL_MAX_BYTES == 65_536
+    estimate = zotero_store.journal_capacity_check(applied)
+    assert estimate["entries"] == 2 and estimate["undoableEntries"] == 1 and estimate["maxBytes"] == 65_536 and estimate["fits"] is True
+    journal = zotero_store.write_journal(applied, snapshot={"path": ".research-toolkit/zotero-snapshots/x.json"}, now=datetime(2026, 11, 19, 10, 0, 0, tzinfo=UTC))
     assert journal["bytes"] <= zotero_store.JOURNAL_MAX_BYTES
-    assert journal["droppedEntries"] == 1 and journal["truncated"] is True
+    assert journal["droppedEntries"] == 0 and journal["truncated"] is False and journal["undoComplete"] is True
     read_back = zotero_store.read_journal(journal["journalId"])
     assert read_back["entries"][0]["before"]["title"].startswith("the title before the write")
+    assert read_back["entries"][1]["undoReason"].startswith("recorded as not undoable")
     assert read_back["snapshot"] == ".research-toolkit/zotero-snapshots/x.json"
+
+    monkeypatch.setattr(zotero_store, "JOURNAL_MAX_BYTES", 400)
+    estimate = zotero_store.journal_capacity_check(applied)
+    assert estimate["fits"] is False and estimate["bytesNeeded"] > 400
+    truncated = zotero_store.write_journal(applied, snapshot={"path": ".research-toolkit/zotero-snapshots/x.json"}, now=datetime(2026, 11, 19, 10, 1, 0, tzinfo=UTC))
+    assert truncated["droppedEntries"] == 1 and truncated["truncated"] is True and truncated["undoComplete"] is False
+    assert "cannot put them back" in truncated["warning"], "a silent loss of undo is what defect D8 was"
+
+
+def test_a_journal_too_small_for_the_write_refuses_the_write_before_it_happens(zotero: _ScriptedZotero, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """`apply` is refused before anything is sent when one journal cannot hold every operation (defect D8).
+
+    What makes a journal big is the value an item held before the write — the value an undo needs back. This
+    item carries 5 000 characters in `extra`, so recording one operation already exceeds a 400-byte cap.
+    """
+    monkeypatch.setenv("RESEARCH_STACK_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv(research.ZOTERO_WRITE_KEY_ENV, "fixture-key")
+    monkeypatch.setattr(zotero_store, "JOURNAL_MAX_BYTES", 400)
+    zotero.items[ITEM_KEY]["data"]["extra"] = "long note the undo has to keep " * 200
+    from research_stack import recommended_server
+
+    changes = [{"op": "update_fields", "key": ITEM_KEY, "fields": {"extra": "replaced"}}]
+    preview = recommended_server.zotero_write("preview", changes=changes)
+    assert preview["dryRun"] is True and preview["journalFit"]["fits"] is False and preview["journalFit"]["bytesNeeded"] > 400
+    refused = recommended_server.zotero_write("apply", changes=changes, confirm=research.ZOTERO_WRITE_CONFIRM)
+    assert refused["error"]["code"] == "ZOTERO_JOURNAL_TOO_SMALL"
+    assert refused["zoteroModified"] is False
+    assert [entry for entry in zotero.requests if entry["method"] in ("PUT", "POST")] == [], "the refusal has to precede the write it would have made"
+    accepted = recommended_server.zotero_write("apply", changes=changes, confirm=research.ZOTERO_WRITE_CONFIRM, allow_journal_truncation=True)
+    assert accepted["zoteroModified"] is True and accepted["journal"]["undoComplete"] is False and accepted["journal"]["droppedEntries"] >= 1
+    assert "cannot put them back" in accepted["journal"]["warning"]
 
 
 def test_an_undo_needs_a_real_journal_id(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -321,13 +393,26 @@ def test_an_undo_needs_a_real_journal_id(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
 
 def test_count_check_compares_what_zotero_said_before_and_after(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """0.3.15 made the comparison real (defect D3): a count that moved is reported as a mismatch.
+
+    This is the exact case 0.3.13 reported as `consistent: true` and pinned in a test — the snapshot read 1
+    record and the read after it says this Zotero holds 43. "Both numbers were readable" is not a comparison,
+    and DD14-11 asks for the opposite: a number that moved without the write explaining it is a finding.
+    """
     server = _ScriptedZotero()
     monkeypatch.setattr(research.urllib.request, "build_opener", lambda *_args: server)
     monkeypatch.setenv("RESEARCH_STACK_WORKSPACE", str(tmp_path))
     snapshot = research.zotero_snapshot_document()
     after = research.zotero_library_status()
     check = zotero_store.count_check(snapshot, after)
-    assert check["consistent"] is True and check["before"] == "1" and check["after"] == "43"
+    assert check["before"] == "1" and check["after"] == "43"
+    assert check["mismatch"] is True and check["consistent"] is False and check["difference"] == 42
+    assert "did not explain the difference" in check["note"]
+    agreeing = zotero_store.count_check({"totalResults": "43"}, after)
+    assert agreeing["consistent"] is True and agreeing["mismatch"] is False and agreeing["difference"] == 0
+    unreadable = zotero_store.count_check({}, after)
+    assert unreadable["readable"] is False and unreadable["consistent"] is False and unreadable["mismatch"] is False
+    assert "not a clean result" in unreadable["note"], "an unreadable count is never reported as a pass"
 
 
 # --- RIS ---

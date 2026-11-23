@@ -1,0 +1,60 @@
+{
+  "proves": "which routes return the frozen work id \u2014 Crossref's DOI route, OpenAlex's id route and DOI-lookup route, and what OpenAlex's DOI filter, its topical search and a free-text DOI query each report",
+  "measuredAt": "2026-11-23T05:45:27+00:00",
+  "workId": "W3206688818",
+  "doi": "10.32725/cetv.2017.022",
+  "title": "Kanonick\u00e9 pr\u00e1vo a spiritualita",
+  "openalexDoiFilter": {
+    "reported": 1,
+    "returned": [
+      "https://openalex.org/W3206688818"
+    ],
+    "foundWork": true
+  },
+  "openalexTitleSearch": {
+    "reported": 20,
+    "returned": [
+      "https://openalex.org/W3206688818",
+      "https://openalex.org/W4384567107",
+      "https://openalex.org/W3206562084",
+      "https://openalex.org/W7207912618",
+      "https://openalex.org/W2605840671"
+    ],
+    "foundWork": true
+  },
+  "openalexFreeTextDoiQuery": {
+    "reported": 0,
+    "returned": [],
+    "foundWork": false
+  },
+  "openalexIdRoute": {
+    "foundWork": true,
+    "id": "https://openalex.org/W3206688818"
+  },
+  "openalexDoiRoute": {
+    "foundWork": true,
+    "id": "https://openalex.org/W3206688818"
+  },
+  "crossrefDoiRoute": {
+    "foundWork": true,
+    "type": "journal-article",
+    "issued": "2017-03-30",
+    "citations": 0
+  },
+  "retestOfThe21NovemberClaim": "OpenAlex's topical search returned the work for the query used here, so the field conclusion that OpenAlex cannot find this DOI is not reproduced on this machine and is recorded as not proven.",
+  "openalexRow": {
+    "id": "https://openalex.org/W3206688818",
+    "doi": "https://doi.org/10.32725/cetv.2017.022",
+    "display_name": "Kanonick\u00e9 pr\u00e1vo a spiritualita",
+    "publication_year": 2017,
+    "publication_date": "2017-03-30",
+    "type": "article",
+    "is_retracted": false,
+    "cited_by_count": 0,
+    "is_paratext": false,
+    "referenced_works": [
+      "https://openalex.org/W2247330988",
+      "https://openalex.org/W6720510055"
+    ]
+  }
+}

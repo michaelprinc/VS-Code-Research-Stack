@@ -65,6 +65,14 @@ SUPPORTED_SCHEMA_VERSIONS = (1, 2, 3, 4)
 
 MAX_INDEX_SOURCES = 1000
 MAX_STORE_CHUNKS = 20000
+#: The two names the same ceiling answers from (T16-04). ``STORE_CHUNK_LIMIT`` is the write-side gate
+#: ``index_corpus`` raises before it writes. ``STORE_OVER_LIMIT_READ`` is the read-side gate every path
+#: that *scores* chunks raises when the store it was handed already holds more current chunks than the
+#: ceiling: its own ``LIMIT`` would then rank a slice and present the ranking as if it covered the index.
+#: A store built outside ``index_corpus`` — a restored backup, a hand-repaired file — is the case that
+#: needs the read-side name, because nothing on the write path ever looked at it.
+STORE_CHUNK_LIMIT_CODE = "STORE_CHUNK_LIMIT"
+STORE_OVER_LIMIT_READ_CODE = "STORE_OVER_LIMIT_READ"
 MAX_CLAIMS = 2000
 MAX_STATEMENT_CHARS = 2000
 MAX_NOTE_CHARS = 4000
@@ -516,17 +524,56 @@ def _retained_count(connection: sqlite3.Connection, paths: set[str]) -> int:
     ).fetchone()["n"]
 
 
-def _vector_row_state(row, text_sha256: str) -> str | None:
-    """Why a stored vector may not be used, or ``None`` when it may.
+def _current_chunk_count(connection: sqlite3.Connection) -> int:
+    """How many current, non-retired chunks this snapshot really holds — counted, not assumed.
 
-    The row must expose ``backend_id``, ``dimensions`` and ``vector_text_sha256`` — the hash the
-    vector was made from, not the chunk's present hash, because the whole point of the check is to
-    compare the two.
-
-    A stored vector is only trustworthy together with the recipe that made it: same backend id, same
-    dimension, and made from the very chunk text it is attached to. Anything else is stale, and using
-    it would rank a chunk by a score whose origin cannot be named (HR-04).
+    Every scoring path used to trust its own ``LIMIT`` to equal the store ceiling. That is only true
+    for a store that reached it through ``index_corpus``; a restored backup or a hand-repaired store
+    never passed the write-side gate, and the ``LIMIT`` then silently drops the rest of the index
+    (T16-04, DD9-12). Retired evidence rows are excluded here for the same reason they are excluded
+    from a ranking: a store may hold far more rows than chunks it is willing to score.
     """
+    return connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 1").fetchone()["n"]
+
+
+def _over_limit_read_refusal(current: int, *, action: str) -> StoreError:
+    """The named refusal every chunk-scoring path raises for a store already over the ceiling."""
+    consequence = (f"only a slice of the index would be scored: the first {MAX_STORE_CHUNKS} of {current} current "
+                   "chunks, in index order (source path, then locator, then chunk id), presented as a ranking of the index")
+    remediation = [
+        "Bring the store within the ceiling: unindex_corpus a source whose chunks are not needed.",
+        f"index_corpus a smaller selection — it refuses a write that would take the store past {MAX_STORE_CHUNKS} current chunks.",
+        "store_maintenance action='vacuum' (confirm=true) collects retired chunks no claim cites; retired evidence is not scoreable and does not raise the ceiling.",
+        "store_maintenance action='status' reports currentChunkCount and retainedChunkCount before and after.",
+    ]
+    refusal = StoreError(
+        f"{STORE_OVER_LIMIT_READ_CODE}: the store holds {current} current chunks, over the {MAX_STORE_CHUNKS}-chunk "
+        f"ceiling, so {action} would score a slice rather than the index. {consequence}. "
+        f"Remediation: {remediation[0]} {remediation[1]} {remediation[2]} {remediation[3]}"
+    )
+    # The same facts as data, so a client can act on them without parsing prose (HR-34: named values,
+    # not an inference from a message).
+    refusal.detail = {
+        "currentChunkCount": current,
+        "limit": MAX_STORE_CHUNKS,
+        "overBy": current - MAX_STORE_CHUNKS,
+        "consequence": consequence,
+        "remediation": remediation,
+        "nextAction": "store_status, then unindex_corpus or index_corpus within the ceiling",
+    }
+    return refusal
+
+
+def _refuse_over_limit_read(connection: sqlite3.Connection, *, action: str) -> int:
+    """Return the current chunk count this call may score, or refuse before anything is loaded."""
+    current = _current_chunk_count(connection)
+    if current > MAX_STORE_CHUNKS:
+        raise _over_limit_read_refusal(current, action=action)
+    return current
+
+
+def _vector_metadata_state(row, text_sha256: str) -> str | None:
+    """Why a stored vector's *labels* disqualify it, or ``None`` when they do not."""
     if row is None:
         return "missing"
     if row["backend_id"] != vectors.BACKEND_ID:
@@ -538,16 +585,67 @@ def _vector_row_state(row, text_sha256: str) -> str | None:
     return None
 
 
+def _vector_row_state(row, text_sha256: str) -> str | None:
+    """Why a stored vector may not be used, or ``None`` when it may.
+
+    The row must expose ``backend_id``, ``dimensions`` and ``vector_text_sha256`` — the hash the
+    vector was made from, not the chunk's present hash, because the whole point of the check is to
+    compare the two. When the row also exposes ``vector`` the blob itself is checked too.
+
+    A stored vector is only trustworthy together with the recipe that made it: same backend id, same
+    dimension, and made from the very chunk text it is attached to. Anything else is stale, and using
+    it would rank a chunk by a score whose origin cannot be named (HR-04).
+
+    Matching that metadata is **not** yet proof the vector exists. A truncated or non-base64 blob
+    passes all three checks and fails at query time, in the middle of a ranking, with the rest of the
+    answer already computed. 0.3.15 (T16-04) therefore decodes here instead of leaving the failure to
+    the cosine loop: a row that decodes to nothing usable is refused with its own reason, so the
+    counters and the query agree about how many chunks are actually scoreable. A blob whose metadata
+    is intact but whose *contents* were swapped by hand is not detectable from the row — that limit is
+    stated where it belongs, in the tests and in the measurement evidence, not papered over.
+    """
+    if row is None:
+        return "missing"
+    if row["backend_id"] != vectors.BACKEND_ID:
+        return "backend"
+    if int(row["dimensions"]) != vectors.EMBEDDING_DIMENSIONS:
+        return "dimensions"
+    if row["vector_text_sha256"] != text_sha256:
+        return "text"
+    keys = row.keys()
+    if "vector" in keys:
+        try:
+            decoded = vectors.decode_vector(row["vector"])
+        except vectors.VectorError:
+            return "unreadable"
+        if vectors.is_zero_vector(decoded):
+            # A chunk with no letter or digit has no lexical signature; the store never writes such a
+            # row, so one that appeared (a restored or hand-edited store) is refused rather than
+            # allowed to show up as a 0.0-score hit.
+            return "zero"
+    return None
+
+
 def _store_chunk_vectors(connection: sqlite3.Connection, chunks, stamp: str) -> dict[str, int]:
-    """Embed stored chunk text with the current backend, reusing a row that already matches it."""
+    """Embed stored chunk text with the current backend, reusing a row that already matches it.
+
+    "Matches" now includes *decodes* (T16-04): a row whose blob is truncated or not base64 has
+    metadata that looks usable and would otherwise be counted as reused, so an index run would leave
+    the store claiming a vector that no query can read. Reusing means the vector was already there,
+    made by this backend from this chunk text, and readable.
+    """
     written = 0
     reused = 0
     no_signature = 0
+    rebuilt_unreadable = 0
     for chunk in chunks:
-        existing = connection.execute("SELECT backend_id, dimensions, text_sha256 AS vector_text_sha256 FROM chunk_vectors WHERE chunk_id = ?", (chunk.chunk_id,)).fetchone()
-        if _vector_row_state(existing, chunk.text_sha256) is None:
+        existing = connection.execute("SELECT backend_id, dimensions, text_sha256 AS vector_text_sha256, vector FROM chunk_vectors WHERE chunk_id = ?", (chunk.chunk_id,)).fetchone()
+        state = _vector_row_state(existing, chunk.text_sha256)
+        if state is None:
             reused += 1
             continue
+        if state in {"unreadable", "zero"}:
+            rebuilt_unreadable += 1
         vector = vectors.embed_text(chunk.text)
         if vectors.is_zero_vector(vector):
             # A chunk with no letter or digit has no lexical signature. Storing an all-zero vector
@@ -560,7 +658,8 @@ def _store_chunk_vectors(connection: sqlite3.Connection, chunks, stamp: str) -> 
             (chunk.chunk_id, vectors.BACKEND_ID, vectors.EMBEDDING_DIMENSIONS, chunk.text_sha256, vectors.encode_vector(vector), stamp),
         )
         written += 1
-    return {"vectorsWritten": written, "vectorsReused": reused, "chunksWithoutSignature": no_signature}
+    return {"vectorsWritten": written, "vectorsReused": reused, "chunksWithoutSignature": no_signature,
+            "vectorsRebuiltUnreadable": rebuilt_unreadable}
 
 
 def _vector_backend_note() -> dict[str, object]:
@@ -610,27 +709,50 @@ def remove_sources(root: Path, relative_paths: list[str]) -> dict[str, object]:
 def _vector_counters(connection: sqlite3.Connection) -> dict[str, object]:
     """What the vector index actually is, counted from the store (HR-05, HR-06).
 
-    ``scoreableChunks`` counts only rows that pass the current-backend check, so a stale row is never
-    reported as a usable vector.
+    ``scoreableChunks`` counts the rows a vector query would actually score: the current chunk has a
+    row that passes the backend/dimension/text-hash check **and** whose blob decodes. Counting the
+    metadata alone was the 0.3.14 behaviour, and that is a different fact — a truncated blob satisfies
+    every metadata check, was reported as usable here, and was then refused mid-ranking by the search
+    path with the rest of the answer already computed. T16-04 makes the two agree and names the
+    difference as ``undecodableVectorCount``, so a reader can see how many rows match their labels but
+    cannot be read. A test asserts this counter equals what a query reports as ``scoredChunks``.
+
+    The rows considered are bounded by ``MAX_STORE_CHUNKS`` because that is the largest set any read
+    path will score. A store over the ceiling is reported as ``overLimit`` rather than quietly counted
+    down to what a slice would have been.
     """
     stored_rows = connection.execute("SELECT COUNT(*) AS n FROM chunk_vectors").fetchone()["n"]
-    current_chunks = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 1").fetchone()["n"]
+    current_chunks = _current_chunk_count(connection)
     matching_any = connection.execute(
         "SELECT COUNT(*) AS n FROM chunk_vectors v JOIN chunks c ON c.chunk_id = v.chunk_id "
         "WHERE v.backend_id = ? AND v.dimensions = ? AND v.text_sha256 = c.text_sha256",
         (vectors.BACKEND_ID, vectors.EMBEDDING_DIMENSIONS),
     ).fetchone()["n"]
-    scoreable = connection.execute(
+    metadata_match = connection.execute(
         "SELECT COUNT(*) AS n FROM chunks c JOIN chunk_vectors v ON v.chunk_id = c.chunk_id "
         "WHERE c.current = 1 AND v.backend_id = ? AND v.dimensions = ? AND v.text_sha256 = c.text_sha256",
         (vectors.BACKEND_ID, vectors.EMBEDDING_DIMENSIONS),
     ).fetchone()["n"]
+    undecodable = 0
+    if metadata_match:
+        for row in connection.execute(
+            "SELECT v.vector FROM chunks c JOIN chunk_vectors v ON v.chunk_id = c.chunk_id "
+            "WHERE c.current = 1 AND v.backend_id = ? AND v.dimensions = ? AND v.text_sha256 = c.text_sha256 "
+            "ORDER BY c.source_path, c.locator, c.chunk_id LIMIT ?",
+            (vectors.BACKEND_ID, vectors.EMBEDDING_DIMENSIONS, MAX_STORE_CHUNKS),
+        ):
+            try:
+                if vectors.is_zero_vector(vectors.decode_vector(row["vector"])):
+                    undecodable += 1
+            except vectors.VectorError:
+                undecodable += 1
+    scoreable = metadata_match - undecodable
     stale_rows = stored_rows - matching_any
     if stored_rows == 0:
         state = "not-built"
     elif current_chunks and scoreable == 0:
         state = "stale"
-    elif scoreable < current_chunks or stale_rows:
+    elif scoreable < current_chunks or stale_rows or undecodable:
         state = "partial"
     else:
         state = "ready"
@@ -640,16 +762,17 @@ def _vector_counters(connection: sqlite3.Connection) -> dict[str, object]:
             "embed_corpus builds the vectors from the chunk text already in the store."
         ),
         "stale": (
-            "Every stored vector fails the current-backend check, so none is used. Run embed_corpus to "
-            "rebuild them; the verbs refuse rather than rank by a vector whose origin is unknown."
+            "No current chunk has a vector this build can read: every stored row fails the backend check "
+            "or carries a blob that does not decode, so none is used. Run embed_corpus to rebuild them; "
+            "the verbs refuse rather than rank by a vector whose origin is unknown."
         ),
         "partial": (
-            "Some current chunks have a usable vector and some do not. Run embed_corpus to complete the "
-            "index; a chunk without a vector can only be found by the lexical ranker."
+            "Some current chunks have a readable vector and some do not. Run embed_corpus to complete the "
+            "index; a chunk without a readable vector can only be found by the lexical ranker."
         ),
         "ready": (
-            "Every current chunk has a vector made by this backend from this chunk text. Vector and "
-            "hybrid search score the whole current index."
+            "Every current chunk has a vector made by this backend from this chunk text that decodes at "
+            "query time. Vector and hybrid search score the whole current index."
         ),
     }
     return {
@@ -661,7 +784,11 @@ def _vector_counters(connection: sqlite3.Connection) -> dict[str, object]:
         "vectorCount": stored_rows,
         "currentChunkCount": current_chunks,
         "scoreableChunks": scoreable,
+        "metadataMatchChunks": metadata_match,
+        "undecodableVectorCount": undecodable,
         "staleVectorCount": stale_rows,
+        "chunkLimit": MAX_STORE_CHUNKS,
+        "overLimit": current_chunks > MAX_STORE_CHUNKS,
         "modes": list(SEARCH_MODES),
         "reindexVerb": "embed_corpus",
         "note": notes[state],
@@ -688,8 +815,11 @@ def embed_chunks(root: Path, *, overwrite: bool = False) -> dict[str, object]:
     connection = _connect(root, create=True)
     try:
         stamp = _now()
+        # Counted before anything is loaded (T16-04): the store may have been created or restored
+        # outside ``index_corpus``, which is the only place the write-side ceiling was ever applied.
+        current_chunks = _refuse_over_limit_read(connection, action="embed_corpus")
         rows = connection.execute(
-            "SELECT c.chunk_id, c.text, c.text_sha256, v.backend_id, v.dimensions, v.text_sha256 AS vector_text_sha256 "
+            "SELECT c.chunk_id, c.text, c.text_sha256, v.backend_id, v.dimensions, v.text_sha256 AS vector_text_sha256, v.vector "
             "FROM chunks c LEFT JOIN chunk_vectors v ON v.chunk_id = c.chunk_id "
             "WHERE c.current = 1 ORDER BY c.source_path, c.locator, c.chunk_id LIMIT ?",
             (MAX_STORE_CHUNKS,),
@@ -699,12 +829,18 @@ def embed_chunks(root: Path, *, overwrite: bool = False) -> dict[str, object]:
         reused = 0
         replaced = 0
         no_signature = 0
+        rebuilt_unreadable = 0
         for row in rows:
+            state = None if overwrite else _vector_row_state(row, row["text_sha256"])
             if overwrite:
                 connection.execute("DELETE FROM chunk_vectors WHERE chunk_id = ?", (row["chunk_id"],))
-            elif _vector_row_state(row, row["text_sha256"]) is None:
+            elif state is None:
                 reused += 1
                 continue
+            elif state in {"unreadable", "zero"}:
+                # Counted as written below, and named here: a row that looks usable in its metadata but
+                # cannot be decoded is rebuilt, not reused (T16-04).
+                rebuilt_unreadable += 1
             had_stale_row = row["vector_text_sha256"] is not None
             vector = vectors.embed_text(row["text"])
             if vectors.is_zero_vector(vector):
@@ -729,11 +865,23 @@ def embed_chunks(root: Path, *, overwrite: bool = False) -> dict[str, object]:
     finally:
         connection.close()
     return {
-        "currentChunks": len(rows),
+        "currentChunks": current_chunks,
         "vectorsWritten": written,
         "vectorsReused": reused,
         "staleVectorsReplaced": replaced,
         "chunksWithoutSignature": no_signature,
+        # Four buckets a reader can check by adding them up (T16-04): every current chunk is either
+        # embedded now, reused from a readable row, or produced no signature at all. The unreadable-row
+        # rebuilds are a named subset of ``embeddedNow``, never a fifth group of chunks.
+        "chunkAccounting": {
+            "totalCurrentChunks": current_chunks,
+            "embeddedNow": written,
+            "reusedExistingVector": reused,
+            "rebuiltUnreadableVector": rebuilt_unreadable,
+            "noSignatureProduced": no_signature,
+            "sumsToCurrentChunks": written + reused + no_signature == current_chunks,
+        },
+        "chunkLimit": MAX_STORE_CHUNKS,
         "overwrite": overwrite,
         "vectorBackend": _vector_backend_note(),
         "before": before,
@@ -742,7 +890,8 @@ def embed_chunks(root: Path, *, overwrite: bool = False) -> dict[str, object]:
         "sourceFilesModified": False,
         "note": (
             "Vectors are computed from the chunk text stored in the index, not by re-reading a source. "
-            "A chunk with no letter or digit gets no vector rather than a zero vector."
+            "A chunk with no letter or digit gets no vector rather than a zero vector. A row whose "
+            "metadata matches but whose blob does not decode is rebuilt, not counted as reused."
         ),
         "labState": refresh_lab_state(root, refreshed_by="embed_corpus"),
     }
@@ -918,11 +1067,13 @@ def index_corpus(
     try:
         paths = set(prepared)
         placeholders = ",".join("?" for _ in paths) if paths else "''"
-        current_total = connection.execute("SELECT COUNT(*) AS n FROM chunks WHERE current = 1").fetchone()["n"]
+        current_total = _current_chunk_count(connection)
         current_for_paths = connection.execute(f"SELECT COUNT(*) AS n FROM chunks WHERE current = 1 AND source_path IN ({placeholders})", tuple(paths)).fetchone()["n"] if paths else 0
         incoming = sum(len(chunks) for _, chunks in prepared.values())
         if current_total - current_for_paths + incoming > MAX_STORE_CHUNKS:
-            raise StoreError(f"STORE_CHUNK_LIMIT: the store holds at most {MAX_STORE_CHUNKS} current chunks.")
+            # The write-side half of the same reviewed ceiling (T16-04). Its read-side sibling is
+            # ``STORE_OVER_LIMIT_READ``, raised by embed and by all three search modes.
+            raise StoreError(f"{STORE_CHUNK_LIMIT_CODE}: the store holds at most {MAX_STORE_CHUNKS} current chunks.")
         stamp = started_at
         indexed: list[str] = []
         kept: list[dict[str, object]] = []
@@ -933,6 +1084,7 @@ def index_corpus(
         vectors_written = 0
         vectors_reused = 0
         chunks_without_signature = 0
+        vectors_rebuilt_unreadable = 0
         for path, (record, chunks) in sorted(prepared.items()):
             if cancel is not None and cancel():
                 raise _Cancelled()
@@ -978,6 +1130,7 @@ def index_corpus(
             vectors_written += summary["vectorsWritten"]
             vectors_reused += summary["vectorsReused"]
             chunks_without_signature += summary["chunksWithoutSignature"]
+            vectors_rebuilt_unreadable += summary["vectorsRebuiltUnreadable"]
             indexed.append(path)
         if not indexed:
             # Nothing was writable: leave the store byte-for-byte as it was.
@@ -999,6 +1152,7 @@ def index_corpus(
                 "vectorsWritten": 0,
                 "vectorsReused": 0,
                 "chunksWithoutSignature": 0,
+                "vectorsRebuiltUnreadable": 0,
                 "vectorBackend": _vector_backend_note(),
                 "indexFingerprint": _fingerprint(sources),
                 "indexedAt": stamp,
@@ -1049,6 +1203,10 @@ def index_corpus(
         "vectorsWritten": vectors_written,
         "vectorsReused": vectors_reused,
         "chunksWithoutSignature": chunks_without_signature,
+        # Named, not folded into ``vectorsWritten`` (T16-04): these are rows whose labels said they
+        # were usable and whose blob was not, so the index run rebuilt them instead of reusing them.
+        "vectorsRebuiltUnreadable": vectors_rebuilt_unreadable,
+        "chunkLimit": MAX_STORE_CHUNKS,
         "vectorBackend": _vector_backend_note(),
         "indexFingerprint": _fingerprint(sources),
         "indexedAt": stamp,
@@ -1130,11 +1288,20 @@ def stored_chunks(root: Path, *, limit: int = MAX_STORE_CHUNKS, include_retired:
     ``limit`` defaults to ``MAX_STORE_CHUNKS`` on purpose: the same constant bounds the store in
     ``index_corpus`` and bounds the candidate set here, so the index can never grow past the set
     search is willing to rank. A test asserts the two uses agree.
+
+    Agreeing constants were not enough (T16-04). The ``LIMIT`` only truncates; it never says it
+    truncated. This is the load behind the ``lexical`` mode, so a store that got its chunks another
+    way — a restored backup, a hand-repaired file — would answer a lexical query from the first
+    ``MAX_STORE_CHUNKS`` rows in index order and present that as the corpus. The current chunk count
+    is therefore taken from the same snapshot the chunks are read from, and an over-ceiling store is
+    refused with ``STORE_OVER_LIMIT_READ`` before a slice can become a ranking. A caller who wants a
+    page sets ``limit`` deliberately; that is a stated request, not a silent truncation.
     """
     from .full import EvidenceChunk
 
     connection = _connect(root)
     try:
+        _refuse_over_limit_read(connection, action="the lexical ranker")
         clause = "" if include_retired else "WHERE current = 1"
         rows = connection.execute(
             f"SELECT chunk_id, content_id, source_sha256, source_path, locator, text, text_sha256, chunker_id, "
@@ -1185,14 +1352,18 @@ def _provenance_hit_class():
     return _PROVENANCE_HIT_CLASS
 
 
-def _current_chunks_with_vectors(connection: sqlite3.Connection) -> list[tuple[object, sqlite3.Row | None]]:
+def _current_chunks_with_vectors(connection: sqlite3.Connection, *, action: str) -> list[tuple[object, sqlite3.Row | None]]:
     """Every current chunk together with its stored vector row, if it has one.
 
     The candidate set is bounded by ``MAX_STORE_CHUNKS``, the same bound ``index_corpus`` enforces on
-    the store, so retrieval can never be shown a ranking over a set the store could not hold.
+    the store — and the bound is now *checked*, not just applied (T16-04). Applying a ``LIMIT`` proves
+    only that the call loaded at most that many chunks; the count taken here from the same snapshot
+    proves whether that was all of them. Over the ceiling the call refuses, because a cosine ranking
+    over a slice of an index is indistinguishable in its reply from a ranking of the index.
     """
     from .full import EvidenceChunk
 
+    _refuse_over_limit_read(connection, action=action)
     rows = connection.execute(
         "SELECT c.chunk_id, c.content_id, c.source_path, c.source_sha256, c.locator, c.text, c.text_sha256, c.chunker_id, "
         "c.unit_kind, c.unit_index, c.char_start, c.char_end, "
@@ -1248,9 +1419,13 @@ def search_corpus(root: Path, query: str, *, limit: int = 10, mode: str = "lexic
 def search_store(root: Path, query: str, *, limit: int = 10, mode: str = "lexical") -> dict[str, object]:
     """One retrieval call over the current index, with what the mode actually did.
 
-    Refusals are named and actionable: an unknown mode, an index with chunks but no vectors, and an
-    index whose stored vectors were made by a different recipe each say what to run next. A mode that
-    cannot rank without vectors refuses rather than quietly answering with a different mode.
+    Refusals are named and actionable: an unknown mode, an index with chunks but no vectors, an
+    index whose stored vectors were made by a different recipe, and a store that already holds more
+    current chunks than ``MAX_STORE_CHUNKS`` — that last one refuses with ``STORE_OVER_LIMIT_READ``
+    before any chunk is loaded, because loading ``MAX_STORE_CHUNKS`` of a larger store is a ranking
+    over a slice that its own reply cannot tell apart from a ranking of the index (T16-04). Each says
+    what to run next. A mode that cannot rank without vectors refuses rather than quietly answering
+    with a different mode.
     """
     from .full import search_bm25
 
@@ -1271,7 +1446,7 @@ def search_store(root: Path, query: str, *, limit: int = 10, mode: str = "lexica
 
     connection = _connect(root)
     try:
-        entries = _current_chunks_with_vectors(connection)
+        entries = _current_chunks_with_vectors(connection, action=f"the {mode} ranker")
     finally:
         connection.close()
 
@@ -1285,16 +1460,23 @@ def search_store(root: Path, query: str, *, limit: int = 10, mode: str = "lexica
             without_vector += 1
             continue
         stored_rows += 1
-        reason = _vector_row_state(row, chunk.text_sha256)
+        # The row's labels first, then the blob, and the blob is decoded exactly once. This is the
+        # same two-step check ``_vector_counters`` applies, which is why ``scoredChunks`` here and
+        # ``scoreableChunks`` in ``lab-state.json`` are one number measured two ways; a fixture with
+        # an unreadable blob asserts they stay equal (T16-04).
+        reason = _vector_metadata_state(row, chunk.text_sha256)
+        if reason is None:
+            try:
+                decoded = vectors.decode_vector(row["vector"])
+            except vectors.VectorError:
+                reason = "unreadable"
+            else:
+                if vectors.is_zero_vector(decoded):
+                    reason = "zero"
+                else:
+                    usable.append((chunk, decoded))
         if reason is not None:
             stale_reasons[reason] = stale_reasons.get(reason, 0) + 1
-            continue
-        try:
-            vector = vectors.decode_vector(row["vector"])
-        except vectors.VectorError:
-            stale_reasons["encoding"] = stale_reasons.get("encoding", 0) + 1
-            continue
-        usable.append((chunk, vector))
 
     if not stored_rows and chunks:
         raise StoreError(
@@ -1322,6 +1504,9 @@ def search_store(root: Path, query: str, *, limit: int = 10, mode: str = "lexica
         "encoding": vectors.VECTOR_ENCODING,
         "currentChunks": len(chunks),
         "scoredChunks": len(usable),
+        # Named so a reader can check the ranking they were shown against the ceiling the store is
+        # allowed to hold: these are the same number because the call refused if they were not.
+        "chunkLimit": MAX_STORE_CHUNKS,
         "refusedStaleVectors": sum(stale_reasons.values()),
         "staleVectorReasons": dict(sorted(stale_reasons.items())),
         "chunksWithoutVector": without_vector,
@@ -1389,10 +1574,13 @@ def search_store(root: Path, query: str, *, limit: int = 10, mode: str = "lexica
         reciprocal_norm = reciprocal * (VECTOR_RRF_K + 1) / 2.0
         lexical_norm = (float(entry["lexicalScore"]) / highest_lexical) if "lexicalScore" in entry and highest_lexical > 0 else 0.0
         vector_norm = (max(0.0, float(entry["vectorScore"])) / highest_vector) if "vectorScore" in entry and highest_vector > 0 else 0.0
-        score = (FUSION_WEIGHTS["reciprocalRankFusion"] * reciprocal_norm
-                 + FUSION_WEIGHTS["lexicalScore"] * lexical_norm
-                 + FUSION_WEIGHTS["vectorScore"] * vector_norm)
+        reciprocal_part = FUSION_WEIGHTS["reciprocalRankFusion"] * reciprocal_norm
+        lexical_part = FUSION_WEIGHTS["lexicalScore"] * lexical_norm
+        vector_part = FUSION_WEIGHTS["vectorScore"] * vector_norm
+        score = reciprocal_part + lexical_part + vector_part
         chunk = entry["chunk"]
+        found_by = ("both" if "lexicalRank" in entry and "vectorRank" in entry
+                    else "lexicalOnly" if "lexicalRank" in entry else "vectorOnly")
         provenance = {
             "mode": "hybrid",
             "lexicalRank": entry.get("lexicalRank"),
@@ -1400,6 +1588,16 @@ def search_store(root: Path, query: str, *, limit: int = 10, mode: str = "lexica
             "vectorRank": entry.get("vectorRank"),
             "vectorScore": round(float(entry["vectorScore"]), 6) if "vectorScore" in entry else None,
             "fusedScore": round(score, 6),
+            # Which ranker moved this hit, as numbers (T16-04). Before this the reply proved only
+            # that a fused score existed; it could not show that a hit's vector side moved while its
+            # lexical side stood still, which is the difference a reader needs to trust the reorder.
+            # The three contributions add back to ``fusedScore`` within rounding, and a test asserts it.
+            "contributions": {
+                "reciprocalRankFusion": round(reciprocal_part, 6),
+                "lexicalScore": round(lexical_part, 6),
+                "vectorScore": round(vector_part, 6),
+            },
+            "foundBy": found_by,
             "backend": vectors.BACKEND_ID,
         }
         fused.append((round(score, 6), chunk, provenance))
@@ -1412,6 +1610,11 @@ def search_store(root: Path, query: str, *, limit: int = 10, mode: str = "lexica
     summary["lexicalCandidates"] = len(lexical_ranked)
     summary["vectorCandidates"] = len(vector_ranked)
     summary["candidatePool"] = len(candidates)
+    # Counted over the hits the reader is actually shown, so the totals match the reply, not the pool.
+    returned = [provenance for _score, _chunk, provenance in fused[:limit]]
+    summary["hitsFoundByLexicalOnly"] = sum(1 for item in returned if item["foundBy"] == "lexicalOnly")
+    summary["hitsFoundByVectorOnly"] = sum(1 for item in returned if item["foundBy"] == "vectorOnly")
+    summary["hitsFoundByBoth"] = sum(1 for item in returned if item["foundBy"] == "both")
     return {"mode": "hybrid", "method": "hybrid", "hits": hits, "retrieval": summary}
 
 

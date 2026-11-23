@@ -1,0 +1,103 @@
+{
+  "proves": "container-level Crossref rows are measured per type: journal-issue and journal-volume rows carry a container title and no work title, while the component / standard / dataset rows in this sample do carry a work title \u2014 so 'has no title' is a route-and-type fact, not a Crossref-wide one",
+  "measuredAt": "2026-11-23T05:45:27+00:00",
+  "types": {
+    "journal-issue": {
+      "reported": 1522937,
+      "returned": 3,
+      "untitledRows": 3,
+      "titlesFilled": 0,
+      "example": {
+        "DOI": "10.1111/joim.1898.31.issue-18",
+        "type": "journal-issue",
+        "title": null,
+        "container-title": [
+          "Nordiskt Medicinskt Arkiv"
+        ],
+        "issued": {},
+        "created": {
+          "date-time": "2016-02-25T05:05:52Z",
+          "timestamp": 1456376752000
+        }
+      }
+    },
+    "journal-volume": {
+      "reported": 13474,
+      "returned": 3,
+      "untitledRows": 3,
+      "titlesFilled": 0,
+      "example": {
+        "DOI": "10.5747/ch.2021.v18",
+        "type": "journal-volume",
+        "title": null,
+        "container-title": [
+          "COLLOQUIUM HUMANARUM"
+        ],
+        "issued": {},
+        "created": {
+          "date-time": "2022-01-11T13:28:47Z",
+          "timestamp": 1641907727000
+        }
+      }
+    },
+    "component": {
+      "reported": 9518591,
+      "returned": 3,
+      "untitledRows": 0,
+      "titlesFilled": 1,
+      "example": {
+        "DOI": "10.1787/888933400053",
+        "type": "component",
+        "title": [
+          "Graphique 2.11. Montant moyen des op\u00e9rations internationales"
+        ],
+        "container-title": null,
+        "issued": {},
+        "created": {
+          "date-time": "2016-08-03T12:22:13Z",
+          "timestamp": 1470226933000
+        }
+      }
+    },
+    "standard": {
+      "reported": 419493,
+      "returned": 3,
+      "untitledRows": 0,
+      "titlesFilled": 3,
+      "example": {
+        "DOI": "10.1520/d6973-14r24",
+        "type": "standard",
+        "title": [
+          "Test Method for Indicating Wear Characteristics of Petroleum Hydraulic Fluids in"
+        ],
+        "container-title": null,
+        "issued": {},
+        "created": {
+          "date-time": "2024-10-29T12:30:52Z",
+          "timestamp": 1730205052000
+        }
+      }
+    },
+    "dataset": {
+      "reported": 3456559,
+      "returned": 3,
+      "untitledRows": 0,
+      "titlesFilled": 3,
+      "example": {
+        "DOI": "10.17989/encsr964fec",
+        "type": "dataset",
+        "title": [
+          "ENCSR964FEC"
+        ],
+        "container-title": [
+          "ENCODE Datasets"
+        ],
+        "issued": {},
+        "created": {
+          "date-time": "2021-05-27T19:30:27Z",
+          "timestamp": 1622143827000
+        }
+      }
+    }
+  }
+}

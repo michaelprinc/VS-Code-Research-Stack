@@ -1,0 +1,45 @@
+Transcript of the measurement described in README.md. Two of my own driver mistakes are left in place
+rather than edited out: `index_corpus()` takes the list of relative source paths, and `search_store()`
+returns `SearchHit` objects, not dicts. Both are my script's errors, not the Toolkit's.
+
+### D) migrated store is usable: index + three retrieval modes (driver mistake, see the note above)
+Traceback (most recent call last):
+  File "<string>", line 10, in <module>
+AttributeError: 'SearchHit' object has no attribute 'get'
+index_corpus -> {'runId': '2026-11-23T093945Z-4ea1ca69'}
+
+### E) restore of the pre-migration backup, then a read
+restore staged -> {'source': '/tmp/schema-repro/ws2/.research-toolkit/store/backups/research-2026-11-23T093741Z-f5c5b7.sqlite3', 'validated': {'sha256': '843e6f75945f6e639e1ae892c262f0f3cdb804300f81e47cecda56de5faaa89f', 'bytes': 77824, 'schemaVersion': 2, 'counts': {'sources': 0, 'chunks': 0, 'claims': 0, 'claim_evidence': 0, 'index_runs': 0, 'chunk_vectors': 0}, 'integrityCheck': 'ok'}, 'activated': False, 'stagedOnly': True}
+restore confirmed -> {'activated': True, 'restoredFrom': None, 'preserved': None, 'validated': {'sha256': '843e6f75945f6e639e1ae892c262f0f3cdb804300f81e47cecda56de5faaa89f', 'bytes': 77824, 'schemaVersion': 2, 'counts': {'sources': 0, 'chunks': 0, 'claims': 0, 'claim_evidence': 0, 'index_runs': 0, 'chunk_vectors': 0}, 'integrityCheck': 'ok'}}
+schema after restore: 2
+search after restore REFUSED: STORE_SCHEMA_UPGRADE_REQUIRED: schema version 2 must be migrated before reading. Run the corpus index and record store component step.
+### F) migrate again after the restore, then index and measure the three modes
+init_lab -> {'schemaVersion': 4, 'preexisting': True, 'vectorSearch': 'not-built'} counts {'sources': 0, 'chunks': 0, 'claims': 0, 'claim_evidence': 0, 'index_runs': 0, 'chunk_vectors': 0}
+index_corpus keys -> ['acceptedPartial', 'chunkLimit', 'chunksStored', 'chunksWithoutSignature', 'collectedUnreferencedChunks', 'committed', 'emptySources', 'failedSources', 'indexFingerprint', 'indexedAt', 'indexedSources', 'keptPreviousVersion', 'labState', 'partialSources', 'retainedEvidenceChunks', 'runId', 'sourceFilesModified', 'status', 'storeChunks', 'vectorBackend', 'vectorsRebuiltUnreadable', 'vectorsReused', 'vectorsWritten', 'written']
+index_corpus -> {}
+lexical -> {'mode': 'lexical', 'hitCount': None, 'scoreableChunks': None, 'metadataMatchChunks': None, 'foundBy': None} | first: {'score': 1.5234003968350447}
+vector -> {'mode': 'vector', 'hitCount': None, 'scoreableChunks': None, 'metadataMatchChunks': None, 'foundBy': None} | first: {'score': 0.45608}
+hybrid -> {'mode': 'hybrid', 'hitCount': None, 'scoreableChunks': None, 'metadataMatchChunks': None, 'foundBy': None} | first: {'score': 1.0}
+vector_index_state -> {'state': 'ready', 'implemented': True, 'backendId': 'rsk-hashing-v1', 'dimensions': 256, 'encoding': 'base64-int16-le', 'vectorCount': 2, 'currentChunkCount': 2, 'scoreableChunks': 2}
+meta -> {'schema_version': '4', 'migrated_from': '2'}
+status -> {'schemaVersion': 4}
+### G) exact summary keys on the migrated store
+lexical -> {'mode': 'lexical', 'method': 'bm25', 'retrieval': None}
+vector -> {'mode': 'vector', 'method': 'vector', 'retrieval': {'mode': 'vector', 'backend': 'rsk-hashing-v1', 'dimensions': 256, 'encoding': 'base64-int16-le', 'currentChunks': 2, 'scoredChunks': 2, 'chunkLimit': 20000, 'refusedStaleVectors': 0, 'staleVectorReasons': {}, 'chunksWithoutVector': 0, 'note': 'A vector score here is a lexical-signature similarity produced by rsk-hashing-v1: shared word and character-shape weight, not a judgement that the passage supports anything.', 'vectorCandidates': 2}}
+hybrid -> {'mode': 'hybrid', 'method': 'hybrid', 'retrieval': {'mode': 'hybrid', 'backend': 'rsk-hashing-v1', 'dimensions': 256, 'encoding': 'base64-int16-le', 'currentChunks': 2, 'scoredChunks': 2, 'chunkLimit': 20000, 'refusedStaleVectors': 0, 'staleVectorReasons': {}, 'chunksWithoutVector': 0, 'note': 'A vector score here is a lexical-signature similarity produced by rsk-hashing-v1: shared word and character-shape weight, not a judgement that the passage supports anything.', 'fusionRule': 'fusedScore = 0.5 * reciprocal-rank-fusion(k=60, normalised so a chunk ranked first by both rankers scores 1.0) + 0.25 * (BM25 score / highest BM25 score in the candidate pool) + 0.25 * (max(0, cosine) / highest cosine in the candidate pool); a ranker that did not place the chunk contributes 0. Ties break on source path, then locator, then chunk id.', 'fusionWeights': {'reciprocalRankFusion': 0.5, 'lexicalScore': 0.25, 'vectorScore': 0.25}, 'reciprocalRankConstant': 60, 'lexicalCandidates': 2, 'vectorCandidates': 2, 'candidatePool': 2, 'hitsFoundByLexicalOnly': 0, 'hitsFoundByVectorOnly': 0, 'hitsFoundByBoth': 2}}
+
+### A) 0.3.8 code (commit 7638898, archived unedited) builds a fresh store
+0.3.8 init-lab -> {'schemaVersion': 2, 'tableCount': 7, 'tables': ['chunks', 'claim_events', 'claim_evidence', 'claims', 'meta', 'source_versions', 'sources'], 'preexisting': False}
+
+### B) 0.3.15 reads on the un-migrated store
+search_store REFUSED: STORE_SCHEMA_UPGRADE_REQUIRED: schema version 2 must be migrated before reading. Run the corpus index and record store component step.
+stored_chunks REFUSED: STORE_SCHEMA_UPGRADE_REQUIRED: schema version 2 must be migrated before reading. Run the corpus index and record store component step.
+maintenance(status) REFUSED: STORE_SCHEMA_UPGRADE_REQUIRED: schema version 2 must be migrated before reading. Run the corpus index and record store component step.
+schema_version after the three refusals: 2
+
+### C) 0.3.15 backup on the un-migrated store, then migration
+backup -> {'backup': '/tmp/schema-repro/ws3/.research-toolkit/store/backups/research-2026-11-23T095058Z-cca98a.sqlite3', 'writeMode': 'new-file-only', 'consistentSnapshot': True, 'sha256': '3e0f01a9ed0b3f649027bf5d956dbc273d59e9178cf7b293e96a788e65bcd17b', 'bytes': 77824}
+labState -> {'refreshed': False, 'reason': 'STORE_SCHEMA_UPGRADE_REQUIRED'}
+schema_version after the backup: 2
+init-lab -> {'schemaVersion': 4, 'preexisting': True, 'tableCount': 9}
+meta -> {'schema_version': '4', 'migrated_from': '2'}

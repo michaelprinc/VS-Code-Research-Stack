@@ -25,6 +25,9 @@ const {
   readCatalog, validateCatalog, planInstall, installBundle, readReceipt, repairBundle,
   listArchives, restoreArchive, digest,
 } = require("../bundles");
+// Link fixtures come from one place from 0.3.15: a file link that the host cannot create is recorded as
+// a gap, not answered by an assertion that never got its fixture.
+const { fileLink } = require("./linkfixture");
 
 const CATALOG_PATH = path.join(__dirname, "..", "bundles", "catalog.json");
 const PAYLOAD_PATH = path.join(__dirname, "..", "bundles");
@@ -169,7 +172,13 @@ test("the shipped catalog is the reviewed catalog for the shipped bundle tree", 
     "0.3.9 ships two reviewed bundles: the theological PoC and the document bridge that replaces the 0.3.8 workaround (DD9-23)");
   const bundle = catalog.bundles.find((item) => item.id === "theological-research");
   assert.equal(bundle.id, "theological-research");
-  assert.equal(bundle.version, "2.0", "the bundle version is the PoC's own metadata.version");
+  // 0.3.15 (T16-07): 2.0 → 2.2. Two version numbers ship and they mean two different things, so both are
+  // pinned. The catalog version is this Toolkit's packaged revision: it is what a workspace receipt is
+  // compared with, so without the move an older install would never see an upgrade to plan. The bundle's
+  // own marker, `metadata.version: "2.0"` in `SKILL.md` frontmatter (DD9-22, the single version marker), is
+  // the PoC authors' revision and this Toolkit does not renumber it. The payload change that earned the
+  // move is `references/my-library.md`, asserted below.
+  assert.equal(bundle.version, "2.2", "the packaged revision moved because the reviewed bytes changed");
   assert.deepEqual(bundle.skills, ["theological-research"]);
   assert.equal(bundle.publishable, true, "the bundle carries its own MIT licence, so it is publishable (supersedes DD9-24)");
   assert.match(bundle.license, /^MIT/, "the licence names MIT rather than an unresolved consent question");
@@ -198,6 +207,19 @@ test("the shipped catalog is the reviewed catalog for the shipped bundle tree", 
   const skillFrontmatter = await read(path.join(PAYLOAD_PATH, "theological-research", "SKILL.md"));
   assert.match(skillFrontmatter.slice(0, 1200), /^---\nname: theological-research\n/);
   assert.match(skillFrontmatter.slice(0, 1200), /metadata:\n(?:.*\n)*?\s+license: MIT\n/, "the frontmatter declares the licence");
+  assert.match(skillFrontmatter.slice(0, 1200), /version: "2\.0"/,
+    "the PoC's own single version marker stays 2.0 while the catalog carries this Toolkit's packaged revision 2.2");
+
+  // 0.3.15 (T16-07): the payload tree and the reviewed staged tree are one artifact. The catalog build
+  // refuses a drift between them; this pins the same rule from the Node side against the shipped bytes,
+  // so re-hashing one tree and forgetting the other fails here as well as in `build_bundle_catalog.py`.
+  const stagedRoot = path.join(__dirname, "..", "..", "templates", "skill-bundles", "theology", "theological-research");
+  const staged = await treeOf(stagedRoot);
+  assert.deepEqual([...staged.keys()].sort(), [...measured.keys()].sort(),
+    `the staged tree at ${stagedRoot} and the payload tree hold the same files`);
+  for (const [relative, sha256] of staged) {
+    assert.equal(measured.get(relative), sha256, `templates/…/${relative} and extension/bundles/…/${relative} are not the same bytes`);
+  }
 });
 
 test("the shipped bundle carries the disclosed script behaviour", async () => {
@@ -220,6 +242,112 @@ test("the shipped bundle carries the disclosed script behaviour", async () => {
   assert.match(library, /This file is an empty template/, "the template cannot read as a record of the user's holdings");
 });
 
+test("T16-07: the shipped my-library.md states what the store actually does, in both trees", async () => {
+  // The audit of 0.3.14 named this file as the one shipped file still carrying a 0.3.13 claim: it said the
+  // toolkit "provides no vector store" while 0.3.14 had shipped `chunk_vectors`, `embed_corpus` and three
+  // retrieval modes. The assertions below are the claim guard: every figure they pin is a constant in
+  // `src/research_stack/records.py` or `src/research_stack/vectors.py`, and the last group is the update
+  // path the file now documents. It runs against BOTH trees because the two copies are one artifact.
+  const trees = [
+    path.join(PAYLOAD_PATH, "theological-research", "references", "my-library.md"),
+    path.join(__dirname, "..", "..", "templates", "skill-bundles", "theology", "theological-research", "references", "my-library.md"),
+  ];
+  for (const file of trees) {
+    const library = await read(file);
+    assert.doesNotMatch(library, /no vector store|no vector or embedding search|vector search remains planned/i,
+      `${file}: the 0.3.13 sentence 0.3.14 made false is gone`);
+    assert.match(library, /schema version 4[\s\S]*?\.research-toolkit\/store\/research\.sqlite3/, "schema 4 and the store path it lives at");
+    assert.match(library, /nine tables[\s\S]*?`chunk_vectors`/, "the table the retrieval reads");
+    assert.match(library, /Three retrieval modes, and the default is `lexical`\./, "the three modes, and which one answers by default");
+    assert.match(library, /`lexical` — the stored BM25 ranker/, "and that the default mode is the stored BM25 path");
+    assert.match(library, /rsk-hashing-v1[\s\S]*?256 dimensions[\s\S]*?signed feature hashing over word tokens and over 3- and 4-character n-grams/,
+      "the named backend and what it hashes");
+    assert.match(library, /signed 16-bit fixed point, base64-encoded, and stored in the same SQLite file as the chunks/,
+      "the quantisation and where the bytes live");
+    assert.match(library, /Standard library only — no model, no download, no network call[\s\S]*?no vector database/,
+      "and what installing it does not bring");
+    assert.match(library, /reciprocal-rank fusion with `k = 60`, weighted 0\.5 for the fused rank,[\s\S]*?0\.25 for the lexical score and 0\.25 for the vector score/,
+      "the fusion rule the hybrid mode scores by");
+    assert.match(library, /`embed_corpus` builds them from the chunk text the store[\s\S]*?`overwrite: true` rebuilds/, "the verb that builds them and its flag");
+    assert.match(library, /A store migrated from 0\.3\.13 keeps every chunk[\s\S]*?`not-built` until `embed_corpus` runs[\s\S]*?`VECTORS_MISSING`/,
+      "the condition under which vectors exist at all — the half an operator hits first");
+    assert.match(library, /`VECTOR_BACKEND_STALE`[\s\S]*?rather than ranked with/, "a vector whose origin cannot be proved is refused, not used");
+    assert.match(library, /bounded at 20 000 current chunks\*\* \(`MAX_STORE_CHUNKS`/, "the bound, by its constant's name");
+    assert.match(library, /`STORE_CHUNK_LIMIT`; nothing is silently truncated/, "and that hitting it is a refusal, not a truncation");
+    assert.match(library, /lexical signature, not a semantic model[\s\S]*?measured, so no relevance figure is claimed/,
+      "what the ranker is not, and that its quality on the user's corpus is unmeasured");
+    assert.match(library, /A routine install or repair keeps your copy\.[\s\S]*?`user-modified`[\s\S]*?leaves your bytes exactly as they are/,
+      "how an update treats an edited copy of this template");
+    assert.match(library, /Force Update Topic Skill Bundle[\s\S]*?only after you[\s\S]*?confirm does it write[\s\S]*?Before any write/,
+      "a force update asks first and archives before it writes");
+    assert.match(library, /\.research-toolkit\/bundles\/archive\/<bundleId>\/<stamp>-<sequence>\//, "the archive path, sequence included");
+    assert.match(library, /index\.json[\s\S]*?archive\.log[\s\S]*?absolute path[\s\S]*?nothing in it is ever deleted or rewritten/, "the two records, and that the archive is immutable");
+    assert.match(library, /Show Bundle Archive History[\s\S]*?Restore Bundle Archive Version[\s\S]*?archives[\s\S]*?what it replaced/, "how to get a version back, and that the restore is itself archived");
+  }
+});
+
+test("T16-07: the shipped SKILL.md no longer tells the assistant there is no vector search", async () => {
+  // `SKILL.md` and `references/my-library.md` are read by the same assistant in the same turn. Until this
+  // pass the first said "It does not provide vector or embedding search" while the second described
+  // `chunk_vectors` and three retrieval modes. Only figures a constant in `src/research_stack/` supports
+  // are named: `SEARCH_MODES` and the `mode="lexical"` default in `lab_server.py`, `BACKEND_ID =
+  // "rsk-hashing-v1"`, `EMBEDDING_DIMENSIONS = 256`. The bundle's own `metadata.version` is untouched —
+  // the two-number split (frontmatter 2.0, catalog 2.2) is pinned in the shipped-catalog test above.
+  const trees = [
+    path.join(PAYLOAD_PATH, "theological-research", "SKILL.md"),
+    path.join(__dirname, "..", "..", "templates", "skill-bundles", "theology", "theological-research", "SKILL.md"),
+  ];
+  for (const file of trees) {
+    const skill = await read(file);
+    assert.doesNotMatch(skill, /does not provide vector or embedding search|no vector or embedding search/i,
+      `${file}: the sentence its own references/my-library.md contradicted`);
+    assert.match(skill, /`search_corpus` answers in `lexical` \(its default mode\), in `vector`, and in `hybrid`/,
+      "the modes the store answers, and which one answers by default");
+    assert.match(skill, /backend `rsk-hashing-v1` — a 256-dimension CPU lexical signature/, "the named backend, its width, and that it runs on CPU");
+    assert.match(skill, /no model, no download and no dependency to install/, "what installing this bundle does not bring");
+    assert.match(skill, /not a learned embedding model, and this skill claims no relevance figure/, "what it is not, and the quality claim it refuses to make");
+    assert.match(skill, /What is not provided: OCR, scanned-image recognition, automatic downloading of papers;[\s\S]*?a learned embedding model, a Qdrant or DuckDB service and reranking remain planned/,
+      "the limits that are still limits, kept in the same bullet");
+    assert.match(skill, /version: "2\.0"/, "this correction did not move the bundle's own version marker");
+  }
+});
+
+test("T16-07: the shipped zotero-vocabulary.md states what the 0.3.15 write path does, in both trees", async () => {
+  // The same defect class as the two above: a shipped reference file describing the Zotero write path as it
+  // was before 0.3.15, while `src/research_stack/research.py` had grown the collection operations and their
+  // refusals. Every code named here is a refusal the code raises (`ZOTERO_COLLECTION_PARENT_MISMATCH`,
+  // `ZOTERO_COLLECTION_NAME_RESERVED`, `ZOTERO_WRITE_FIELD_REFUSED`, `ZOTERO_PLAN_SHAPE_INVALID`,
+  // `ZOTERO_COLLECTION_TAGS_UNSUPPORTED`, `ZOTERO_NOTE_NOT_FILEABLE`, `ZOTERO_COLLECTION_LISTING_TRUNCATED`,
+  // `ZOTERO_WRITE_COUNT_INVALID`, `ZOTERO_WRITE_BLOCK_UNREADABLE`), every figure is
+  // `ZOTERO_WRITE_MAX_OPERATIONS` × `ZOTERO_WRITE_MAX_BATCHES`, and the last assertion is the honesty rule:
+  // the proof is the Zotero 10 emulator and the scripted transport fake, not a live library (T14-20).
+  const trees = [
+    path.join(PAYLOAD_PATH, "theological-research", "references", "zotero-vocabulary.md"),
+    path.join(__dirname, "..", "..", "templates", "skill-bundles", "theology", "theological-research", "references", "zotero-vocabulary.md"),
+  ];
+  for (const file of trees) {
+    const vocabulary = await read(file);
+    assert.match(vocabulary, /## Collections are not tags/, `${file}: the section 0.3.15 needs`);
+    assert.match(vocabulary, /`ensure_collection` never re-parents a collection[\s\S]*?`ZOTERO_COLLECTION_PARENT_MISMATCH`[\s\S]*?the library root/,
+      "the refusal, and that the parent the collection really has is named");
+    assert.match(vocabulary, /`My Publications`, `Unfiled Items`,[\s\S]*?`Feed Documents`[\s\S]*?`ZOTERO_COLLECTION_NAME_RESERVED`\s*\*\*before any HTTP request\*\*/,
+      "the reserved names, refused before a request goes out");
+    assert.match(vocabulary, /`collections` is not an item field you can write[\s\S]*?`ZOTERO_WRITE_FIELD_REFUSED`/,
+      "membership is not a field write");
+    assert.match(vocabulary, /The only membership read is `GET \/collections\/<key>\/items`[\s\S]*?`GET \/items\?collection=<key>` is ignored/,
+      "which read answers membership, and which one Zotero ignores");
+    assert.match(vocabulary, /`POST \/collections\/<key>\/items`[\s\S]*?405/, "the filing shape Zotero refuses");
+    assert.match(vocabulary, /`ZOTERO_COLLECTION_TAGS_UNSUPPORTED`[\s\S]*?no request at all/, "a 404 read is refused, not answered with an empty list");
+    assert.match(vocabulary, /`ZOTERO_NOTE_NOT_FILEABLE`/, "a note is filed through its item");
+    assert.match(vocabulary, /`truncated` with `totalCount`[\s\S]*?`ZOTERO_COLLECTION_LISTING_TRUNCATED`/, "a capped listing is not used as a census");
+    assert.match(vocabulary, /`ZOTERO_WRITE_MAX_OPERATIONS` \(25\) × `ZOTERO_WRITE_MAX_BATCHES` \(4\) = 100[\s\S]*?`authorizedOperations` and `batchesNeeded`[\s\S]*?43-item filing is a 43-operation\s*confirmation/,
+      "one confirmation, counted honestly");
+    assert.match(vocabulary, /A created collection is not undoable[\s\S]*?`ZOTERO_WRITE_BLOCK_UNREADABLE`/, "what a write cannot take back, and a block that cannot be read");
+    assert.match(vocabulary, /No write has been\s*verified against a live Zotero library[\s\S]*?T14-20/,
+      "what is proven, on what, and what is still owed");
+  }
+});
+
 // --- Catalog validation ---
 
 test("readCatalog refuses a catalog this toolkit cannot vouch for", async (t) => {
@@ -238,7 +366,8 @@ test("readCatalog refuses a catalog this toolkit cannot vouch for", async (t) =>
   await assert.rejects(readCatalog(notJson), /not readable JSON/);
 
   const linked = path.join(root, "linked.json");
-  await fs.symlink(await writeCatalog(t, root, catalog), linked);
+  const realCatalog = await writeCatalog(t, root, catalog);
+  if (!fileLink(t, realCatalog, linked)) return;
   await assert.rejects(readCatalog(linked), /real file, not a link/);
 });
 
@@ -842,7 +971,10 @@ test("a force update does not write through a link or over a directory, and it a
   const skill = path.join(root, ".github", "skills", "theological-research");
   await fs.mkdir(path.join(skill, "references"), { recursive: true });
   await fs.writeFile(path.join(root, "somewhere-else.md"), "# the real file\n");
-  await fs.symlink(path.join(root, "somewhere-else.md"), path.join(skill, "SKILL.md"));
+  // The fixture this case stands on is a file link in the target path. Where the host will not create one
+  // the case states the gap and stops; the assertions below are about a refusal the toolkit was really
+  // handed a fixture for.
+  if (!fileLink(t, path.join(root, "somewhere-else.md"), path.join(skill, "SKILL.md"))) return;
   await fs.mkdir(path.join(skill, "references", "methods.md"));
 
   const forced = await installBundle({ workspaceRoot: root, catalog, bundleId: "theological-research", sourceRoot: payloadRoot, force: true });
@@ -918,7 +1050,7 @@ test("readReceipt refuses a receipt that is a link", async (t) => {
   const receiptPath = path.join(root, RECEIPT_FOLDER, "theological-research.json");
   const real = await read(receiptPath);
   await fs.rm(receiptPath);
-  await fs.symlink(path.join(root, "research", "notes.md"), receiptPath);
+  if (!fileLink(t, path.join(root, "research", "notes.md"), receiptPath)) return;
   await assert.rejects(readReceipt(root, "theological-research"), /must not be a link/);
   await fs.rm(receiptPath);
   await fs.writeFile(receiptPath, real);
@@ -975,4 +1107,94 @@ test("the document bridge ships as a reviewed bundle and no longer tells the ope
   assert.match(text, /page=N;chars=a-b/, "the locator it tells the operator to cite is the 0.3.9 locator");
   assert.match(text, /verify_sources/, "freshness is part of the workflow it instructs");
   assert.match(text, /cannot observe whether the host discovered this skill|can prove\s+only that/, "it does not claim the host discovered it");
+});
+
+test("T16-07: the shipped 2.2 bundle upgrades an installed 2.0, spares an edited 2.0 copy, and gives it back from the archive", async (t) => {
+  // The bundle the operator edited in the field, end to end against the SHIPPED catalog and the SHIPPED
+  // payload. The starting state is a workspace that installed 2.0 and then had its `references/my-library.md`
+  // filled in by hand — exactly the state 0.3.13 left the operator in, and the state 0.3.14 could report
+  // but not act on. Every hash in this case is measured from the fixture's own bytes or from the shipped
+  // catalog; none is typed.
+  const shipped = await readCatalog(CATALOG_PATH);
+  const bundle = shipped.bundles.find((item) => item.id === "theological-research");
+  assert.equal(bundle.version, "2.2", "the shipped catalog is the revision this scenario upgrades into");
+  const libraryEntry = bundle.files.find((entry) => entry.path === "theological-research/references/my-library.md");
+  assert.ok(libraryEntry, "the shipped catalog names references/my-library.md");
+  const libraryRelative = "references/my-library.md";
+  const workspaceLibrary = (root) => path.join(root, ".github", "skills", "theological-research", libraryRelative);
+
+  const asInstalledAt2 = Object.fromEntries(bundle.files.map((entry) => [entry.path, `# theological-research 2.0 ${entry.path}\n`]));
+  const installed2 = await syntheticBundle(t, { version: "2.0", files: asInstalledAt2 });
+  const hash2 = installed2.catalog.bundles[0].files.find((entry) => entry.path === "theological-research/references/my-library.md").sha256;
+  const operatorText = "# My library\n\nATLA Religion Database via (library name), (account). Filled in by hand\n"
+    + "after this Toolkit installed the template, before the 0.3.15 update reached this workspace.\n";
+  const operatorHash = digest(Buffer.from(operatorText, "utf8"));
+  const reviewedText = await read(path.join(PAYLOAD_PATH, "theological-research", libraryRelative));
+
+  // (1) An unmodified 2.0 install: a routine repair upgrades it, and what it replaced is archived first.
+  const clean = await workspace(t);
+  await installBundle({ workspaceRoot: clean, catalog: installed2.catalog, bundleId: "theological-research", sourceRoot: installed2.payloadRoot });
+  const plan = await planInstall({ workspaceRoot: clean, catalog: shipped, bundleId: "theological-research" });
+  assert.deepEqual(plan.upgrade, { from: "2.0", to: "2.2" }, "the 2.0 receipt against the 2.2 catalog is an upgrade");
+  assert.deepEqual([...new Set(plan.files.map((file) => file.state))], ["outdated"], "every file is this toolkit's own older copy");
+  assert.equal(plan.wouldWrite, bundle.files.length);
+  assert.deepEqual(plan.forceOverwrites, [], "and nothing needs a force");
+
+  const upgraded = await repairBundle({ workspaceRoot: clean, catalog: shipped, bundleId: "theological-research", sourceRoot: PAYLOAD_PATH });
+  assert.equal(upgraded.previousVersion, "2.0", "the new receipt records the version it replaced");
+  assert.equal(upgraded.bundleVersion, "2.2");
+  assert.deepEqual(upgraded.repair.drift, [], "nothing was preserved, because nothing had been changed");
+  assert.equal(upgraded.archive.reason, "upgrade");
+  assert.equal(upgraded.archive.files, bundle.files.length, "every replaced file was archived");
+  assert.equal(digest(await fs.readFile(workspaceLibrary(clean))), libraryEntry.sha256, "the workspace holds the shipped 2.2 bytes");
+  const archivedAt2 = await fs.readFile(path.join(upgraded.archive.absoluteDirectory, ".github/skills/theological-research", libraryRelative));
+  assert.equal(digest(archivedAt2), hash2, "the archive holds the 2.0 bytes the upgrade replaced");
+
+  // (2) The copy the operator edited: a routine repair does not touch it.
+  const edited = await workspace(t);
+  await installBundle({ workspaceRoot: edited, catalog: installed2.catalog, bundleId: "theological-research", sourceRoot: installed2.payloadRoot });
+  await fs.writeFile(workspaceLibrary(edited), operatorText);
+  const routine = await repairBundle({ workspaceRoot: edited, catalog: shipped, bundleId: "theological-research", sourceRoot: PAYLOAD_PATH });
+  assert.equal(await read(workspaceLibrary(edited)), operatorText, "the operator's filled-in copy is byte-for-byte what they wrote");
+  assert.equal(digest(await fs.readFile(workspaceLibrary(edited))), operatorHash);
+  assert.deepEqual(routine.repair.drift.map((entry) => entry.path), [`.github/skills/theological-research/${libraryRelative}`]);
+  assert.equal(routine.repair.drift[0].state, "user-modified", "and it is named as the operator's file, not as a failure");
+  assert.equal(routine.archive.files, bundle.files.length - 1, "the files it was entitled to replace were archived and replaced");
+  assert.equal(routine.bundleVersion, "2.2", "the workspace is recorded at 2.2 with one file still held by the operator");
+
+  // (3) The confirmed force update: it archives the operator's bytes, writes the reviewed ones, and the
+  // original bytes come back out of the archive.
+  const forced = await repairBundle({ workspaceRoot: edited, catalog: shipped, bundleId: "theological-research", sourceRoot: PAYLOAD_PATH, force: true });
+  assert.equal(forced.archive.reason, "force-update");
+  assert.equal(forced.archive.files, 1, "and only the one file the operator changed");
+  assert.equal(await read(workspaceLibrary(edited)), reviewedText, "the reviewed 2.2 bytes are now in the workspace");
+  assert.equal(digest(await fs.readFile(workspaceLibrary(edited))), libraryEntry.sha256, "matching the shipped catalog hash");
+  const archivedOperatorBytes = await fs.readFile(path.join(forced.archive.absoluteDirectory, ".github/skills/theological-research", libraryRelative));
+  assert.equal(digest(archivedOperatorBytes), operatorHash, "the archive holds what the operator wrote");
+
+  const restored = await restoreArchive({ workspaceRoot: edited, bundleId: "theological-research", archiveId: forced.archive.archiveId });
+  assert.equal(restored.filesRestored, 1);
+  assert.equal(await read(workspaceLibrary(edited)), operatorText, "the operator's version is back in the workspace");
+  assert.equal(digest(await fs.readFile(workspaceLibrary(edited))), operatorHash, "to the last byte");
+  assert.equal(restored.archive.reason, "restore", "and the bytes the restore displaced are archived too (HR-23)");
+  assert.equal(digest(await fs.readFile(path.join(restored.archive.absoluteDirectory, ".github/skills/theological-research", libraryRelative))),
+    libraryEntry.sha256, "the displaced bytes are the shipped 2.2 bytes");
+  const receipt = await readReceipt(edited, "theological-research");
+  // The archived bytes were the operator's copy of the 2.2 bundle, not an older reviewed version, so the
+  // version the restore puts back is 2.2: `replacedVersion` is only recorded when a run replaced a
+  // different bundle version, and a force update of the same version archives what it replaced, not an
+  // older release. The receipt says which archive the bytes came from.
+  assert.equal(receipt.bundleVersion, "2.2", "the restored bytes are a user's copy of the 2.2 bundle");
+  assert.equal(receipt.restore.archiveId, forced.archive.archiveId);
+  assert.equal(receipt.restore.restoredVersion, "2.2");
+  assert.equal(receipt.force, false, "a restore is not a force update");
+  assert.equal(receipt.files.find((entry) => entry.path.endsWith(libraryRelative)).restoredFrom, forced.archive.archiveId);
+  const history = await listArchives({ workspaceRoot: edited, bundleId: "theological-research" });
+  assert.equal(history.count, 3, "upgrade, force update and restore all still exist");
+  assert.deepEqual(history.archives.map((entry) => entry.reason), ["restore", "force-update", "upgrade"]);
+  assert.deepEqual(history.refused, []);
+
+  console.log(`T16-07 hashes for references/my-library.md — installed 2.0 fixture: ${hash2}; `
+    + `shipped 2.2 catalog: ${libraryEntry.sha256}; operator edit: ${operatorHash}; `
+    + `restored into the workspace: ${digest(await fs.readFile(workspaceLibrary(edited)))}`);
 });

@@ -155,6 +155,45 @@ def test_the_record_states_the_retrieval_state_the_build_actually_has(tmp_path: 
     assert after["currentChunkCount"] == lab_state(root)["counts"]["chunks"]
 
 
+
+def test_the_record_separates_a_vector_that_matches_its_labels_from_one_a_query_can_decode(tmp_path: Path) -> None:
+    """T16-04: the derived record reports what a query can actually read (HR-05).
+
+    ``scoreableChunks`` used to be a metadata count: backend id, dimensions and the text hash matched,
+    so a row with a truncated blob was reported as a usable vector, and the failure only appeared when
+    a search tried to decode it. Expectation changed here (HR-41): the record now counts decodable
+    vectors, names the difference as ``undecodableVectorCount``, and keeps the ceiling visible as
+    ``chunkLimit`` / ``overLimit`` so a store bigger than the read paths will score is not presented as
+    a store the read paths have scored.
+    """
+    root = workspace(tmp_path)
+    init_lab_workspace(root)
+    records.index_corpus(root, [NOTES, OTHER])
+
+    state = lab_state(root)["vectorSearch"]
+    assert state["metadataMatchChunks"] == state["scoreableChunks"] == state["currentChunkCount"]
+    assert state["undecodableVectorCount"] == 0
+    assert state["chunkLimit"] == records.MAX_STORE_CHUNKS and state["overLimit"] is False
+
+    chunk_id = records.search_corpus(root, "stitching")[0].chunk.chunk_id
+    connection = sqlite3.connect(records.store_path(root))
+    connection.execute("UPDATE chunk_vectors SET vector = ? WHERE chunk_id = ?", ("c3RvcmVkLWJ1dA", chunk_id))
+    connection.commit()
+    connection.close()
+    records.refresh_lab_state(root, refreshed_by="test")
+
+    state = lab_state(root)["vectorSearch"]
+    assert state["metadataMatchChunks"] == state["currentChunkCount"], "the labels still match — that is the point"
+    assert state["undecodableVectorCount"] == 1
+    assert state["scoreableChunks"] == state["currentChunkCount"] - 1
+    assert state["state"] == "partial"
+
+    # The number the record reports is the number the search measured, not a count of rows.
+    for mode in ("vector", "hybrid"):
+        found = records.search_store(root, "stitching pattern", limit=10, mode=mode)
+        assert found["retrieval"]["scoredChunks"] == state["scoreableChunks"]
+    assert records.maintenance(root, "status")["vectorSearch"] == state, "both readers must agree about the same measurement"
+
 def test_the_record_is_rewritten_over_any_edit_a_reader_made(tmp_path: Path) -> None:
     """The file is derived: an edit to it is not a fact the toolkit believes."""
     root = workspace(tmp_path)

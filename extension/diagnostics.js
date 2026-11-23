@@ -155,7 +155,7 @@ async function checkInventory(vscode, context, folder, services = {}) {
       inventory.readingCheck = check;
       set("document-worker", { readiness: "Ready", evidence: "Real local stdio MCP discovery, PDF/DOCX reading, hashes/locators and report creation passed on temporary synthetic fixtures. VS Code chat authorization is separate." });
       set("research-stack-recommended-adapter", { readiness: "Ready", evidence: "Real MCP discovery and local RIS preparation passed. External metadata providers and Zotero are not checked." });
-      set("research-stack-full-markdown-bm25-prototype", { readiness: "Ready", evidence: "Selected Markdown fixture returned provenance-bearing BM25 results through MCP. Vector search remains planned." });
+      set("research-stack-full-markdown-bm25-prototype", { readiness: "Ready", evidence: bm25ComponentEvidence(check) });
       if (check.corpusIndex) set("research-corpus-index", { readiness: "Ready", evidence: `Real MCP indexing and stored-corpus search passed on a synthetic fixture; ${check.lab ? check.lab.chunksIndexed : 0} chunk(s) indexed, fingerprint recorded.` });
       if (check.recordStore) set("research-record-store", { readiness: "Ready", evidence: "Real MCP claim write/read with an evidence link, store status, backup and the confirm-before-vacuum rule passed on synthetic fixtures." });
     } catch (error) {
@@ -187,6 +187,29 @@ async function checkInventory(vscode, context, folder, services = {}) {
     }
   } catch { /* A damaged receipt is reported by setup, not by the inventory. */ }
   return inventory;
+}
+
+/**
+ * The BM25 component line, 0.3.15.
+ *
+ * It claims only what the reading check it is standing on actually proved. The check indexes one
+ * Markdown fixture and searches it in the default `lexical` mode, which is the BM25 half; the vector half
+ * is claimed **only** for a check that reports `vectorRetrieval` — `extension/functional_check.py` sets that
+ * flag after it has run `embed_corpus` on the fixture store, seen the index report `ready`, and answered
+ * `vector` and `hybrid` over the same MCP session. A receipt recorded by an older worker does not carry the
+ * flag, so the sentence for it says plainly that the vector modes were not proved.
+ *
+ * The condition for the two vector modes is stated either way, because an operator reading this line in a
+ * workspace needs it: the modes answer from the vectors stored in the workspace store, `embed_corpus` is
+ * what stores them, a store that has none says so with `not-built` and refuses with `VECTORS_MISSING`
+ * instead of quietly answering in another mode, and `lexical` is the mode that needs nothing.
+ */
+function bm25ComponentEvidence(check) {
+  const proved = check && check.vectorRetrieval === true
+    ? `The same check built that store's vectors with embed_corpus (${check.lab && check.lab.vectorsBuilt ? check.lab.vectorsBuilt : 0} vector(s), index reported ready) and answered vector and hybrid through the same MCP session, each hit naming its contributing ranker and score.`
+    : "This reading check did not run the vector or hybrid modes, so it proves nothing about them.";
+  const condition = "In a workspace store vector and hybrid answer only from stored vectors: index_corpus writes them for the chunks it indexes and embed_corpus builds or rebuilds them, a store that has none reports the index as not-built and refuses both modes with VECTORS_MISSING until embed_corpus has run, and lexical is the default mode and needs none. The backend is rsk-hashing-v1, a lexical signature computed on CPU from the chunk text — not a semantic model, and no embedding model, vector database, OCR or third-party retrieval service is installed or contacted.";
+  return `Selected Markdown fixture returned provenance-bearing BM25 results through MCP in the default lexical mode. ${proved} ${condition}`;
 }
 
 function inventoryText(inventory) {

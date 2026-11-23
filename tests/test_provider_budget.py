@@ -340,6 +340,132 @@ def test_a_stale_in_flight_claim_does_not_deadlock_the_second_caller(budget_dir:
     assert result["fromCache"] is False and asked == [URL] and clock.slept == []
 
 
+# --- 0.3.15 defect P13: the in-flight reservation leak (field evidence 21/22 November 2026) -----------
+# `provider-receipts/probe25_out.txt` (0.3.13, operator's Windows machine) recorded, for one key:
+#   A  a request that failed after 4 attempts left `claims = [('anon:K1', '18080-2928484927056')]` behind;
+#   B  the same key asked a moment later by a new instance crashed with
+#      `TypeError: 'bool' object is not subscriptable` and the claim was still there;
+#   C/D/E  a fresh key, a repeated key and three instances in flight all behaved as designed.
+# `probe25b_out.txt` recorded the same five sections against the owner-guarded release: A leaves `claims=[]`,
+# B answers `attempts=1` with no exception. These tests are that probe, run against this repository's module.
+
+def cache_state(directory: Path, provider: str = "crossref") -> tuple[dict[str, Any], dict[str, Any]]:
+    """What the cache file says right now: its entries and its in-flight claims, as the file holds them."""
+    document = json.loads((directory / f"cache-{provider}.json").read_text(encoding="utf-8"))
+    return (document.get("entries") or {}, document.get("claims") or {})
+
+
+def test_a_failing_request_leaves_no_claim_behind(budget_dir: Path) -> None:
+    """Probe25 §A: the request failed, so nothing may still be holding the key.
+
+    In 0.3.13 this left `[('anon:K1', '18080-2928484927056')]` in the claims map — a stamp naming a caller
+    that had already given up.
+    """
+    clock = Clock()
+    def always_down(url: str, _headers: dict[str, str] | None = None):
+        raise Unreachable()
+
+    result = budget(budget_dir, clock).run(always_down, URL, cache_key="K1")
+    assert result["deferred"] == "exhausted" and result["attempts"] == provider_budget.RETRY_MAX_ATTEMPTS
+    assert result["error"]["code"] == "PROVIDER_UNAVAILABLE"
+    entries, claims = cache_state(budget_dir)
+    assert entries == {} and claims == {}, "a failure stores no result, so it holds no claim"
+
+
+def test_a_refusal_that_is_not_retried_leaves_no_claim_behind(budget_dir: Path) -> None:
+    """The other exit path: a 401/403 is raised straight out of `run`, and it used to keep the claim too."""
+    clock = Clock()
+
+    class Denied(Exception):
+        code = "PROVIDER_AUTH_REQUIRED"
+
+    with pytest.raises(Denied):
+        budget(budget_dir, clock).run(lambda *_args: (_ for _ in ()).throw(Denied()), URL, cache_key="K1")
+    assert cache_state(budget_dir) == ({}, {})
+
+
+def test_a_key_freed_by_a_failure_is_askable_by_another_process_at_once(budget_dir: Path) -> None:
+    """Probe25 §B, the crash itself: two instances, one key, the failure first, all inside CLAIM_STALE_MS.
+
+    Two assertions and both matter. The result must be a working answer with `attempts == 1` — not the
+    `TypeError: 'bool' object is not subscriptable` the operator got — and the claims map must be empty
+    afterwards, because a leftover claim is what poisoned the next request for the same query for 30 seconds.
+    """
+    clock = Clock()
+    first = budget(budget_dir, clock, jitter=lambda: 0.0)
+    down = first.run(lambda *_args: (_ for _ in ()).throw(Unreachable()), URL, cache_key="K1")
+    assert down["deferred"] == "exhausted"
+    assert first.owner.split("-")[0] == second_owner(budget_dir, clock)  # same pid, different instance
+
+    second = budget(budget_dir, clock)  # a new instance, same process, same budget file, same moment in time
+    answer = second.run(lambda *_args: ({"message": {"items": []}}, {}), URL, cache_key="K1")
+    assert answer["fromCache"] is False and answer["attempts"] == 1, "the query is askable again the moment the failure is reported"
+    entries, claims = cache_state(budget_dir)
+    assert list(entries) == ["anon:K1"] and claims == {}
+
+
+def second_owner(directory: Path, clock: Clock) -> str:
+    """The owner id a fresh instance of this process would use: the pid half of `<pid>-<id(self)>`."""
+    return budget(directory, clock).owner.split("-")[0]
+
+
+def test_a_failing_request_leaves_no_file_a_later_process_has_to_clean_up(budget_dir: Path) -> None:
+    """Nothing leaks outside the budget directory, and no lock or temp file survives the failure."""
+    clock = Clock()
+    budget(budget_dir, clock).run(lambda *_args: (_ for _ in ()).throw(Unreachable()), URL, cache_key="K1")
+    written = sorted(path.name for path in budget_dir.rglob("*") if path.is_file())
+    assert written == ["budget-crossref.json", "cache-crossref.json"], written
+
+
+def test_a_live_claim_by_another_process_defers_instead_of_duplicating_the_request(budget_dir: Path) -> None:
+    """The cross-process case the deferral exists for: somebody else is asking, so this caller does not.
+
+    `PROVIDER_BUDGET_DEFERRED` is what `research.py` turns a deferral into, and a deferred answer carries the
+    wait to respect instead of a second request. Before 0.3.15 this case was the crash.
+    """
+    clock = Clock()
+    holder = budget(budget_dir, clock)
+    assert holder._reserve("anon:K1", None) is True
+    assert holder.acquire()["state"] == "allowed"
+    spent = facts(budget_dir)["permits"]
+
+    waiting_clock = Clock(clock.now)
+    asked: list[str] = []
+    result = budget(budget_dir, waiting_clock).run(
+        lambda *_args: asked.append(URL), URL, cache_key="K1")
+    assert asked == [], "a live caller's request is never duplicated"
+    assert result["deferred"] == "in-flight" and result["payload"] is None and result["attempts"] == 0
+    assert result["waitMs"] > 0, "the deferral names the wait to respect, so the caller can honour it"
+    assert facts(budget_dir)["permits"] == spent, "the waiting caller spent no permit either"
+    assert cache_state(budget_dir)[1]["anon:K1"]["owner"] == holder.owner, "the holder still holds its key"
+
+
+def test_an_owner_never_releases_another_owners_claim(budget_dir: Path) -> None:
+    """The guard that makes the release safe to call from every exit path: a claim belongs to its holder."""
+    clock = Clock()
+    holder = budget(budget_dir, clock)
+    assert holder._reserve("anon:K1", None) is True
+    other = budget(budget_dir, clock)
+    other._release("anon:K1")
+    assert cache_state(budget_dir)[1]["anon:K1"]["owner"] == holder.owner, "a caller cleared a claim it did not own"
+    other._reserve("anon:K1", other._entry({"message": {}}, {}))
+    state = cache_state(budget_dir)
+    assert "anon:K1" in state[0] and state[1]["anon:K1"]["owner"] == holder.owner, \
+        "storing a result does not clear a claim another caller is still holding"
+
+
+def test_a_claim_left_by_a_dead_process_is_taken_over_after_the_stale_window(budget_dir: Path) -> None:
+    """Probe25 §G: the takeover rule survives the fix, or a crashed process freezes a query forever."""
+    clock = Clock()
+    budget_dir.mkdir(parents=True, exist_ok=True)
+    (budget_dir / "cache-crossref.json").write_text(json.dumps(
+        {"entries": {}, "claims": {"anon:K1": {"atMs": int(clock.now) - provider_budget.CLAIM_STALE_MS - 1,
+                                               "owner": "999999-1"}}}), encoding="utf-8")
+    result = budget(budget_dir, clock).run(lambda *_args: ({"message": {"items": []}}, {}), URL, cache_key="K1")
+    assert result["fromCache"] is False and result["attempts"] == 1
+    assert cache_state(budget_dir)[1] == {}, "the taken-over key was released when the answer was stored"
+
+
 def test_a_cache_hit_is_served_without_asking_the_provider_and_is_labelled(budget_dir: Path) -> None:
     """INT-14.6: a hit is a hit, and the result says so, and it expires."""
     clock = Clock()
@@ -536,10 +662,16 @@ def test_the_module_carries_no_forbidden_or_outbound_primitive() -> None:
     for primitive in ("subprocess", "eval(", "exec(", "__import__(", "os.system", "os.popen", "pty", "multiprocessing",
                       "fcntl", "msvcrt", "urllib.request", "urlopen", "build_opener", "socket", "http.client"):
         assert primitive not in text, f"provider_budget.py must not contain {primitive}"
-    # 17 600, raised from 17 000 (0.3.11 phase 13, defect P8). `CALL_CEILING_MS` claimed no attempt loop
-    # outlives the caller's patience, but it only counted the pauses the loop slept: four 15-second requests
-    # that each timed out ran to ~66 seconds against a 20-second promise, which is what killed the readiness
-    # probe mid-check. The loop now measures wall-clock as well as waiting. That is four lines of arithmetic
-    # in a module that ships twice, and the alternative — trimming the sentence that explains why the ceiling
-    # is wall-clock — would remove the only place the reason is written down.
-    assert len(source.read_bytes()) < 17_600, "the module ships twice and the artifact has a reviewed byte ceiling"
+    # 22 000, raised from 17 600 (0.3.15, defect P13 — the in-flight reservation leak measured on the
+    # operator's machine on 21 November 2026). The dedup decision is now four named steps in `_claim`, the
+    # release is an owner-guarded `_release`, and `run` holds the claim under a `finally` so no exit that
+    # stores no result leaves one behind: that is the fix for a `TypeError: 'bool' object is not
+    # subscriptable` that one provider failure used to plant in the next request for the same query for 30
+    # seconds. Measured 21 685 bytes, so the headroom is 315. The module ships twice (src and the worker
+    # copy) and the artifact ceiling itself is re-measured in `scripts/verify_vsix.py` by the coordinator;
+    # the number here is the measured module plus headroom, stated so it cannot drift upward silently.
+    assert len(source.read_bytes()) < 22_000, "the module ships twice and the artifact has a reviewed byte ceiling"
+    # The shape the 0.3.14 crash came in must not come back in either half of the dedup decision.
+    assert "and None))" not in text, "the nested cache/dedup expression is retired, not hidden in another form"
+    assert "isinstance(hit, dict)" in text and "held.get(\"owner\") == self.owner" in text, \
+        "a non-dict cannot be indexed, and a claim is only ever dropped by the caller that holds it"

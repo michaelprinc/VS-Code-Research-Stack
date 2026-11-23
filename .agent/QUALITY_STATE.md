@@ -1,3 +1,297 @@
+# Quality state — Research Stack Toolkit 0.3.15 (stabilization round, candidate built and gated)
+
+Goal: [specs/phase-16-next-release-recommendations/recommendations.md](../specs/phase-16-next-release-recommendations/recommendations.md)
+(P1…P10, T16-01…T16-12, HR-34…HR-41), driven by the 0.3.14 operator report and the 21/22 November field notes
+(`/mnt/k/Soukromé_aktivity/Křesťanství/research/`). Build host: Linux, node v24.22.0, `.venv` CPython 3.12.
+
+**The tree is stamped 0.3.15 and the candidate exists:**
+`dist/research-stack-toolkit-0.3.15.vsix`, 121 members, 614 663 bytes packed, 1 882 706 bytes unpacked,
+sha256 `d5c8a5fa433f87eaa96bd9b88a4d3a9b8df85330076e43f0e055409dc56f1d24`. It is **not published and not
+installed anywhere**: no reference-host install, no Marketplace submission. Everything below that says
+"verified" means verified on this build host.
+
+## Final gate counts on the candidate (one continuous sequence, 23 November 2026)
+
+| Gate | Result |
+|---|---|
+| `npm run package` | `dist/research-stack-toolkit-0.3.15.vsix (121 files, 600.09 KB)`; worker bundle from 25 reviewed source/lock files + 11 overlay templates for worker 0.3.15; guide hub from 29 component guides |
+| `.venv/bin/python -m pytest -p no:cacheprovider` | **581 passed in 223.73 s, 0 failed** (session baseline was 444 passed / 1 skipped) |
+| `npm test` (extension/) | **541 tests, 541 pass, 0 fail, 0 skipped** |
+| `npm run test:panel` | **9 assertions run, 9 pass, 0 not proven** |
+| `npm run test:browser` | green, `errors: []`, three theme screenshots under `evidence/quality-v0.3.15-2026-11-23/` |
+| `npm run verify-package` | `"result": "passed"` — ceiling 1 966 080, unpacked 1 882 706, digest `d5c8a5fa…`, 2 bundles / 16 files / 100 221 B, 0 unresolved licences, `publishable: true` |
+| `npm run check:payload` | `"result": "passed"` |
+| `scripts/verify_mcp.py` | green — `launcher: venv entry point research-stack-mcp`, `platform: linux`, 5 tools, Czech fixture read, both reports written |
+| `scripts/build_bundle_catalog.py --check` | `bundles/catalog.json unchanged: 2 bundle(s), 16 files, 100221 bytes, 0 unresolved license(s), publishable=True`, exit 0 |
+| `node --test test/host-runner.test.js` | 8 tests, 8 pass |
+
+`npm test` reports no skipped case on this artifact because the release-gate case that skips when no candidate
+exists — the one that had been reporting the stale `extension/worker/README.md` — ran and passed after the
+worker bundle was rebuilt. Baselines moved as expected: node 526 → 541, python 444 → 581.
+
+**One dist fact worth knowing:** `dist/research-stack-toolkit-0.3.14.vsix` on this host is an **interim build
+made during this round** (592 345 B, sha256 `95be4533…`), not the audited 0.3.14 artifact
+(`dba2c804…`). The audited figure is reproduced in the record and re-derivable with
+`git worktree add /tmp/base-0314 5995dfa` plus the same `npm run package` path — the worktree was removed once
+the 0.3.15 delta was measured, so the reproduction is a recorded recipe, not a file left on disk.
+
+## Verified on this host (executed, with the artifact that proves it)
+
+| Area | Evidence |
+|---|---|
+| `scripts/verify_mcp.py` is portable | launcher derived from the platform (`.venv/bin/research-stack-mcp` vs `.venv/Scripts/research-stack-mcp.exe`), interpreter fallback `-m research_stack.mcp_server`, named `WORKER_LAUNCHER_MISSING` refusal. POSIX run completed: 5 tools, Czech fixture with spaces + diacritic read, both reports written, source hash unchanged. Receipt and the 0.3.14 failure it replaces: [evidence/host-2026-11-22/README.md](../evidence/host-2026-11-22/README.md). Pinned by `tests/test_verify_mcp.py` (5 cases). |
+| Windows path assertions | `extension/test/presetselect.test.js` now builds its expected modal text from `path.join` instead of a POSIX-shaped literal, which could not match on NTFS. |
+| Link fixtures | `extension/test/linkfixture.js` is the single builder: junction for directories on Windows, symlink elsewhere; a file link the host refuses **skips the test with the reason recorded** instead of asserting a refusal that never happened. Converted: `presetselect`, `preflight`, `installer` (×2), `setuplog` (×3), `bundles`. The four converted files ran green (60/60). |
+| `npm run test:host` names what it ran | `extension/test/run-host-test.js` now has three modes, refuses `EXTENSION_DEVELOPMENT_PATH` + `VSCODE_TEST_VSIX` together, requires both profile dirs inside `VSCODE_TEST_ROOT`, prints the install command, and writes a JSON receipt when `VSCODE_TEST_RECEIPT_DIR` is set. Pinned by `extension/test/host-runner.test.js` (7 cases, incl. a synthesized zip proving the candidate digest path). |
+| Browser renderer case runs at all | It had never run here. `playwright 1.65.1` is now a **pinned devDependency** (never shipped — `unit.test.js` still pins that the packaged manifest has no `devDependencies`), entry point `npm run test:browser`. **Three consecutive passing runs, `errors: []`**, plus panel screenshots `evidence/quality-v0.3.14-2026-11-22/{dark,light,contrast}.png`. Three defects *in the test* were found and fixed against the shipped truth: it asserted a string where `markdown.showPreview` is handed a **Uri**; it asserted a preset title that `presets.json` does not contain; and it raced — `refresh()` pushes state without awaiting it, so the theme loop's `page.reload()` destroyed the execution context under an in-flight push and the rejection surfaced at the call that posted it. Pushes are now tracked and settled before any navigation. Coverage boundary recorded in the evidence file: Chromium is not a VS Code webview. |
+| Session baselines at start of the round | `npm test` 526/526, `pytest` 444 passed / 1 skipped, `verify_mcp.py` POSIX smoke green. |
+
+## Open defects (must close before the stamp)
+
+1. **Zotero write path — closed against the emulator, nine items each with a test.** The list below is kept as
+   written because it is what the review found; the closing evidence is the section
+   "Zotero write path (2nd round of the session)" further down and
+   [extension/guides/zotero-local-api.md](../extension/guides/zotero-local-api.md).
+   An independent review
+   (`73af5506…`, read-only, probes in `/tmp`) found that `zotero_write("apply")` hands
+   `zotero_store.collection_check` the **summary** returned by `write_snapshot`
+   (`src/research_stack/zotero_store.py:68-78` — `collectionCount` / `itemCount`, no `collections`, no
+   `items`), so the baseline read at `zotero_store.py:238-241` is always empty: `numItemsBefore: null`,
+   `membersBefore: 0`, `existedBefore: false` for every key. Probed: a collection holding 10 members plus
+   three filings answered 204 that landed nowhere reported `consistent: true`, `mismatch: false`. D3's
+   membership proof therefore false-passed in the ordinary filing case. Also open: two operations on one
+   item in one authorized write self-conflicted (second `PUT` got 412 and the receipt returned no
+   `collectionCheck`); `ensure_collection` adopted a same-name collection with the wrong parent when the
+   parent was created in the same write (`research.py:1052-1054`); `resume_after` could silently drop
+   operations; the journal cap omitted the ~126-byte wrapper so a file could be written over
+   `JOURNAL_MAX_BYTES`; collection listing capped at 100 with no truncation flag while `collectionCount` was
+   stated as fact; a non-numeric `Total-Results` threw an uncaught `ValueError`; `read_write_block`
+   swallowed a corrupt marker. D1, D2, D4, D5, D9 were closed with named tests. `ZOTERO_WRITE_MAX_BATCHES = 4`
+   makes one confirmation authorize up to 100 operations where 0.3.13 refused more than 25 per call — kept
+   with the preview stating the total, a named refusal above the ceiling, and a test.
+   `tests/test_zotero_collections.py` was the place the wrong 30-write expectation lived; the correct
+   expectation (31 writes, 30 distinct items) is now written down with the reason.
+   **Still open and not closable here: T14-20, one write against a real Zotero 10 library.**
+2. **Provider package — closed except one item, which is recorded as partial.** `tests/test_provider_release.py`
+   (new, untracked until this round) is green at 27 tests; the whole provider set
+   (`test_research` 50, `test_provider_budget` 44) is 121 passed. Item 5 of that package — Crossref
+   book-like **type unions** — is partially closed: the unions exist and are tested as clause construction
+   (`crossref_type_filter()`), and the RIS mapping uses them as families, but the Toolkit ships no request
+   that filters Crossref by `type` today, so no provider response proves a union. Named as partial rather
+   than rounded up.
+3. ~~`tests/test_bundle_dedupe_reports.py` broke collection~~ **closed** — 5 tests, all pass; the dedupe
+   stderr bound is measured (2 000 records: 45 lines / 5 831 B capped, 1 924 lines / 250 266 B with
+   `--verbose` or `RST_DEDUPE_VERBOSE=1`, identical stdout and summary, exit codes unchanged).
+
+## Defects this round found in its own new tests, and how they were closed
+
+`extension/test/host-runner.test.js` failed 3 of its 7 cases against the runner it was written for, and
+all three were runner defects, not test defects: (a) the default source-tree target resolved to
+`extension/test/` instead of `extension/`, which would have handed a real Extension Host a folder that is
+not an extension; (b) `readCandidateIdentity` scanned central-directory records from byte 0, where every
+real archive has a local file header, so a candidate VSIX would have been reported as having **zero**
+members — it now reads the central directory from the position the archive's own end-of-central-directory
+record states and refuses when the declared and parsed member counts disagree; (c) the isolation guard
+only checked profile directories derived from the root, which can never escape, so it was unreachable —
+the guard now also refuses a `VSCODE_TEST_ROOT` placed inside the extension tree, the repository or the
+managed toolkit folder, which is the mistake that actually gets made. 8/8 pass. This is the HR-41 pattern
+working: the new tests earned their keep by breaking the code they were written for.
+
+## Payload ceiling (P8 / T16-08) — measured on the candidate, decision recorded with its correction
+
+The audited 0.3.14 artifact was overwritten by an interim build and **rebuilt from `5995dfa` in a clean
+worktree**, reproducing `121 members, 561 509 B packed, 1 710 211 B unpacked, sha256
+dba2c8040aa607e4d3aa4940e4fbd5760502729efba59d69c7eb95e17305f1dc` — byte-identical to the recorded
+0.3.14 figure.
+
+The 0.3.15 candidate: `121 members, 614 663 B packed (+53 154), 1 882 706 B unpacked (+172 495)`, same 121
+members, none added, none removed, none trimmed, attributable member by member in
+[evidence/payload-2026-11-22/README.md](../evidence/payload-2026-11-22/README.md). Two members carry more
+than half of it: `research.py` +65 696 and `zotero_store.py` +18 704.
+
+Decision, **with the correction stated**: `MAX_UNPACKED_BYTES` moves from 1 769 472 to **1 966 080
+(1.875 MiB)** — the next step on the ladder `scripts/verify_vsix.py` has used (1.5 → 1.6875 → 1.875) —
+leaving **83 374 B of headroom — 4.2 % of the ceiling, 4.4 % of the payload** (0.3.14: 59 261 B, 3.4 % of its ceiling). Earlier in this round the figure written down was 1 835 008
+(1.75 MiB), claiming 1.1 % headroom, taken from an interim build measured at
+1 814 329 bytes while `research.py` and `zotero_store.py` were still being edited. That number was 68 377
+bytes short of the artifact and would have failed its own gate. A ceiling chosen from a stale measurement is
+a ceiling that gets raised twice, so the correction is recorded rather than quietly replaced. Trimming
+reviewed members to fit the old ceiling was considered and refused.
+
+## Written this round
+
+[evidence/host-2026-11-22/README.md](../evidence/host-2026-11-22/README.md) (P1 / T16-10),
+[evidence/payload-2026-11-22/README.md](../evidence/payload-2026-11-22/README.md) (P8),
+[specs/phase-16-next-release-recommendations/decisions-P9.md](../specs/phase-16-next-release-recommendations/decisions-P9.md)
+(all five planned components, each with its measured reason and the condition that would reopen it),
+[research/github-mcp-catalog-check-2026-11-22.md](../research/github-mcp-catalog-check-2026-11-22.md)
+plus [evidence/github-catalog-2026-11-22/](../evidence/github-catalog-2026-11-22/) (anonymous probes:
+six requests, six 401s, no live count exists; 92 shipped names all still published, 7 names the vendor
+documents that the preset does not name; two preset-drift findings — `excludeTools` misses the three new
+alert-update names, and the full preset names 92 while its toolsets publish 95 today),
+[evidence/retrieval-2026-11-22/](../evidence/retrieval-2026-11-22/) (T16-03/T16-04),
+[evidence/bundle-2026-11-22/](../evidence/bundle-2026-11-22/) (T16-07/T16-12),
+[evidence/providers-2026-11-22/](../evidence/providers-2026-11-22/) (`summary.md`, `receipt.json` and the
+fixtures: 58 paced anonymous requests, one 429 kept out of every fill count, the adapter's `select=` proven
+not to return the four fields it now reads, `updated-by` proven route-dependent, four Crossref date pairs,
+one work followed over six routes) and
+[evidence/schema-migration-2026-11-23/](../evidence/schema-migration-2026-11-23/) (T8-18 re-run: a store built
+by the archived 0.3.8 code, refused read, backed up before migration, migrated 2 → 4, restored back).
+`docs/implementation/README.md` now names the remaining steps of G1–G4 instead of restating them, and
+[specs/phase-16-next-release-recommendations/implementation-P7-docs.md](../specs/phase-16-next-release-recommendations/implementation-P7-docs.md)
+records the identity stamp file by file.
+
+## Environment-blocked, recorded as owed (never claimed as verified)
+
+T14-20 a real Zotero 10 write on the operator's library; the Windows reference host (`npm run test:host` on a built 0.3.15 candidate + the four panel scenarios); a live GitHub `tools/list` — the anonymous probe returns an auth refusal, so 92 / 57 / 35 / 42 stay **catalog values**; Copilot actually honouring `mcpServers[].tools`; whether `lstat().isSymbolicLink()` reports an NTFS junction. A skipped link test is a recorded gap, not a pass.
+
+## Decisions
+
+- Playwright stays a development-only dependency; the browser case is `npm run test:browser`, separate from `test:panel` (markup in Node) and `test:host` (real VS Code webview). Its Chromium-only reach is written down rather than implied.
+- Retrieval default mode stays **`lexical`**; vector and hybrid are opt-in per query.
+- Provider improvements stay **parameters and fields**, never new MCP tools — `functional_check.py SERVER_BUDGETS` (recommended 8 / main 5 / lab 10) and the 20-tool preset cap are unchanged, and the four preset definitions must not move.
+- A test skipped for a missing host capability is allowed only with the reason recorded, and is reported as a gap.
+
+## Providers package (3rd round of the session) — landed
+
+- **Reservation leak closed.** `provider_budget.py`: `_held`, owner-guarded `_release`, `_claim()` returning
+  `(entry, deferral)` — the nested cache/dedup expression that produced the crash is gone; `run()` releases
+  the key in a `finally` on every exit that stores no result; a live foreign claim now yields the named
+  deferral `{"deferred": "in-flight", …}` instead of the `False` a caller then indexed. Proven in
+  `tests/test_provider_budget.py` (+7 cases) and end-to-end through `research._provider_request` in the new
+  `tests/test_provider_release.py` (18 tests).
+- **Consent is a state, not an installation fact.** `machinefacts.py` now writes a two-section document
+  (`facts` for zotero, `providerState` for Semantic Scholar: `licenseAcknowledgedAt`, `mode`, `keyDecision`,
+  `lastSuccessfulCheckAt`), merge rule "a process that states nothing erases nothing", `FACTS_STATE_REFUSED`.
+  `integrations.py` names `PROVIDER_TERMS_STORED_BUT_NOT_INJECTED` (stored consent the CLI path never
+  received) and the access state `consented-but-unusable`; `integrations.js` renders both and still refuses
+  to confirm the licence for the operator.
+- **Measured, with the request log kept:** `scripts/probe_providers.py` → `evidence/providers-2026-11-22/`
+  (82 KB, receipt + summary + 8 redacted fixtures). OpenAlex sends `type`, `is_retracted`, `cited_by_count`,
+  `is_paratext` **only when `select=` asks for them** — the empty columns in the 21 November field receipts
+  were a request shape, not a provider gap. Crossref `retracted` comes from `updated-by`, which is present on
+  the single-DOI and `filter=doi:` routes and absent from 25/25 plain-search rows, so "Crossref does not
+  report retractions" is false and "the Toolkit reads it" is the gap. `issued` vs `created` measured apart
+  (2017-03-30 vs 2021-10-11 for `10.32725/cetv.2017.022`, and one row where `created` precedes `issued`).
+  Exactly one 429 in the run, kept out of every fill count. The 21 November claim that OpenAlex search
+  cannot find that DOI **did not reproduce** and is recorded as not proven.
+- **Suite after this package:** `pytest` **550 collected, 550 passed, 1 skipped, 0 failed** (HEAD: 444).
+  Node subsets 128/128.
+
+## Zotero write path (2nd round of the session) — closed against the emulator, nine review items each with a test
+
+`tests/test_zotero_collections.py` 35, `tests/test_zotero_library.py` 26, `tests/test_research.py` 44 → 105
+passed. Preset surface untouched (`test_presets.py` + `test_functional_check.py` = 21 passed).
+
+- **The false pass is closed.** `write_snapshot` now computes and carries a real `baseline`
+  (`collection_baseline`, note rows named only through their items, bounded at 200 collections with
+  `baselineTruncated`), and `collection_check` reads its before-side from it. A missing baseline is
+  `baselineSource: "missing"` with `consistent: False` — three gap states named, not a silent zero. New test
+  `test_a_filing_that_answered_204_into_a_collection_that_already_had_members_is_caught` pre-files 10 members,
+  makes the filing answer 204 without landing, and demands `membersBefore == 10`, `mismatch True`,
+  `consistent False`. That is the exact state that used to report `consistent: true`.
+- The wrong PUT arithmetic became a correct one: 31 writes (29 applied + 1 interrupted + 1 legitimate re-send),
+  30 distinct items, with the reason in the test so nobody "fixes" the code back to 30.
+- Two operations on one item in one authorization no longer self-conflict: the second step's guard comes from
+  the version the first step's response reported, its body is rebuilt from that body plus only its own changed
+  fields (`guard`, `guardSource`, `builtFrom`, `overwritesFields` per entry), and an unknown version is
+  `ZOTERO_WRITE_VERSION_UNKNOWN` raised before anything is sent.
+- New named refusals: `ZOTERO_COLLECTION_PARENT_MISMATCH`, `ZOTERO_WRITE_NOTHING_TO_APPLY`,
+  `ZOTERO_WRITE_RESUME_INVALID`, `ZOTERO_TOTAL_RESULTS_INVALID`, `ZOTERO_COLLECTION_LISTING_TRUNCATED`,
+  `ZOTERO_JOURNAL_TOO_SMALL`, `ZOTERO_WRITE_BLOCK_UNREADABLE`.
+- Journal cap is measured on the serialized file including its ~126-byte wrapper, before anything is sent.
+- A paged collection listing reports `truncated` / `totalCount` and is **not** usable for name or parent
+  matching.
+- The 25 × 4 = 100 operation ceiling is kept and made explicit: the preview states `authorizedOperations`,
+  `maxOperationsPerAuthorization` and `batchesNeeded`, so a 43-item filing is a 43-operation confirmation.
+- 401 mid-write is now proven (`ZOTERO_WRITE_KEY_MISSING`, 20 applied / 23 not applied, resume at 20 applies 23,
+  `membersBefore 20 → membersAfter 43`) — **from the emulator, not from a Zotero process.**
+- Fixture hygiene: created keys are 8 characters (`NEW00001`), matching the Toolkit's own `[A-Z0-9]{8}`;
+  `test_apply_without_a_key_refuses_before_zotero_can_answer_401` is renamed to say what it actually proves.
+
+**Owed:** T14-20 — one previewed, authorized, verified write against a real Zotero 10 library on the operator's
+machine. Every Zotero statement in 0.3.15 is emulator-verified and says so.
+**Recorded open, dispatched:** `references/zotero-vocabulary.md` in both bundle trees (the Zotero package reverted
+its own draft because only `scripts/build_bundle_catalog.py` may change the bundle hashes); the bundle package now
+carries that edit with the catalog revision 2.1 → 2.2. `extension/guides/zotero-local-api.md` still names the older
+operation list and is part of the documentation package.
+
+## The transient gate state, how it closed, and what it proved
+
+`tests/test_vsix.py` sat at **5 failed, 108 passed, 1 skipped** for most of the round on one cause:
+`ValueError: packaged documentation names a release other than 0.3.15: ['extension/worker/README.md: 0.3.14']`.
+`extension/worker/README.md` is not hand-written — `scripts/build_worker_bundle.py:82` stages the root
+`README.md` into it — so the fix was the integrator's bundle rebuild after the `research.py` packages landed,
+not a documentation edit. It closed there: `npm run package` rebuilt the worker bundle (25 reviewed source/lock
+files, 11 overlay templates, worker 0.3.15) and the whole python suite is now **581 passed / 0 failed**. The
+lesson is in the gate's wording: a stamp is four version fields **plus every packaged page that states a
+version**, and a generated page is a packaged page.
+
+The node failure that sat beside it — `probeEnvironment carries a key only to the probe that asked for it…` —
+was the provider package mid-edit on `extension/integrationprobe.js`, and closed with its own test at
+`extension/test/credential-security.test.js:118`.
+
+## One defect found during integration and closed there
+
+The probe hand-off (`extension/integrationprobe.js`) started carrying the stored consent instant and the key
+answer (`SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT`, `SEMANTIC_SCHOLAR_KEY_DECISION`), but the **MCP worker**
+hand-off in `extension/extension.js` `integrationEnvironment()` still sent only the boolean. That is the exact
+state the worker itself reports as `PROVIDER_TERMS_STORED_BUT_NOT_INJECTED`: the card says confirmed, the check
+behaves as unconfirmed. `integrationEnvironment()` now forwards the same two names under the same rule — only
+to an authorized provider, only what `authorizeSemanticScholar` already stored, never an invented date — and
+the behaviour is pinned by a new case in `extension/test/integration-host.test.js`
+("the search worker is told what the record says about the consent, and nothing it does not say") that proves
+three things at once: a dated record forwards **the stored** moment, an undated record is forwarded as a
+confirmation **without** a moment, and no record is answered on the operator's behalf about a key
+(`guided` and `provided` are asserted impossible on a record that says nothing). 56/56 in that file, 541/541
+in `npm test`.
+
+## Concurrency decision recorded
+
+`src/research_stack/research.py` is being edited by two packages at once: the Zotero write path and the
+provider-field patch. The provider package was dispatched with its edits restricted to `_request_for`,
+`_provider_request`, the `_normalize` handlers, `to_ris` and the deferral wording, with instructions to re-read
+before every edit and to stop rather than guess if an anchor falls in a Zotero region. Two agents editing the
+same region of one file is how a write path gets corrupted; two agents editing provably different functions of
+it is a risk taken deliberately, and each re-runs the other's tests before the tree is stamped.
+
+## What 0.3.16 inherits, in the order that pays most
+
+1. **T14-20 — one Zotero write against a real Zotero 10 library.** Every Zotero statement in 0.3.15 is
+   emulator-verified. Until that write happens on the operator's machine, the whole collection write path is a
+   well-tested guess about a service nobody has actually asked.
+2. **The four panel scenarios on the reference Windows host** (Force Update, Archive History, Restore,
+   Configure Preset Tools including a refused confirmation), `npm run test:host` in `installed-candidate` mode
+   against `dist/research-stack-toolkit-0.3.15.vsix` with `VSCODE_TEST_RECEIPT_DIR` set, `scripts/verify_mcp.py`
+   with `.venv/Scripts/research-stack-mcp.exe`, and whether `lstat().isSymbolicLink()` reports an NTFS junction.
+   G1–G4 stay open for the same reason.
+3. **The retrieval defects this round named and did not fix:** `ty-01` Recall@10 0,000 in all three modes, and
+   `cz-01` 0,500 ("sandálů" against "sandály"). Both are on a synthetic corpus; the operator's own corpus has
+   never been measured, and until it is, no claim about search quality on real texts is available — including
+   the condition that would reopen `cpu-embedding-runtime-and-model`.
+4. **Semantic Scholar field fill.** `fields=` now asks for `publicationTypes,citationCount,referenceCount,isRetracted`;
+   every anonymous request this round was refused with HTTP 429, so not one of those fields has an observed
+   value. The code says it does not know, and that is correct but still unmeasured.
+5. **Crossref type unions are plumbing without a caller.** `crossref_type_filter()` builds the measured union and
+   is tested as construction; no shipped request filters Crossref by `type`, so no provider response proves it.
+   Making it reachable means a tool parameter in `recommended_server.py` / `lab_server.py`, which changes the
+   preset tool surface and therefore HR-36.
+6. **GitHub presets stay as they are until a real `tools/list` exists.** The drift this round found (3 new
+   `update_*_alert` names missing from `excludeTools`; the full preset naming 92 while its 22 toolsets publish
+   95) is recorded, not repaired: any change moves the reserve against the client's 128-tool ceiling, and the
+   reserve belongs to a measurement rather than to an estimate. T16-05 (`verifyPresetTools`) stays odloženo for
+   the same reason.
+7. **Payload headroom.** 83 374 bytes left under 1 966 080 — 4.2 % of the ceiling, 4.4 % of the payload. 0.3.14
+   inherited 59 261 bytes (3.4 % of its ceiling); this round landed at the same order of magnitude by choosing the
+   next rung instead of the one an interim measurement suggested. A growth of this round's
+   size (+172 495) does not fit, so the next release either trims with attribution or raises the ceiling with
+   the same member-by-member table.
+8. **Bundle history, byte-sum assertion.** T16-06(a): per-file `bytes` are recorded and validated, but no test
+   states their sum. That is one test, in `extension/test/bundles.test.js`, and it has been open since the
+   archive shipped.
+
+---
+
 # Quality state — Research Stack Toolkit 0.3.14 (retrieval in the store, presets that name their tools, bundles that can be overwritten safely)
 
 > **PHASE 15 IMPLEMENTED AND VERIFIED ON THE BUILD HOST — 17/18 November 2026, committed as `45a3b0b` on `main` with the independent audit's corrections in `ec47fbd`; **no tag on 0.3.14**.** The release was

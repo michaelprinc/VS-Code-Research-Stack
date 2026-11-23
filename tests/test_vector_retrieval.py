@@ -248,10 +248,22 @@ def test_a_vector_from_another_backend_is_refused_and_names_the_verb_that_rebuil
 
 
 def test_a_vector_made_from_different_text_is_reported_stale_and_not_scored(tmp_path: Path) -> None:
-    """HR-04 at row level: the vector must match the chunk text it claims to describe."""
+    """HR-04 at row level: the vector must match the chunk text it claims to describe.
+
+    Rewritten for T16-04. The 0.3.14 version proved only that the stale chunk was absent from the
+    hybrid reply, which is true but proves nothing about the reply a reader actually got: a hit that
+    survived looked the same whether the vector ranker had placed it or not, so "the score changed"
+    was the strongest statement available. The target is now the chunk the lexical ranker ranks first
+    and the vector ranker also ranks, which is the case where the two rankers can be told apart: the
+    stale chunk stays in the answer through the ranker that needs no vector, its vector rank and score
+    are named as absent, its vector contribution is 0.0, and the counts of lexical-only, vector-only
+    and both-ranker hits are asserted separately.
+    """
     root = indexed(tmp_path)
+    top_lexical_id = records.search_store(root, "guild records", limit=10, mode="lexical")["hits"][0].chunk.chunk_id
     rows = vector_rows(root)
-    target = rows[0]["chunk_id"]
+    assert top_lexical_id in {row["chunk_id"] for row in rows}, "the target has a vector row to make stale"
+    target = top_lexical_id
     connection = sqlite3.connect(records.store_path(root))
     connection.execute("UPDATE chunk_vectors SET text_sha256 = ? WHERE chunk_id = ?", ("0" * 64, target))
     connection.commit()
@@ -263,7 +275,26 @@ def test_a_vector_made_from_different_text_is_reported_stale_and_not_scored(tmp_
     found = records.search_store(root, "guild records", limit=10, mode="vector")
     assert found["retrieval"]["refusedStaleVectors"] == 1 and found["retrieval"]["staleVectorReasons"] == {"text": 1}
     assert all(hit.chunk.chunk_id != target for hit in found["hits"]), "the stale row is refused, not quietly used"
-    assert all(hit.chunk.chunk_id != target for hit in records.search_store(root, "guild records", limit=10, mode="hybrid")["hits"])
+
+    fused = records.search_store(root, "guild records", limit=10, mode="hybrid")
+    by_id = {hit.chunk.chunk_id: hit for hit in fused["hits"]}
+    assert target in by_id, "the chunk whose vector was refused is still findable by the ranker that needs no vector"
+    stale_hit = by_id[target]
+    assert stale_hit.retrieval["foundBy"] == "lexicalOnly"
+    assert stale_hit.retrieval["vectorRank"] is None and stale_hit.retrieval["vectorScore"] is None
+    assert stale_hit.retrieval["contributions"]["vectorScore"] == 0.0, "a refused vector contributes nothing, not a 0.0 score"
+    assert stale_hit.retrieval["lexicalRank"] is not None and stale_hit.retrieval["contributions"]["lexicalScore"] > 0.0
+    # Six current chunks, five with a readable vector, three that BM25 can score at all: the refused
+    # chunk is reachable only lexically, two are found by both rankers, and three are reachable only
+    # by the vector ranker because their text shares no query token. Those are the three kinds a
+    # reader has to be able to tell apart, and the reply counts them.
+    assert fused["retrieval"]["hitsFoundByLexicalOnly"] == 1
+    assert fused["retrieval"]["hitsFoundByVectorOnly"] == 3
+    assert fused["retrieval"]["hitsFoundByBoth"] == 2
+    assert len(fused["hits"]) == 6
+    for hit in fused["hits"]:
+        total = sum(hit.retrieval["contributions"].values())
+        assert abs(total - hit.retrieval["fusedScore"]) <= 2e-6, f"{hit.chunk.chunk_id}: the parts must add up to the score shown"
 
 
 def test_a_store_with_chunks_but_no_vectors_names_the_reason_and_the_verb(tmp_path: Path) -> None:
@@ -431,3 +462,173 @@ def test_hybrid_on_a_query_with_no_letters_or_digits_reports_why_it_returned_not
     found = records.search_store(root, "??? --- !!!", limit=5, mode="vector")
     assert found["hits"] == []
     assert "no letter or digit" in found["retrieval"]["queryNote"]
+
+
+# Which ranker moved a hit -------------------------------------------------------------------------
+
+"""The fixtures below exist because 0.3.14 could only say "the fused score is this number".
+
+A hybrid score is a blend, and a blend on its own cannot answer the question a reader has when an
+answer changes: *what moved?* Two documents can swap places because the BM25 statistics of the corpus
+changed, because one chunk's stored signature changed, or because one ranker found a chunk the other
+never saw. Those are different facts with different remedies, and the 0.3.15 reply has to make them
+separable: every hybrid hit carries its ``lexicalRank``/``lexicalScore``, its ``vectorRank``/
+``vectorScore``, the three weighted contributions that add up to its fused score, and ``foundBy`` —
+``both``, ``lexicalOnly`` or ``vectorOnly``. Fusion parameters are unchanged (k = 60, weights
+0.5/0.25/0.25); what changed is what the reply is able to say about the same numbers.
+
+Movement corpus: three files, deliberately chosen so each case has a chunk the two ranker sides treat
+differently. ``sandals.md`` shares the exact query tokens, so both rankers place it. ``stems.md``
+shares only word shapes ("sandal", "sandals" is a different BM25 token), so the vector ranker places
+chunks the lexical ranker cannot see at all. ``ledger.md`` shares neither, and is the control: it must
+stay the weakest hit in every run.
+"""
+
+MOVEMENT_QUERY = "sandals guild records"
+SANDALS = "# Sandals\n\nThe guild records name barefoot sandals and the stitching of the sandals in the illuminations.\n"
+STEMS = "# Stems\n\nA sandal sole, a sandal strap and a sandal lacing appear in the fourteenth-century guild records of the sandal trade.\n"
+LEDGER = "# Ledger\n\nQuarterly financial reconciliation of the municipal water utility budget and its depreciation schedule.\n"
+MOVEMENT_SOURCES = {"notes/sandals.md": SANDALS, "notes/stems.md": STEMS, "notes/ledger.md": LEDGER}
+
+
+def movement_corpus(tmp_path: Path) -> Path:
+    (tmp_path / "notes").mkdir()
+    for relative, text in MOVEMENT_SOURCES.items():
+        (tmp_path / relative).write_text(text, encoding="utf-8")
+    records.index_corpus(tmp_path, sorted(MOVEMENT_SOURCES))
+    return tmp_path
+
+
+def hybrid_by_path(root: Path) -> dict[str, object]:
+    found = records.search_store(root, MOVEMENT_QUERY, limit=10, mode="hybrid")
+    return found, {hit.chunk.chunk_id: hit for hit in found["hits"]}
+
+
+def test_hybrid_names_the_ranker_that_found_each_hit_and_the_counts_add_up(tmp_path: Path) -> None:
+    """Every hybrid hit says who found it, and the reply counts the three kinds separately."""
+    root = movement_corpus(tmp_path)
+    found, by_id = hybrid_by_path(root)
+
+    lexical_only = [hit for hit in found["hits"] if hit.retrieval["foundBy"] == "lexicalOnly"]
+    vector_only = [hit for hit in found["hits"] if hit.retrieval["foundBy"] == "vectorOnly"]
+    both = [hit for hit in found["hits"] if hit.retrieval["foundBy"] == "both"]
+    assert len(found["hits"]) == len(lexical_only) + len(vector_only) + len(both) == 6
+
+    # The control file: shares no query token and no word shape worth scoring, so the vector ranker
+    # is the only one that can place it at all, and it lands last in both rankers' view.
+    ledger_hits = [hit for hit in found["hits"] if hit.chunk.source_path == "notes/ledger.md"]
+    assert ledger_hits and all(hit.retrieval["foundBy"] == "vectorOnly" for hit in ledger_hits)
+    assert all(hit.retrieval["lexicalRank"] is None and hit.retrieval["contributions"]["lexicalScore"] == 0.0 for hit in ledger_hits)
+    assert found["hits"][-1].chunk.source_path == "notes/ledger.md", "the unrelated file stays the weakest hit"
+
+    # A chunk both rankers placed carries two ranks, two scores and three contributions that add up.
+    for hit in both:
+        provenance = hit.retrieval
+        assert provenance["lexicalRank"] is not None and provenance["vectorRank"] is not None
+        assert provenance["lexicalScore"] > 0.0 and provenance["vectorScore"] > -1.0
+        total = sum(provenance["contributions"].values())
+        assert abs(total - provenance["fusedScore"]) <= 2e-6
+        assert provenance["contributions"]["lexicalScore"] == round(0.25 * provenance["lexicalScore"] / max(
+            (h.retrieval["lexicalScore"] for h in found["hits"] if h.retrieval["lexicalScore"] is not None), default=1.0), 6)
+
+    # A vector-only hit is a hit BM25 could not have produced: no exact query token in its text.
+    for hit in vector_only:
+        assert hit.retrieval["lexicalRank"] is None and hit.retrieval["lexicalScore"] is None
+        assert hit.retrieval["contributions"]["lexicalScore"] == 0.0
+        assert hit.retrieval["contributions"]["vectorScore"] > 0.0 or hit.retrieval["contributions"]["reciprocalRankFusion"] > 0.0
+
+    assert found["retrieval"]["hitsFoundByVectorOnly"] == len(vector_only)
+    assert found["retrieval"]["hitsFoundByLexicalOnly"] == len(lexical_only)
+    assert found["retrieval"]["hitsFoundByBoth"] == len(both)
+    assert found["retrieval"]["fusionWeights"] == records.FUSION_WEIGHTS and found["retrieval"]["reciprocalRankConstant"] == 60
+
+
+def test_the_vector_score_of_one_document_moved_while_its_lexical_score_did_not(tmp_path: Path) -> None:
+    """The proof 0.3.14 could not give: a hybrid reorder attributable to one ranker, not to both.
+
+    The stored signature of the document BM25 ranks first is replaced by a signature computed from a
+    different text, with the row's backend id, dimensions and text hash left exactly as they were. The
+    store cannot detect that (it trusts the labels the row carries, and the limit is stated in
+    ``vectors.py`` and in ``_vector_row_state``) — which is precisely why the reply has to name the
+    contributions: it is what makes the change visible to a reader.
+    """
+    root = movement_corpus(tmp_path)
+    before, hits_before = hybrid_by_path(root)
+    target = min((hit for hit in before["hits"] if hit.retrieval["lexicalRank"] is not None),
+                 key=lambda hit: hit.retrieval["lexicalRank"])
+    assert target.chunk.source_path == "notes/sandals.md" and target.retrieval["foundBy"] == "both"
+
+    connection = sqlite3.connect(records.store_path(root))
+    connection.execute("UPDATE chunk_vectors SET vector = ? WHERE chunk_id = ?",
+                       (vectors.encode_vector(vectors.embed_text(LEDGER)), target.chunk.chunk_id))
+    connection.commit()
+    connection.close()
+
+    after, hits_after = hybrid_by_path(root)
+
+    moved = hits_after[target.chunk.chunk_id]
+    assert moved.retrieval["lexicalRank"] == target.retrieval["lexicalRank"], "the lexical ranker saw the same corpus"
+    assert moved.retrieval["lexicalScore"] == target.retrieval["lexicalScore"], "and scored it identically"
+    assert moved.retrieval["contributions"]["lexicalScore"] == target.retrieval["contributions"]["lexicalScore"]
+    assert moved.retrieval["vectorScore"] < target.retrieval["vectorScore"] - 0.1, "the vector score moved, materially"
+    assert moved.retrieval["vectorRank"] > target.retrieval["vectorRank"]
+    assert moved.retrieval["fusedScore"] < target.retrieval["fusedScore"]
+    assert moved.retrieval["contributions"]["vectorScore"] != target.retrieval["contributions"]["vectorScore"]
+
+    # Nothing else on the lexical side moved either, so the reorder is attributable to one ranker.
+    for chunk_id, hit in hits_before.items():
+        if chunk_id == target.chunk.chunk_id or hit.retrieval["lexicalScore"] is None:
+            continue
+        assert hits_after[chunk_id].retrieval["lexicalScore"] == hit.retrieval["lexicalScore"], (
+            f"{chunk_id}: a lexical score moved in a run that only touched a stored signature")
+
+    assert [h.chunk.chunk_id for h in before["hits"]] != [h.chunk.chunk_id for h in after["hits"]], (
+        "the vector side alone has to be enough to change the order the reader is shown")
+
+
+def test_the_lexical_score_of_documents_moved_while_their_vector_scores_did_not(tmp_path: Path) -> None:
+    """The reverse case, and the reason the two directions need naming separately.
+
+    A new chunk enters the index carrying no vector at all — the state ``vector_index_state`` calls
+    ``partial``. It changes what BM25 is ranking against: the document count, the average document
+    length and how many documents hold the query term all change, so every existing document's lexical
+    score moves. None of them has a different stored signature, so every existing document's vector
+    score is identical to the last run. That is the mirror image of the case above, and it is the
+    common real one: re-indexing one file re-scores the whole corpus lexically while leaving the
+    vector side still.
+    """
+    root = movement_corpus(tmp_path)
+    before, hits_before = hybrid_by_path(root)
+
+    (tmp_path / "notes" / "extra.md").write_text(
+        "# Extra\n\nThe sandals of the guild records were catalogued without any note on stitching.\n", encoding="utf-8")
+    records.index_corpus(tmp_path, ["notes/extra.md"])
+    connection = sqlite3.connect(records.store_path(root))
+    connection.execute("DELETE FROM chunk_vectors WHERE chunk_id IN (SELECT chunk_id FROM chunks WHERE source_path = 'notes/extra.md')")
+    connection.commit()
+    connection.close()
+    assert records.vector_index_state(root)["state"] == "partial"
+    assert records.vector_index_state(root)["scoreableChunks"] == 6
+    assert records.vector_index_state(root)["currentChunkCount"] == 8
+
+    after, hits_after = hybrid_by_path(root)
+
+    lexical_moved = 0
+    for chunk_id, hit in hits_before.items():
+        if hit.retrieval["lexicalScore"] is None:
+            continue
+        now = hits_after[chunk_id]
+        assert now.retrieval["vectorScore"] == hit.retrieval["vectorScore"], (
+            f"{chunk_id}: a vector score changed in a run that only added a chunk with no vector")
+        assert now.retrieval["vectorRank"] == hit.retrieval["vectorRank"]
+        if now.retrieval["lexicalScore"] != hit.retrieval["lexicalScore"]:
+            lexical_moved += 1
+    assert lexical_moved >= 2, "BM25 scores are corpus statistics: adding a document moves all of them"
+
+    new_hits = [hit for hit in after["hits"] if hit.chunk.source_path == "notes/extra.md"]
+    assert new_hits and all(hit.retrieval["foundBy"] == "lexicalOnly" for hit in new_hits), (
+        "a chunk with no vector can only be reached by the ranker that does not need one")
+    assert after["retrieval"]["chunksWithoutVector"] == 2
+    assert after["retrieval"]["hitsFoundByLexicalOnly"] == 1
+    assert after["retrieval"]["scoredChunks"] == records.vector_index_state(root)["scoreableChunks"], (
+        "the reply and the counters measure the same decodable set")

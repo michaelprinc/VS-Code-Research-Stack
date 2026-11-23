@@ -1,0 +1,162 @@
+{
+  "fetched_utc_start": "2026-11-23T02:06:52+00:00",
+  "pages": [
+    {
+      "name": "github-mcp-server-README.md",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/README.md",
+      "fetched_utc": "2026-11-23T02:06:52+00:00",
+      "http_status": 200,
+      "content_type": "text/plain; charset=utf-8",
+      "bytes": 130470,
+      "sha256": "a9f2c5e37d0e1c1ba7224e89b9d089940d151a87334fb36f1fa903aad7186c0d",
+      "raw_file": "raw/github-mcp-server-README.md",
+      "text_file": "text/github-mcp-server-README.md",
+      "text_chars": 130386
+    },
+    {
+      "name": "github-mcp-server-docs-toolsets-and-icons.md",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/docs/toolsets-and-icons.md",
+      "fetched_utc": "2026-11-23T02:06:52+00:00",
+      "http_status": 200,
+      "content_type": "text/plain; charset=utf-8",
+      "bytes": 6140,
+      "sha256": "aba532bcc23b5aca50c20fba6eb896e7500fafe6f3694eea52b7f1fac778d223",
+      "raw_file": "raw/github-mcp-server-docs-toolsets-and-icons.md",
+      "text_file": "text/github-mcp-server-docs-toolsets-and-icons.md",
+      "text_chars": 6140
+    },
+    {
+      "name": "github-mcp-server-docs-remote-server.md",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/docs/remote-server.md",
+      "fetched_utc": "2026-11-23T02:06:52+00:00",
+      "http_status": 200,
+      "content_type": "text/plain; charset=utf-8",
+      "bytes": 30871,
+      "sha256": "6bb6c6406b6c4ed008a68f292b51d7c2de015cb819ef35aead3ec9eedfc5de26",
+      "raw_file": "raw/github-mcp-server-docs-remote-server.md",
+      "text_file": "text/github-mcp-server-docs-remote-server.md",
+      "text_chars": 30866
+    },
+    {
+      "name": "github-mcp-server-docs-server-configuration.md",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/docs/server-configuration.md",
+      "fetched_utc": "2026-11-23T02:06:53+00:00",
+      "http_status": 200,
+      "content_type": "text/plain; charset=utf-8",
+      "bytes": 13562,
+      "sha256": "528f8bf095e2a84fda928e1f5bbddb22e647113e9671f424c31f52e17c4a9d19",
+      "raw_file": "raw/github-mcp-server-docs-server-configuration.md",
+      "text_file": "text/github-mcp-server-docs-server-configuration.md",
+      "text_chars": 13538
+    },
+    {
+      "name": "github-mcp-server-docs-tool-renaming.md",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/docs/tool-renaming.md",
+      "fetched_utc": "2026-11-23T02:06:53+00:00",
+      "http_status": 200,
+      "content_type": "text/plain; charset=utf-8",
+      "bytes": 2783,
+      "sha256": "b943f50da2b9f94f539fd55bf84a5b68c42ee00860f841a75183236d535da255",
+      "raw_file": "raw/github-mcp-server-docs-tool-renaming.md",
+      "text_file": "text/github-mcp-server-docs-tool-renaming.md",
+      "text_chars": 2783
+    },
+    {
+      "name": "github-mcp-server-docs-feature-flags.md",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/docs/feature-flags.md",
+      "fetched_utc": "2026-11-23T02:06:53+00:00",
+      "http_status": 200,
+      "content_type": "text/plain; charset=utf-8",
+      "bytes": 41160,
+      "sha256": "07f5e2cd2ff92f5d48dc9bdd7fed9125d04c3a996c6ea1ce0e757680f17cc7e6",
+      "raw_file": "raw/github-mcp-server-docs-feature-flags.md",
+      "text_file": "text/github-mcp-server-docs-feature-flags.md",
+      "text_chars": 41150
+    },
+    {
+      "name": "github-mcp-server-docs-scope-filtering.md",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/docs/scope-filtering.md",
+      "fetched_utc": "2026-11-23T02:06:53+00:00",
+      "http_status": 200,
+      "content_type": "text/plain; charset=utf-8",
+      "bytes": 6814,
+      "sha256": "18a1d496d56ad57293c3700f9a69436bef125cd2467d94e584e893f7907d5877",
+      "raw_file": "raw/github-mcp-server-docs-scope-filtering.md",
+      "text_file": "text/github-mcp-server-docs-scope-filtering.md",
+      "text_chars": 6790
+    },
+    {
+      "name": "docs.github-com-configure-toolsets.html",
+      "url": "https://docs.github.com/en/copilot/how-tos/copilot-in-your-ide/customize-copilot/extend-copilot-with-tools-and-context/configure-toolsets",
+      "fetched_utc": "2026-11-23T02:06:54+00:00",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 590050,
+      "sha256": "d96f508450fa406e83fbb19e94ea40d58d2c501de44019024b294deac3e0bccb",
+      "raw_file": "raw/docs.github-com-configure-toolsets.html",
+      "text_file": "text/docs.github-com-configure-toolsets.txt",
+      "text_chars": 15023
+    },
+    {
+      "name": "docs.github-com-set-up-the-github-mcp-server.html",
+      "url": "https://docs.github.com/en/copilot/how-tos/copilot-in-your-ide/customize-copilot/extend-copilot-with-tools-and-context/set-up-the-github-mcp-server",
+      "fetched_utc": "2026-11-23T02:06:54+00:00",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 827174,
+      "sha256": "0e8679ac035e3d78d3752ef877cfbe6fedb1c24ba17c44552753cc41ed5fde8b",
+      "raw_file": "raw/docs.github-com-set-up-the-github-mcp-server.html",
+      "text_file": "text/docs.github-com-set-up-the-github-mcp-server.txt",
+      "text_chars": 33831
+    },
+    {
+      "name": "github-mcp-server-pkg-github-tools.go",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/pkg/github/tools.go",
+      "fetched_utc": "2026-11-23T02:06:54+00:00",
+      "http_status": 200,
+      "content_type": "text/plain; charset=utf-8",
+      "bytes": 18202,
+      "sha256": "1f37f584ce25719b4a3c2f720d352eefca39bbefb23386c182eb353fefa55688",
+      "raw_file": "raw/github-mcp-server-pkg-github-tools.go",
+      "text_file": "text/github-mcp-server-pkg-github-tools.go",
+      "text_chars": 18202
+    },
+    {
+      "name": "github-mcp-server-pkg-github-inventory.go",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/pkg/github/inventory.go",
+      "fetched_utc": "2026-11-23T02:22:02+00:00",
+      "http_status": 200,
+      "content_type": "text/plain",
+      "bytes": 793,
+      "sha256": "9dac8bb488922bcfb95c890844b43bacf03db8fd77f960bc14666436bb240acf",
+      "raw_file": "raw/github-mcp-server-pkg-github-inventory.go",
+      "text_file": "text/github-mcp-server-pkg-github-inventory.go",
+      "text_chars": 793
+    },
+    {
+      "name": "github-mcp-server-pkg-github-server.go",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/pkg/github/server.go",
+      "fetched_utc": "2026-11-23T02:22:03+00:00",
+      "http_status": 200,
+      "content_type": "text/plain",
+      "bytes": 9630,
+      "sha256": "0dec485a3ea0ee603ac9310291440744bb485efe7de39ed7559fb556a063e5cd",
+      "raw_file": "raw/github-mcp-server-pkg-github-server.go",
+      "text_file": "text/github-mcp-server-pkg-github-server.go",
+      "text_chars": 9630
+    },
+    {
+      "name": "github-mcp-server-pkg-github-deprecated_tool_aliases.go",
+      "url": "https://raw.githubusercontent.com/github/github-mcp-server/main/pkg/github/deprecated_tool_aliases.go",
+      "fetched_utc": "2026-11-23T02:22:03+00:00",
+      "http_status": 200,
+      "content_type": "text/plain",
+      "bytes": 1740,
+      "sha256": "146cee07046e44fb292f2590061ad90b3149ed950d91cf7ceec821a21bf26539",
+      "raw_file": "raw/github-mcp-server-pkg-github-deprecated_tool_aliases.go",
+      "text_file": "text/github-mcp-server-pkg-github-deprecated_tool_aliases.go",
+      "text_chars": 1740
+    }
+  ],
+  "fetched_utc_end": "2026-11-23T02:06:55+00:00"
+}

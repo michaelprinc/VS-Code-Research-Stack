@@ -1,6 +1,12 @@
 "use strict";
 
-// Browser renderer test. Use the bundled Playwright via NODE_PATH; it is not a shipped dependency.
+// Browser renderer test. Playwright is a pinned development dependency (`playwright` in
+// package.json devDependencies, never shipped): `npm ci` installs it and `npx playwright install
+// chromium` fetches the browser. This case is not part of `npm test` because it needs a browser
+// binary the packaged extension never carries; it runs as `npm run test:browser`. It renders the
+// shipped `ui.js` markup and `media/controls.js` + `media/controls.css` in Chromium — the panel as
+// the operator sees it — and it is separate from `npm run test:panel`, which checks the markup in
+// Node, and from `npm run test:host`, which is the only case that runs a real VS Code webview.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -60,7 +66,22 @@ async function main() {
     // The panel's outbound messages are kept so a renderer case can replay one with a field changed, which is
     // the only way to drive a card state the host on this container cannot reach on its own.
     const outbound = [];
-    panel.webview.postMessage = async (data) => { outbound.push(data); await page.evaluate((message) => window.dispatchEvent(new MessageEvent("message", { data: message })), data); return true; };
+    // A host push is not awaited by the controller: `refresh()` hands the state to the webview and moves on.
+    // A navigation this test starts while such a push is in flight destroys the execution context under it, and
+    // the rejection then surfaces at the call that posted it rather than at the navigation that caused it —
+    // which is exactly how 0.3.14's never-executed browser case failed on its first real run. Every dispatch
+    // is therefore tracked and settled before anything navigates, so a renderer case can never blame the host
+    // for a reload the test itself began.
+    const pending = [];
+    panel.webview.postMessage = async (data) => {
+      outbound.push(data);
+      pending.push(page.evaluate((message) => window.dispatchEvent(new MessageEvent("message", { data: message })), data));
+      return true;
+    };
+    const settleHostPushes = async () => {
+      const batch = pending.splice(0, pending.length);
+      await Promise.all(batch);
+    };
     await page.goto("https://toolkit.test/");
     await page.getByText("Saved: Recommended Research", { exact: true }).waitFor();
     assert.equal(await page.locator('input[value="recommended"]').isChecked(), true);
@@ -94,7 +115,9 @@ async function main() {
     await page.locator(".component-row").getByText(new RegExp(`Version: ${TOOLKIT_VERSION}.*Readiness: Ready`)).waitFor();
     await page.locator(".component-row").getByRole("button", { name: "Guide", exact: true }).click();
     await page.waitForFunction(() => !document.getElementById("component-search").disabled);
-    assert.ok(harness.invoked.some((item) => item.id === "markdown.showPreview" && item.args[0] === "extension/guides/toolkit.md"));
+    // The controller hands the guide to VS Code as a Uri, the same shape `unit.test.js` pins; the 0.3.14
+    // copy of this case compared `args[0]` to a string, which is why it only passed while the case never ran.
+    assert.ok(harness.invoked.some((item) => item.id === "markdown.showPreview" && item.args[0].fsPath === "extension/guides/toolkit.md"));
     await page.getByRole("button", { name: "Check components", exact: true }).click();
     await page.waitForFunction(() => !document.getElementById("component-search").disabled);
     await page.locator("#component-search").fill("uv environment");
@@ -125,7 +148,7 @@ async function main() {
     await page.getByText("Following the package default: Read and cite a document", { exact: true }).waitFor();
     assert.equal(await page.locator('input[value="read-and-cite"]').isChecked(), true);
     assert.equal(await page.locator("#preset-list .preset").count(), 2, "Basic offers only the two narrow presets");
-    assert.match(await page.locator("#preset-list .preset").first().getAttribute("title"), /Open one workspace PDF or DOCX/);
+    assert.match(await page.locator("#preset-list .preset").first().getAttribute("title"), /Open one workspace PDF, DOCX or Markdown file/);
     await page.locator("#preset-list").getByText("Search my own notes", { exact: true }).click();
     await page.getByRole("button", { name: "Save tools preset" }).click();
     await page.waitForFunction(() => !document.getElementById("save-preset").disabled);
@@ -183,8 +206,10 @@ async function main() {
     fs.mkdirSync(receiptRoot, { recursive: true });
     for (const [name, width] of [["dark", 1100], ["light", 390], ["contrast", 1100]]) {
       theme = name;
+      await settleHostPushes();
       await page.setViewportSize({ width, height: 900 });
       await page.reload();
+      await settleHostPushes();
       await page.getByText("Saved: Full", { exact: true }).waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${name}: no horizontal overflow`);
       await page.screenshot({ path: path.join(receiptRoot, `${name}.png`), fullPage: true });

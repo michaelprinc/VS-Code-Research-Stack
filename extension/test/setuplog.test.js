@@ -5,6 +5,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const os = require("node:os");
 const { paths, appendRecord, writeStatus, readStatus, readLog, STATUS_SCHEMA_VERSION, LOG_DIR } = require("../setuplog");
+const { directoryLink, fileLink } = require("./linkfixture");
 
 async function workspace(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "research-log-test-"));
@@ -67,11 +68,11 @@ test("the log refuses to write through a link and stays inside the workspace (R6
   t.after(() => fs.rm(outside, { recursive: true, force: true }));
   await fs.mkdir(path.join(root, LOG_DIR), { recursive: true });
   await fs.writeFile(path.join(root, LOG_DIR, "last-setup.json"), "{}");
-  await fs.symlink(path.join(outside, "stolen.jsonl"), path.join(root, LOG_DIR, "setup-20261101T080000Z.jsonl"), process.platform === "win32" ? "junction" : "file");
+  if (!fileLink(t, path.join(outside, "stolen.jsonl"), path.join(root, LOG_DIR, "setup-20261101T080000Z.jsonl"))) return;
   await assert.rejects(appendRecord(root, { kind: "plan", status: "success" }, { now: new Date("2026-11-01T08:00:00Z") }), /link/, "a linked log path is refused");
   await fs.writeFile(path.join(root, LOG_DIR, "last-setup.json"), "{}");
   await fs.rm(path.join(root, LOG_DIR, "last-setup.json"));
-  await fs.symlink(path.join(outside, "elsewhere.json"), path.join(root, LOG_DIR, "last-setup.json"), process.platform === "win32" ? "junction" : "file");
+  if (!fileLink(t, path.join(outside, "elsewhere.json"), path.join(root, LOG_DIR, "last-setup.json"))) return;
   await assert.rejects(writeStatus(root, { outcome: "success", steps: [] }), /link/, "the status record refuses to replace a link");
   const outsideFiles = await fs.readdir(outside);
   assert.deepEqual(outsideFiles.filter((name) => name.includes("setup")), [], "nothing was written outside the workspace");
@@ -91,7 +92,7 @@ test("a linked log directory is refused and nothing is written through it (R6-22
   const outside = await fs.mkdtemp(path.join(os.tmpdir(), "research-log-outside-"));
   t.after(() => fs.rm(outside, { recursive: true, force: true }));
   await fs.mkdir(path.join(root, ".research-toolkit"), { recursive: true });
-  await fs.symlink(outside, path.join(root, LOG_DIR));
+  directoryLink(outside, path.join(root, LOG_DIR));
   await assert.rejects(() => appendRecord(root, { kind: "step", stepId: "worker", status: "installed" }), /must be a real directory/);
   assert.deepEqual(await fs.readdir(outside), [], "nothing was written through the link");
 });

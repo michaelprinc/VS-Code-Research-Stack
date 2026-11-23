@@ -31,11 +31,23 @@ const {
   looksLikeCredential, isToolkitWritten, selectionForPreset, remoteEntry, localEntry, mergeIntoMcpFile,
 } = require("../presetselect");
 const { makeHarness } = require("./harness");
+const { fileLink } = require("./linkfixture");
 
 const PRESETS_PATH = path.join(__dirname, "..", "presets.json");
 const PRESETS = JSON.parse(fs.readFileSync(PRESETS_PATH, "utf8")).presets;
 const STAMP = "2026-11-17T00:00:00.000Z";
 const presetById = (id) => structuredClone(PRESETS.find((preset) => preset.id === id));
+
+/**
+ * Escape a real path for use in a RegExp. The 19 November 2026 Windows run failed here: the review
+ * quotes the target and the archive folder as `path.join` produces them on the host, so an assertion
+ * written with a literal forward slash (`/.research-toolkit\/preset-tools/`) matched on Linux and
+ * missed on Windows, where the same path is `.research-toolkit\preset-tools`. Deriving the expected
+ * text from `path.join` keeps the assertion asserting the same thing on both hosts.
+ */
+function escapeForRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /** Run a call that must refuse, and return the refusal code plus the message the operator would read. */
 function refusalOf(run, label) {
@@ -327,10 +339,11 @@ test("the command writes nothing until the operator answers its modal (HR-12, T1
     [/Server-side read-only switch: yes/, "the read-only state, in words"],
     [/Toolsets \(14\): context, repos, git/, "the toolsets it will name"],
     [/\.vscode\/mcp\.json/, "why the deprecated editor file is not the target"],
+    [new RegExp(escapeForRegExp(path.join(root, MCP_FILE_NAME))), "the target file, spelled the way this host spells it"],
     [/\$\{GITHUB_PERSONAL_ACCESS_TOKEN\}/, "what the credential line will hold"],
     [/read-only switch is a filter, not a permission boundary/, "what a read-only selection does not do"],
     [/not tools counted on this machine/, "what the 42 names are not"],
-    [/.research-toolkit\/preset-tools/, "where the bytes it replaces are copied first"],
+    [new RegExp(escapeForRegExp(path.join(root, ".research-toolkit", "preset-tools"))), "where the bytes it replaces are copied first"],
   ]) assert.match(review, phrase, `the review must say ${why}`);
 });
 
@@ -428,11 +441,14 @@ test("the command refuses a github entry it did not write and leaves the operato
   assert.equal(fs.readFileSync(path.join(root, MCP_FILE_NAME), "utf8"), operatorFile, "refused means the file is untouched");
   assert.equal(fs.existsSync(path.join(root, ".research-toolkit", "preset-tools")), false, "and nothing was staged to archive either");
 
-  // A link in the target's place is refused too: the Toolkit does not follow it.
+  // A link in the target's place is refused too: the Toolkit does not follow it. On Windows an
+  // unprivileged process cannot create a file symlink, so the case states that it could not be built
+  // instead of reporting a refusal it never had the chance to test (see test/linkfixture.js).
   fs.unlinkSync(path.join(root, MCP_FILE_NAME));
-  fs.symlinkSync(path.join(root, "elsewhere.json"), path.join(root, MCP_FILE_NAME));
-  const linkHarness = makeHarness({ folders, initial: FULL_PACKAGE_LIMITED });
-  const linkFailure = await linkHarness.registered.get("researchToolkit.configurePresetTools")().catch((error) => error);
-  assert.equal(linkFailure.code, REFUSALS.TARGET_IS_LINK);
-  assert.equal(fs.lstatSync(path.join(root, MCP_FILE_NAME)).isSymbolicLink(), true, "the link is still a link");
+  if (fileLink(t, path.join(root, "elsewhere.json"), path.join(root, MCP_FILE_NAME))) {
+    const linkHarness = makeHarness({ folders, initial: FULL_PACKAGE_LIMITED });
+    const linkFailure = await linkHarness.registered.get("researchToolkit.configurePresetTools")().catch((error) => error);
+    assert.equal(linkFailure.code, REFUSALS.TARGET_IS_LINK);
+    assert.equal(fs.lstatSync(path.join(root, MCP_FILE_NAME)).isSymbolicLink(), true, "the link is still a link");
+  }
 });

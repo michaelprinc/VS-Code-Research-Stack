@@ -4,6 +4,22 @@ Planning baseline: 7 October 2026. Language: English. Phase 1 G1 remains open on
 
 **Correction dated 14 November 2026, so the baseline is not read as the current state.** This page is the 7 October plan and is kept as such. What has since shipped is a 0.3.13 VSIX preview under `extension/` (Phase 4 in progress, not complete), a Full-package corpus index and SQLite record store (0.3.9), integration onboarding for Zotero and Semantic Scholar (0.3.11–0.3.12) and the Zotero internalization in the Toolkit's own worker (0.3.13). What has **not** changed is the gate status: G1, G2, G3 and G4 remain open, G3's named candidates (Qdrant, embeddings, DuckDB) are unimplemented, and no gate receipt has been approved since before 0.3.10.
 
+**Correction dated 23 November 2026 — the gate status is unchanged, and each gate's remaining steps are now named.**
+Release 0.3.15 (phase 16, [specs/phase-16-next-release-recommendations/recommendations.md](../../specs/phase-16-next-release-recommendations/recommendations.md))
+closes review findings, not gates. P1 of that plan produces evidence only for the scenarios actually executed, so the
+four gates are recorded with what is left rather than re-described:
+
+| Gate | What 0.3.9 … 0.3.15 already supplies | The exact steps that still have to be run, and where |
+|---|---|---|
+| **G1** — repeatable Basic installation, source-grounded document workflow | `scripts/verify_mcp.py` runs on POSIX and names its launcher (`evidence/host-2026-11-22/README.md`); `npm run test:host` records which artifact a host run exercised; the Node suite covers the install and setup paths | On the reference Windows 11 host: install the candidate VSIX, run component setup for the Basic package, run `scripts\verify_mcp.py` against `.venv\Scripts\research-stack-mcp.exe`, then one real document workflow (PDF or DOCX read with page locators → cited Markdown or DOCX report) |
+| **G2** — reproducible literature-to-analysis workflow, graceful provider failures | provider behaviour is covered by fixtures and by an emulated Zotero 10 write path in the Python suite; the Semantic Scholar consent state is shown on the integration card | On the reference host with the Recommended package: one provider search with the licence consent actually granted, one live provider failure (a real 429) observed end to end, a Zotero read of the operator's own library, and **T14-20** — a previewed, authorized, verified write with its undo |
+| **G3** — local research pipeline, recovery, selected advanced capabilities | retrieval inside the shipped SQLite store (`lexical` / `vector` / `hybrid`, schema 4) and the measured comparison of the three modes recorded under phase 16 P3/P4 | A decision for each named candidate (Qdrant, licensed embedding model, DuckDB) recorded per P9, plus recovery and re-index runs on a real corpus of the operator's own files. The candidates remain unimplemented, so G3 cannot close on retrieval alone |
+| **G4** — an installable VSIX that repeats the validated procedures on a clean workstation | the candidate passes `verify-package` and `check:payload`, and the bundle upgrade / archive / restore paths are covered by `extension/test/bundles.test.js` | On a clean workstation: install the candidate over an older version, then the four panel scenarios — Force Update, Archive History, Restore, Configure Preset Tools (including a refused confirmation) — and a bundle upgrade and restore starting from the previous release's archive |
+
+A gate closes only when a receipt names the host, the artifact digest and the executed scenario. None of the four has
+such a receipt for 0.3.13, 0.3.14 or 0.3.15; the browser renderer case and the POSIX worker check are evidence
+**towards** G1 and G2, not gate receipts.
+
 ## Objective and boundary
 
 First install and validate the scientific stack on a local reference workstation, documenting exact versions, installation steps, compatibility settings, integration behavior, and recovery. Then turn those proven procedures into a complete VS Code extension distributed as a VSIX. Component updates are part of the product design where ownership and upstream mechanisms make them feasible.

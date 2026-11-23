@@ -116,22 +116,40 @@ test("environmentFootprint reports the names the host already carries and cannot
 });
 
 test("probeEnvironment carries a key only to the probe that asked for it, and carries nothing for a service that is off", () => {
+  const CONSENT_NAMES = ["SEMANTIC_SCHOLAR_KEY_DECISION", "SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED", "SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT"];
+
   const anonymous = probe.probeEnvironment({ registry: authorizedRegistry("anonymous"), apiKey: KEY });
-  assert.deepEqual(anonymous, { SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED: "true" }, "an anonymous check needs the licence flag and no credential, even though a key was handed to the call");
+  assert.deepEqual(Object.keys(anonymous).sort(), CONSENT_NAMES, "an anonymous check carries the consent record it was given and no credential, even though a key was handed to the call");
+  assert.equal(anonymous.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT, AT, "the stored consent travels with the moment it was given: sent as a bare flag, the worker read a recorded confirmation as a missing one");
+  assert.equal(anonymous.SEMANTIC_SCHOLAR_KEY_DECISION, "not-offered", "and the key decision the record holds is forwarded as it stands, not as a guess");
   assert.ok(!Object.keys(anonymous).includes("SEMANTIC_SCHOLAR_API_KEY"), "the key is absent entirely, not empty — an empty key would still be a signal that one exists");
+  assert.ok(!JSON.stringify(anonymous).includes(KEY), "a key handed to the call appears nowhere in what the probe is asked to carry");
+
+  const decided = probe.probeEnvironment({ registry: integrations.recordKeyDecision(authorizedRegistry("api-key"), "semantic-scholar", "declined", AT), apiKey: KEY });
+  assert.equal(decided.SEMANTIC_SCHOLAR_KEY_DECISION, "declined", "what the operator answered about a key reaches the worker as their answer");
+  assert.deepEqual(Object.keys(decided).sort(), [...CONSENT_NAMES, "SEMANTIC_SCHOLAR_API_KEY"].sort(), "the key rides along only because this mode asked for it — the consent facts and the credential are separate names");
+  assert.equal(decided.SEMANTIC_SCHOLAR_API_KEY, KEY, "and it appears once, under the one name the mode asked for");
+  assert.ok(!JSON.stringify(integrations.recordKeyDecision(authorizedRegistry("api-key"), "semantic-scholar", "declined", AT)).includes(KEY), "the integration record the decision is written into holds the decision, never the key");
+
+  const undated = authorizedRegistry("anonymous");
+  undated.providers["semantic-scholar"].license = { acknowledged: true, reference: "license", acknowledgedAt: null };
+  const noInstant = probe.probeEnvironment({ registry: undated, apiKey: KEY });
+  assert.equal(noInstant.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED, "true");
+  assert.ok(!Object.keys(noInstant).includes("SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT"), "a consent the record cannot date is not given an invented date");
 
   const keyed = probe.probeEnvironment({ registry: authorizedRegistry("api-key"), apiKey: KEY });
   assert.equal(keyed.SEMANTIC_SCHOLAR_API_KEY, KEY, "the mode the operator chose is the mode the worker is told about");
   assert.equal(keyed.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED, "true", "and the consent travels with it, because the worker refuses the provider without it");
+  assert.equal(keyed.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT, AT, "the two consent facts go with the mode, not instead of it");
 
   const noKey = probe.probeEnvironment({ registry: authorizedRegistry("api-key") });
-  assert.deepEqual(Object.keys(noKey), ["SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED"], "a mode that wants a key, with no key stored, sends no key: the worker falls back and says so");
+  assert.deepEqual(Object.keys(noKey).sort(), CONSENT_NAMES, "a mode that wants a key, with no key stored, sends no key: the worker falls back and says so");
 
   const off = probe.probeEnvironment({ registry: integrations.revokeIntegration(authorizedRegistry("api-key"), "semantic-scholar", AT), apiKey: KEY });
-  assert.deepEqual(off, {}, "a revoked integration gets nothing at all — no licence claim, no key (DD11-06)");
+  assert.deepEqual(off, {}, "a revoked integration gets nothing at all — no licence claim, no consent date, no key decision, no key (DD11-06)");
   assert.deepEqual(probe.probeEnvironment({ registry: integrations.emptyRegistry(), apiKey: KEY }), {}, "and a profile that never consented gets nothing either");
   assert.deepEqual(probe.probeEnvironment({}), {}, "a probe with no record sends nothing, so a missing record cannot leak a default");
-  for (const env of [anonymous, keyed, noKey, off]) assert.ok(!Object.keys(env).some((name) => /ZOTERO/i.test(name)), "Zotero is a local service: the probe environment carries nothing for it");
+  for (const env of [anonymous, decided, noInstant, keyed, noKey, off]) assert.ok(!Object.keys(env).some((name) => /ZOTERO/i.test(name)), "Zotero is a local service: the probe environment carries nothing for it");
 });
 
 test("the probe boundary builds one reviewed worker call and refuses an unknown provider before a command exists", () => {

@@ -1,0 +1,429 @@
+{
+  "fetched_utc": "2026-11-23T03:58:01+00:00",
+  "repo": "github/github-mcp-server",
+  "ref": "main",
+  "sha_of_root_tree": "9a72d8d38fec18c207cd924b33aa0eb3e186252c",
+  "note": "blob paths + SHAs for every non-test pkg/github/*.go parsed by this script",
+  "blobs": [
+    {
+      "path": "pkg/github/actions.go",
+      "sha": "dc71ab5261be3864c4a3d4e464ef0448b3466751",
+      "size": 41232
+    },
+    {
+      "path": "pkg/github/actions_types.go",
+      "sha": "ffdd689b00abdab3550e939756cff71948081c41",
+      "size": 22929
+    },
+    {
+      "path": "pkg/github/agent_automations.go",
+      "sha": "17bd646d301afd830d9300fa8cd982ebd5f802dc",
+      "size": 36449
+    },
+    {
+      "path": "pkg/github/code_quality.go",
+      "sha": "e5ef82c3942a771e58e75f09c67de58ec3dff4da",
+      "size": 3837
+    },
+    {
+      "path": "pkg/github/code_scanning.go",
+      "sha": "6d0ef073b575f1748196a561087ace4aab54c5cf",
+      "size": 7254
+    },
+    {
+      "path": "pkg/github/comment_minimize.go",
+      "sha": "a80f7a79a967f6641a26fcd1beadb05183b83642",
+      "size": 13588
+    },
+    {
+      "path": "pkg/github/consolidated_issue_types.go",
+      "sha": "ccd84e017325b61208be76073d448052f2845537",
+      "size": 24194
+    },
+    {
+      "path": "pkg/github/consolidated_pull_request_types.go",
+      "sha": "fbe8c1102a3f8f69b0ecb2e6249cab55c0e243f4",
+      "size": 22340
+    },
+    {
+      "path": "pkg/github/context_tools.go",
+      "sha": "93f9eed04c0af64abeafcbabdab4874dce594f81",
+      "size": 13075
+    },
+    {
+      "path": "pkg/github/copilot.go",
+      "sha": "151c7e3f59ea4f5ff7e0b2582dd208dea54e6b17",
+      "size": 42367
+    },
+    {
+      "path": "pkg/github/csv_output.go",
+      "sha": "ee4bba19db33c36547b8e990c3d758f33c2f92ff",
+      "size": 9825
+    },
+    {
+      "path": "pkg/github/custom_properties.go",
+      "sha": "055efc4461bdf859faca7f5b49660ef0a82a30f2",
+      "size": 19084
+    },
+    {
+      "path": "pkg/github/dependabot.go",
+      "sha": "32669788c0e2261983b5b1a8551557f0c4a58c0e",
+      "size": 8271
+    },
+    {
+      "path": "pkg/github/dependencies.go",
+      "sha": "0ede5ff9a73a5e50aafcc19bbe26cddaa81dc63e",
+      "size": 18462
+    },
+    {
+      "path": "pkg/github/deprecated_tool_aliases.go",
+      "sha": "4415731fbe32ae01c3a049546a6109eed98f0333",
+      "size": 1740
+    },
+    {
+      "path": "pkg/github/discussion_notification_inputs.go",
+      "sha": "05c52db19cc8b50d09e59787acff5f61d4c4e2dc",
+      "size": 5404
+    },
+    {
+      "path": "pkg/github/discussion_notification_outputs.go",
+      "sha": "ebe4e4c8ad8ee31e2b54027ed79b637b13333159",
+      "size": 9442
+    },
+    {
+      "path": "pkg/github/discussions.go",
+      "sha": "2de3b3fd95c6ce5eb6907cab27d6eeb929a4ce5e",
+      "size": 40293
+    },
+    {
+      "path": "pkg/github/feature_flags.go",
+      "sha": "9a134f6d0585419e7d235b87d83c337a4a10e01a",
+      "size": 5836
+    },
+    {
+      "path": "pkg/github/fields_telemetry.go",
+      "sha": "4e06d9f42bb040328b8e3666ec3a1c00112510d6",
+      "size": 2924
+    },
+    {
+      "path": "pkg/github/find_duplicate.go",
+      "sha": "b276d608dad52965c80c68b3970354b8457553d6",
+      "size": 7476
+    },
+    {
+      "path": "pkg/github/gists.go",
+      "sha": "cca352964409d9be6cd7b4b396e2b83cbf3eace9",
+      "size": 12370
+    },
+    {
+      "path": "pkg/github/git.go",
+      "sha": "872e342527bc57119e1b234d94a2368847714ee9",
+      "size": 6175
+    },
+    {
+      "path": "pkg/github/git_gist_types.go",
+      "sha": "6f412c3df89801022c197ed2effecc0ad35de6a2",
+      "size": 9862
+    },
+    {
+      "path": "pkg/github/granular_issue_types.go",
+      "sha": "c0b9f2e16d1d66e6bb6bc93570f757eaa32fbc6d",
+      "size": 33615
+    },
+    {
+      "path": "pkg/github/granular_pull_request_types.go",
+      "sha": "248d571f47bf67c738e7afe1a0636fbe2ebe898e",
+      "size": 9086
+    },
+    {
+      "path": "pkg/github/ifc_labels.go",
+      "sha": "a1b7ca60ad0a16eb639bad8ff47f87e0c1651f68",
+      "size": 6028
+    },
+    {
+      "path": "pkg/github/inventory.go",
+      "sha": "fe226524bc6386a17ba62effbb40321c9a12dc8c",
+      "size": 793
+    },
+    {
+      "path": "pkg/github/issue_artifact_types.go",
+      "sha": "76bc62fce0af11f71afad248ceface5ccc2e9ffb",
+      "size": 3445
+    },
+    {
+      "path": "pkg/github/issue_artifacts.go",
+      "sha": "345dbd83df011d26d2d7004df8c43a558382c81a",
+      "size": 12499
+    },
+    {
+      "path": "pkg/github/issue_dependencies.go",
+      "sha": "19a3b7db82d8831c48088ad5be98a4321dfad56c",
+      "size": 17973
+    },
+    {
+      "path": "pkg/github/issue_fields.go",
+      "sha": "9937f74bfdd4604b22dab4d11b63256093b2508d",
+      "size": 10630
+    },
+    {
+      "path": "pkg/github/issue_tool_types.go",
+      "sha": "97d000cd2fe67e4e2d8504e716728b54be1b7b01",
+      "size": 17476
+    },
+    {
+      "path": "pkg/github/issues.go",
+      "sha": "30005854aaf2cc583f26600925432ec4550ddeee",
+      "size": 152081
+    },
+    {
+      "path": "pkg/github/issues_granular.go",
+      "sha": "eab4a204cd415213036f2fe80b83f2151f0074c0",
+      "size": 53276
+    },
+    {
+      "path": "pkg/github/labels.go",
+      "sha": "c9479e50623d45d101b68fbdb0e5f0c6db6f6e93",
+      "size": 17305
+    },
+    {
+      "path": "pkg/github/lockdown.go",
+      "sha": "b1a1b006ea429360ae959eafbb5ccafa351b7b90",
+      "size": 1452
+    },
+    {
+      "path": "pkg/github/method_output_schema.go",
+      "sha": "c6b99cc4581690d26de187c0cf359b2b01e20859",
+      "size": 750
+    },
+    {
+      "path": "pkg/github/minimal_types.go",
+      "sha": "d355eb1a2e93659e3a16135cc47414de265584d9",
+      "size": 79390
+    },
+    {
+      "path": "pkg/github/notifications.go",
+      "sha": "332d2ffd3bb494c17cbaa0c477a989330514d162",
+      "size": 24765
+    },
+    {
+      "path": "pkg/github/params.go",
+      "sha": "9e1b582714f30a8ad9662e52aa4d22a7974b64d2",
+      "size": 15851
+    },
+    {
+      "path": "pkg/github/projects.go",
+      "sha": "e55b2a29d6ebd7f58ee870c75a17b72d43887a0e",
+      "size": 107581
+    },
+    {
+      "path": "pkg/github/projects_batch.go",
+      "sha": "cf464f287086ab0e4ea85e5a151a9cd82ad58686",
+      "size": 22051
+    },
+    {
+      "path": "pkg/github/projects_batch_mutation.go",
+      "sha": "13913e53bf253930241b3c8f7e927fc18894379f",
+      "size": 3854
+    },
+    {
+      "path": "pkg/github/projects_resolver.go",
+      "sha": "9716d36a930bd21f9e7dda7c0e28adf26b819c65",
+      "size": 21329
+    },
+    {
+      "path": "pkg/github/projects_types.go",
+      "sha": "746406ffcaa98a7df9fcad997a3d30a5104c5592",
+      "size": 23705
+    },
+    {
+      "path": "pkg/github/prompts.go",
+      "sha": "23c4bdfc993b10acb0aef83e9aaf3ae2b23b5473",
+      "size": 483
+    },
+    {
+      "path": "pkg/github/pull_request_artifact_types.go",
+      "sha": "b44a80dfdb9a6b44f04ba33c825bfe34135ac3a0",
+      "size": 4167
+    },
+    {
+      "path": "pkg/github/pull_request_artifacts.go",
+      "sha": "3316567d4d2ed8b601fd16d9f705bea2c93cc7c6",
+      "size": 18407
+    },
+    {
+      "path": "pkg/github/pullrequests.go",
+      "sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4",
+      "size": 96060
+    },
+    {
+      "path": "pkg/github/pullrequests_granular.go",
+      "sha": "e8782d998de6218b99c60edce22a4ad16b12f18f",
+      "size": 34013
+    },
+    {
+      "path": "pkg/github/repositories.go",
+      "sha": "b884f4888db69c1b2d1faaa77119262c93e262ef",
+      "size": 111464
+    },
+    {
+      "path": "pkg/github/repositories_helper.go",
+      "sha": "fe1983252cf4c57cc4b17c255a8e62d2ebf3de45",
+      "size": 22053
+    },
+    {
+      "path": "pkg/github/repository_path.go",
+      "sha": "ebc0aa62dbe847f45f2971aa318cf963e728bb0d",
+      "size": 2099
+    },
+    {
+      "path": "pkg/github/repository_resource.go",
+      "sha": "8141e2f0f64e275ecc941d8565277de6cde19585",
+      "size": 11537
+    },
+    {
+      "path": "pkg/github/repository_resource_completions.go",
+      "sha": "ffa45d3f3bea9d2e3ab1387cba645c8d0114ff2f",
+      "size": 9665
+    },
+    {
+      "path": "pkg/github/repository_tool_types.go",
+      "sha": "4f3b58498380f987ae400c1e4a56fde892ed2edb",
+      "size": 18025
+    },
+    {
+      "path": "pkg/github/request_state.go",
+      "sha": "fc38887fdedda271eecc7af64ba6a519115fab31",
+      "size": 867
+    },
+    {
+      "path": "pkg/github/resources.go",
+      "sha": "6eb88fa9a751aed4263c2f6a432739bf944de34e",
+      "size": 682
+    },
+    {
+      "path": "pkg/github/rulesets.go",
+      "sha": "d0854ea89640ab8b7b52c1f403ab73a4d1ce7e46",
+      "size": 41572
+    },
+    {
+      "path": "pkg/github/scope_filter.go",
+      "sha": "dd944ac0a10568e7a636ca158df7a2998d8e2005",
+      "size": 1238
+    },
+    {
+      "path": "pkg/github/search.go",
+      "sha": "6caaf389d50630a363adba1d9000fe009aa2b91a",
+      "size": 26046
+    },
+    {
+      "path": "pkg/github/search_tool_types.go",
+      "sha": "855841186ee5c822b00de18c80a132099a6db7eb",
+      "size": 5897
+    },
+    {
+      "path": "pkg/github/search_utils.go",
+      "sha": "0f62e8b26ee5fd7f64bbc9c39d3cfc469cd39bb1",
+      "size": 8282
+    },
+    {
+      "path": "pkg/github/secret_scanning.go",
+      "sha": "c9a10b5e1c3a17e12f3a6f0ec3fca9fd72092171",
+      "size": 8677
+    },
+    {
+      "path": "pkg/github/security_advisories.go",
+      "sha": "42eb505f773ed98ed82ae9465535f6e12adffa9c",
+      "size": 15247
+    },
+    {
+      "path": "pkg/github/security_outputs.go",
+      "sha": "e106ef0ae5724fe604e8f57182256fd414f0d890",
+      "size": 20861
+    },
+    {
+      "path": "pkg/github/server.go",
+      "sha": "90498fc47d9fa2d0896d72b6ede951e3c4cb0a37",
+      "size": 9630
+    },
+    {
+      "path": "pkg/github/skills.go",
+      "sha": "ed7ae7fa1cd356086256022a157805505b213c68",
+      "size": 947
+    },
+    {
+      "path": "pkg/github/tool_scopes.go",
+      "sha": "02b01c78813957d5d12e518a3d0bfbd64c786afa",
+      "size": 2022
+    },
+    {
+      "path": "pkg/github/tools.go",
+      "sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c",
+      "size": 18202
+    },
+    {
+      "path": "pkg/github/toolset_instructions.go",
+      "sha": "b282d428064ad59f01c958891d8bcc1d81e2f84a",
+      "size": 6635
+    },
+    {
+      "path": "pkg/github/typed_copilot_ui_outputs.go",
+      "sha": "cefedb6893414d67498cf531e24c2e7b292e2769",
+      "size": 15889
+    },
+    {
+      "path": "pkg/github/typed_governance_outputs.go",
+      "sha": "02952bac0b20f3d12b4caf0cea58b1019eb6a033",
+      "size": 19199
+    },
+    {
+      "path": "pkg/github/typed_read_normalizers.go",
+      "sha": "d53f3ad2f83b9e54dc36bbaefbfb330773a61a4e",
+      "size": 1944
+    },
+    {
+      "path": "pkg/github/ui_capability.go",
+      "sha": "a46a8bb842601034dacf77fdf812114b6ce798a0",
+      "size": 3088
+    },
+    {
+      "path": "pkg/github/ui_embed.go",
+      "sha": "c3f1cef9d20737873fe964639525f8f73373d5fc",
+      "size": 1246
+    },
+    {
+      "path": "pkg/github/ui_resources.go",
+      "sha": "045e129360af1bf07e20de05eaafcb54f905031b",
+      "size": 3835
+    },
+    {
+      "path": "pkg/github/ui_tools.go",
+      "sha": "03673efd62bd7149c8914477e835649e06dabf16",
+      "size": 16725
+    },
+    {
+      "path": "pkg/github/update_code_scanning_alert.go",
+      "sha": "3808bad539d0391ab8a6088bef73dc1c0e539349",
+      "size": 11070
+    },
+    {
+      "path": "pkg/github/update_dependabot_alert.go",
+      "sha": "cad135fb04c0f850b36d34f4a5297de48740c903",
+      "size": 9184
+    },
+    {
+      "path": "pkg/github/update_secret_scanning_alert.go",
+      "sha": "58377e7ef774d9c56bd6d9fe95b38d7c30827efb",
+      "size": 10191
+    },
+    {
+      "path": "pkg/github/workflow_enums.go",
+      "sha": "ec68a1474764f226e910d262c2fe9308e1bb5b66",
+      "size": 1101
+    },
+    {
+      "path": "pkg/github/workflow_prompts.go",
+      "sha": "415d5a74cf1b6140d90aee0e12c0f1d0e3d1e971",
+      "size": 3929
+    }
+  ]
+}

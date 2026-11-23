@@ -1,0 +1,52 @@
+{
+  "proves": "Crossref `type` is a vocabulary of near-synonyms \u2014 book / monograph / edited-book / book-set / reference-book are separate filter values and a plain query returns a mix of them",
+  "measuredAt": "2026-11-23T05:45:27+00:00",
+  "filterCounts": {
+    "book": {
+      "reported": 799286
+    },
+    "monograph": {
+      "reported": 823796
+    },
+    "edited-book": {
+      "reported": 655013
+    },
+    "book-set": {
+      "reported": 667
+    },
+    "reference-book": {
+      "reported": 198355
+    },
+    "journal-article": {
+      "reported": 125427631
+    },
+    "union:book": {
+      "returned": 0,
+      "typeSeen": null
+    },
+    "union:monograph": {
+      "returned": 0,
+      "typeSeen": null
+    },
+    "union:edited-book": {
+      "returned": 0,
+      "typeSeen": null
+    },
+    "union:book-chapter": {
+      "returned": 1,
+      "typeSeen": "book-chapter"
+    },
+    "typesSeenForQuery": {
+      "reference-entry": 1,
+      "book-chapter": 10,
+      "book": 1,
+      "component": 1,
+      "dissertation": 1,
+      "book-part": 1,
+      "other": 2,
+      "dataset": 1,
+      "reference-book": 1,
+      "journal-article": 1
+    }
+  }
+}

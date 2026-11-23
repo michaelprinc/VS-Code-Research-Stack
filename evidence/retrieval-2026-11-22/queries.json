@@ -1,0 +1,272 @@
+{
+  "frozen": true,
+  "assessedQueries": 29,
+  "groups": [
+    "czech",
+    "english",
+    "diacritic-free-or-typo",
+    "no-relevant-answer"
+  ],
+  "judgementRule": "A passage is relevant when it states the answer the query asks for, in the language the query is written in, on its own — a paragraph that only answers in the context of the file around it is not judged relevant, because chunk retrieval is what is being measured. The corpus was authored for this measurement, so relevance is judged by construction: the relevant paragraph is the paragraph written to answer the query. A passage stating the same fact in another language is not counted for that query: the backend is a lexical signature and is not cross-lingual, and counting it would measure the judgement instead of the retrieval.",
+  "labelFormat": "corpus-relative source path + '#' + the chunk locator the index produced, read from corpus-manifest.json",
+  "nature": "Synthetic fixture text. The operator's own research corpus is not measured here.",
+  "queries": [
+    {
+      "id": "cz-01",
+      "group": "czech",
+      "query": "sandály v iluminacích kodexu",
+      "relevant": [
+        "corpus/cz/iluminace.md#paragraph=2;chars=62-279",
+        "corpus/cz/iluminace.md#paragraph=3;chars=281-497"
+      ],
+      "basis": "Paragraph 2 states how many miniatures show sandals; paragraph 3 states how those sandals are sewn. Each names sandals in its own words, so each is an answer on its own."
+    },
+    {
+      "id": "cz-02",
+      "group": "czech",
+      "query": "dvojitý steh voskovaná nit popruhy podešev",
+      "relevant": [
+        "corpus/cz/iluminace.md#paragraph=3;chars=281-497"
+      ],
+      "basis": "Paragraph 3 is the only Czech paragraph naming the double stitch, the waxed thread and the straps sewn from the inside of the sole."
+    },
+    {
+      "id": "cz-03",
+      "group": "czech",
+      "query": "datace kodexu gotická minuskula interpolace",
+      "relevant": [
+        "corpus/cz/iluminace.md#paragraph=4;chars=499-660"
+      ],
+      "basis": "Paragraph 4 carries the dating and the script description; no other Czech paragraph states either."
+    },
+    {
+      "id": "cz-04",
+      "group": "czech",
+      "query": "český překlad traktátu O světle a stínu",
+      "relevant": [
+        "corpus/cz/preklady.md#paragraph=2;chars=76-256",
+        "corpus/cz/preklady.md#paragraph=3;chars=258-421"
+      ],
+      "basis": "Paragraph 2 names the first Czech translator of the invented treatise and paragraph 3 the terminology that translation uses."
+    },
+    {
+      "id": "cz-05",
+      "group": "czech",
+      "query": "termín stín umbra kritické vydání revize",
+      "relevant": [
+        "corpus/cz/preklady.md#paragraph=3;chars=258-421"
+      ],
+      "basis": "Paragraph 3 is where the two terms and the revision by the critical edition are recorded."
+    },
+    {
+      "id": "cz-06",
+      "group": "czech",
+      "query": "předání deskových desek vlhkost měření teploty",
+      "relevant": [
+        "corpus/cz/korespondence.md#paragraph=2;chars=59-230",
+        "corpus/cz/korespondence.md#paragraph=3;chars=232-406"
+      ],
+      "basis": "Paragraph 2 reports the handover and the humidity complaint; paragraph 3 reports the measurement and the remedy."
+    },
+    {
+      "id": "cz-07",
+      "group": "czech",
+      "query": "sigatura fond inventární číslo listy",
+      "relevant": [
+        "corpus/cz/archivni-prirucka.md#paragraph=2;chars=76-235"
+      ],
+      "basis": "Paragraph 2 defines the three-part shelfmark and gives the worked example RAJ 12/3."
+    },
+    {
+      "id": "cz-08",
+      "group": "czech",
+      "query": "konzervace suché čištění bez vody kontrola po šesti měsících",
+      "relevant": [
+        "corpus/cz/archivni-prirucka.md#paragraph=3;chars=237-406"
+      ],
+      "basis": "Paragraph 3 is the conservation procedure the query restates."
+    },
+    {
+      "id": "cz-09",
+      "group": "czech",
+      "query": "co hodnotí lexikální ranker proč překlep znamená jiný token",
+      "relevant": [
+        "corpus/cz/metody.md#paragraph=2;chars=59-279"
+      ],
+      "basis": "Paragraph 2 states what BM25 rewards and penalises and says a typo or removed diacritics is a different token for it. Judged in the language of the query; the same fact in English is judged under en-05."
+    },
+    {
+      "id": "cz-10",
+      "group": "czech",
+      "query": "pravidlo fúze reciproční hodnocení polovina výsledku",
+      "relevant": [
+        "corpus/cz/metody.md#paragraph=4;chars=487-690"
+      ],
+      "basis": "Paragraph 4 states the published fusion weights in Czech."
+    },
+    {
+      "id": "en-01",
+      "group": "english",
+      "query": "how many miniatures show footwear in the codex",
+      "relevant": [
+        "corpus/en/illuminations.md#paragraph=2;chars=75-349"
+      ],
+      "basis": "Paragraph 2 gives the counts: forty-two miniatures, sixteen of them footwear."
+    },
+    {
+      "id": "en-02",
+      "group": "english",
+      "query": "double stitch waxed thread outline line used only for footwear",
+      "relevant": [
+        "corpus/en/illuminations.md#paragraph=3;chars=351-558"
+      ],
+      "basis": "Paragraph 3 records the stitching technique and the outline line that identifies the footwear miniatures."
+    },
+    {
+      "id": "en-03",
+      "group": "english",
+      "query": "guild pattern sewn from the inside of the sole admissions",
+      "relevant": [
+        "corpus/en/guild-records.md#paragraph=3;chars=282-477"
+      ],
+      "basis": "Paragraph 3 distinguishes the guild pattern from the household pattern and says admissions were judged on the guild pattern."
+    },
+    {
+      "id": "en-04",
+      "group": "english",
+      "query": "how many sandal makers worked in the street and how long an apprenticeship lasted",
+      "relevant": [
+        "corpus/en/guild-records.md#paragraph=2;chars=68-280"
+      ],
+      "basis": "Paragraph 2 carries both numbers: twenty-two makers and a two-year apprenticeship."
+    },
+    {
+      "id": "en-05",
+      "group": "english",
+      "query": "why a query typed without diacritics may match nothing",
+      "relevant": [
+        "corpus/en/retrieval-methods.md#paragraph=2;chars=76-337"
+      ],
+      "basis": "Paragraph 2 states that a query without diacritics or with a typo is a different token to BM25 and may match nothing."
+    },
+    {
+      "id": "en-06",
+      "group": "english",
+      "query": "how much of the fused score does reciprocal-rank fusion carry",
+      "relevant": [
+        "corpus/en/retrieval-methods.md#paragraph=4;chars=596-860"
+      ],
+      "basis": "Paragraph 4 states the fusion weights: half reciprocal-rank fusion, a quarter for each ranker."
+    },
+    {
+      "id": "en-07",
+      "group": "english",
+      "query": "when does a stored claim become a report reference",
+      "relevant": [
+        "corpus/en/citation-export.md#paragraph=2;chars=55-287"
+      ],
+      "basis": "Paragraph 2 states the condition — the evidence must resolve to a stored chunk — and what a reference then carries."
+    },
+    {
+      "id": "en-08",
+      "group": "english",
+      "query": "retired evidence reported as stale instead of dropped",
+      "relevant": [
+        "corpus/en/citation-export.md#paragraph=3;chars=289-510"
+      ],
+      "basis": "Paragraph 3 is the rule for retired evidence: the link is kept, the reference is counted as excluded."
+    },
+    {
+      "id": "en-09",
+      "group": "english",
+      "query": "the store reached its chunk ceiling what do the verbs do",
+      "relevant": [
+        "corpus/en/workshop-notes.md#paragraph=3;chars=289-520"
+      ],
+      "basis": "Paragraph 3 states the ceiling and that the verbs name the count, the limit and the way back under it."
+    },
+    {
+      "id": "en-10",
+      "group": "english",
+      "query": "vectors are rebuilt from stored chunk text without a source file or a network",
+      "relevant": [
+        "corpus/en/workshop-notes.md#paragraph=4;chars=522-711"
+      ],
+      "basis": "Paragraph 4 states that re-embedding needs no source file and no network, and how a chunk with no signature is reported."
+    },
+    {
+      "id": "ty-01",
+      "group": "diacritic-free-or-typo",
+      "query": "sandaly iluminacich kodexu",
+      "relevant": [
+        "corpus/cz/iluminace.md#paragraph=2;chars=62-279",
+        "corpus/cz/iluminace.md#paragraph=3;chars=281-497"
+      ],
+      "basis": "The same information need as cz-01, typed without diacritics. The judged answers are the same passages; only the query surface changed."
+    },
+    {
+      "id": "ty-02",
+      "group": "diacritic-free-or-typo",
+      "query": "datace kodexu goticka minuskula interpolace",
+      "relevant": [
+        "corpus/cz/iluminace.md#paragraph=4;chars=499-660"
+      ],
+      "basis": "The same information need as cz-03 without diacritics."
+    },
+    {
+      "id": "ty-03",
+      "group": "diacritic-free-or-typo",
+      "query": "konzervace suché čisťění bez vody",
+      "relevant": [
+        "corpus/cz/archivni-prirucka.md#paragraph=3;chars=237-406"
+      ],
+      "basis": "The same need as cz-08 with a typo in 'čištění'."
+    },
+    {
+      "id": "ty-04",
+      "group": "diacritic-free-or-typo",
+      "query": "guild patern sewn from the inside of the sole",
+      "relevant": [
+        "corpus/en/guild-records.md#paragraph=3;chars=282-477"
+      ],
+      "basis": "The same need as en-03 with a typo in 'pattern'."
+    },
+    {
+      "id": "ty-05",
+      "group": "diacritic-free-or-typo",
+      "query": "preklad traktatu o svetle a stinu",
+      "relevant": [
+        "corpus/cz/preklady.md#paragraph=2;chars=76-256"
+      ],
+      "basis": "The same need as cz-04 without diacritics, narrowed to the translation itself."
+    },
+    {
+      "id": "na-01",
+      "group": "no-relevant-answer",
+      "query": "how do I reset the password of the Zotero citation server on this workstation",
+      "relevant": [],
+      "basis": "No passage in the fixture corpus talks about a password, an account or a citation-server credential."
+    },
+    {
+      "id": "na-02",
+      "group": "no-relevant-answer",
+      "query": "telomerase activity in Saccharomyces cerevisiae during stationary growth",
+      "relevant": [],
+      "basis": "The corpus contains no biology text."
+    },
+    {
+      "id": "na-03",
+      "group": "no-relevant-answer",
+      "query": "kolik stojí roční licence na archivní skener",
+      "relevant": [],
+      "basis": "No passage states a price; the archive manual and the letters cover handling, borrowing and conservation only."
+    },
+    {
+      "id": "na-04",
+      "group": "no-relevant-answer",
+      "query": "who currently chairs the international union of archival councils",
+      "relevant": [],
+      "basis": "No named real-world body or office holder appears in the fixture corpus."
+    }
+  ]
+}

@@ -1,0 +1,1144 @@
+Skip to main content
+
+Skip to content
+GitHub Docs
+Search or ask Copilot /
+Menu
+
+Collapse sidebar
+Expand sidebar
+
+Home
+GitHub Copilot
+How-tos
+Copilot in your IDE
+Customize Copilot
+Extend Copilot with tools and context
+Configure toolsets
+
+GitHub Copilot
+
+Get started
+About Copilot
+
+Where to use Copilot
+
+Copilot on GitHub.com
+
+Copilot in your IDE
+
+Copilot CLI quickstart
+
+Copilot app quickstart
+
+Copilot SDK quickstart
+
+Plans
+
+Enterprise and Copilot billing
+
+Best practices
+
+Enterprise AI governance
+
+Concepts
+Copilot surfaces
+GitHub Copilot app
+
+Copilot CLI
+
+Copilot on GitHub.com and Mobile
+
+Copilot in IDEs
+
+Agent capabilities
+About agents
+GitHub Copilot agents
+
+Third-party coding agents
+
+Agent apps
+
+Choosing and delegating agent work
+AI tools
+
+Agent management
+
+Copilot integrations
+
+Delegate and parallelize work
+
+Getting a second opinion
+
+Researching with agents
+
+Agent-powered workflows and operations
+Code review
+
+About automations
+
+Rationale, confidence, and approvals
+
+Dynamic workflows
+
+Agentic Workflows
+
+Copilot CLI in Actions
+
+About remote control
+
+Autopilot
+
+Tool search
+
+Browser use
+
+Computer use
+
+Image generation
+
+Prompting and context
+Prompt engineering
+
+Context management
+
+Custom instructions
+
+Copilot Memory
+
+Copilot Dreaming
+
+Prompt files
+
+Repository indexing
+
+Spaces
+
+Customizations
+Comparing customizations
+
+Agent skills
+
+Assisted permissions
+
+Custom agents
+
+MCP
+
+Connectors
+
+Hooks
+
+Extensions
+
+Plugins
+
+LSP servers
+
+Models
+Overview
+
+Copilot Fusion
+
+Auto model selection
+
+Bring your own key
+
+Utility models
+
+Base and LTS models
+
+Billing and usage
+Organizations and enterprises
+Billing
+
+Seats and billing cycles
+
+Budgets
+
+Individuals
+Billing
+
+Usage limits
+
+Copilot usage metrics
+All articles
+
+Copilot usage metrics
+
+Security, governance, and network settings
+Content exclusion
+
+Session data
+
+Local sandboxing
+
+Understanding local sandboxing
+
+Cloud sandboxes
+
+Risks and mitigations
+
+Network settings
+
+Enterprise
+Policies
+
+Governance controls
+
+Default availability
+
+FedRAMP models
+
+New features and models
+
+MCP management
+
+Plugin standards
+
+OpenTelemetry
+
+Copilot-only enterprises
+
+How-tos
+Copilot on GitHub
+Set up Copilot
+Enable Copilot
+Set up for self
+
+Set up for organization
+
+Set up for enterprise
+
+Set up Copilot Business only
+
+Set up for students
+
+Set up for teachers and OS maintainers
+
+Configure access to AI models
+
+Configure code review
+
+Configure runners
+
+Chat with Copilot
+Get started with chat
+
+Chat in GitHub
+
+Chat in Mobile
+
+Customize Copilot
+Customize Copilot overview
+
+Add custom instructions
+Add personal instructions
+
+Add repository instructions
+
+Add organization instructions
+
+Customize cloud agent
+Personalize cloud sessions
+
+Create custom agents
+
+Add agent skills
+
+Use hooks
+
+Customize Actions environment
+
+Create a custom environment
+
+Configure secrets and variables
+
+Test custom agents
+
+Customize the firewall
+
+Configure MCP servers
+
+Create a plugin marketplace
+
+Spaces
+Create Copilot Spaces
+
+Collaborate with others
+
+Copilot for GitHub tasks
+Use Copilot to create or update issues
+
+Create a PR summary
+
+Use the GitHub MCP Server from Copilot Chat
+
+Use Copilot agents
+Get started
+
+Kick off a task
+
+Research, plan, iterate
+
+Manage agent sessions
+
+Copilot code review
+
+Review Copilot output
+
+Watch and fix pull requests
+
+Copilot in your IDE
+Set up Copilot
+Install Copilot extension
+
+Configure in IDE
+
+Configure network settings
+
+Authenticate to GHE.com
+
+Customize Copilot
+Configure custom instructions
+Add repository instructions in your IDE
+
+Extend Copilot with tools and context
+Extend Copilot Chat with MCP
+
+Set up the GitHub MCP Server
+
+Enterprise configuration
+
+Configure toolsets
+
+Change MCP registry
+
+Use Copilot Spaces
+
+Use plugins in Visual Studio Code
+
+Chat with Copilot
+Chat in IDE
+
+Change the chat model
+
+Chat in Windows Terminal
+
+Copilot for common tasks
+Get IDE code suggestions
+
+Find matching code
+
+Change the completion model
+
+Use the GitHub MCP Server
+
+Use Copilot agents
+Use agent mode
+
+Use plan mode
+
+Use subagents
+
+Use custom agents
+
+Browser use
+
+Use cloud agent in your IDE
+
+Copilot CLI
+All articles
+
+Copilot CLI best practices
+
+Set up Copilot CLI
+Install Copilot CLI
+
+Authenticate Copilot CLI
+
+Configure Copilot CLI
+
+Add LSP servers
+
+Troubleshoot Copilot CLI auth
+
+Use Copilot CLI
+Overview
+
+Allowing tools
+
+Use Autopilot mode
+
+Voice input
+
+Choose a model
+
+Browser use
+
+Computer use
+
+Connect to VS Code
+
+Delegate tasks to Copilot
+
+Browse issues, PRs, gists
+
+Ask a side question
+
+Cancel and roll back
+
+Work with multiple sessions
+
+Invoke custom agents
+
+Research with Copilot CLI
+
+Steer agents
+
+Steer a session remotely
+
+Set an AI credit limit
+
+Agentic code review
+
+Manage pull requests
+
+Speed up task completion
+
+Use session data
+
+Automate with Copilot CLI
+Quickstart
+
+Run the CLI programmatically
+
+Schedule prompts
+
+Automate with Actions
+
+Customize Copilot CLI
+Overview
+
+Add custom instructions
+
+Change settings
+
+Use hooks
+
+Add agent skills
+
+Add MCP servers
+
+Create custom agents
+
+Add LLM models
+
+Plugins: Find and install
+
+Plugins: Create a plugin
+
+Administer for enterprise
+
+Copilot CLI in Actions
+
+Sandbox Copilot
+Manage cloud sandboxes
+
+Use local sandboxing
+
+Configure local sandbox
+
+GitHub Copilot app
+All articles
+
+Customize the GitHub Copilot app
+
+Agent sessions
+
+Choose a model
+
+Projects
+
+Browser use
+
+Computer use
+
+Canvas extensions
+
+View and fix security alerts
+
+Managing issues and pull requests
+
+Manage Azure DevOps work
+
+Automations
+
+Add LLM models
+
+Open with deep links
+
+Copilot SDK
+Authentication
+Authenticate
+
+BYOK
+
+Server To Server Tokens
+
+Features
+Agent Loop
+
+Changing Tools
+
+Citations
+
+Client Info
+
+Cloud Sessions
+
+Context Management
+
+Custom Agents
+
+Customization Locations
+
+Fleet Mode
+
+Hooks
+
+Image Input
+
+MCP
+
+Plugin Directories
+
+Remote Sessions
+
+Session Limits
+
+Session Persistence
+
+Skills
+
+Steering And Queueing
+
+Streaming Events
+
+Usage And Billing
+
+Use hooks
+Error Handling
+
+Hooks Overview
+
+Post Tool Use
+
+Pre Tool Use
+
+Session Lifecycle
+
+User Prompt Submitted
+
+User Prompt Transformed
+
+Integrations
+Microsoft Agent Framework
+
+Observability
+Opentelemetry
+
+Set up Copilot SDK
+Azure Managed Identity
+
+Backend Services
+
+Bundled CLI
+
+Choosing A Setup Path
+
+GitHub OAuth
+
+In Process Runtime
+
+Local CLI
+
+Multi Tenancy
+
+Scaling
+
+Troubleshooting
+Compatibility
+
+Debugging
+
+MCP Debugging
+
+GitHub Agentic Workflows
+Quickstart
+
+Creating agentic workflows
+
+Use Copilot agents
+Copilot cloud agent
+Start Copilot sessions
+
+Create cloud automations
+
+Manage rationale, confidence, and approvals
+
+Changing the AI model
+
+Configuring agent settings
+
+Use Copilot in the cloud on GitHub
+
+Use Copilot in the cloud on Mobile
+
+Use agent apps
+
+Use cloud agent via the API
+
+Use cloud agent from the GitHub CLI
+
+Use cloud agent via GitHub MCP Server
+
+Use cloud agent from Raycast
+
+Troubleshoot cloud agent
+
+Copilot Memory
+Create memories
+
+Manage for yourself
+
+Manage as administrator
+
+Copilot code review
+
+Dynamic workflows
+
+Copilot integrations
+Integrate cloud agent with Slack
+
+Integrate cloud agent with Teams
+
+Integrate cloud agent with Jira
+
+Integrate cloud agent with Linear
+
+Integrate cloud agent with Azure Boards
+
+Configure content exclusion
+Exclude content from Copilot
+
+Review changes
+
+Manage and track spending
+Monitor AI credits usage
+
+Manage company spending
+
+Manage your account
+Get started with a Copilot plan
+
+View and change your Copilot plan
+
+Disable Copilot Free
+
+Manage policies
+
+Administer Copilot
+Manage for organization
+Manage plan
+Subscribe
+
+Cancel
+
+Manage access
+Grant access
+
+Manage requests for access
+
+Revoke access
+
+Manage network access
+
+Manage policies
+
+Manage Copilot in the cloud
+
+Manage GitHub App access
+
+Configure agent runners
+
+Prepare for custom agents
+
+Manage default models
+
+Review activity
+Review user activity data
+
+Enable custom models
+
+Manage for enterprise
+Manage plan
+Subscribe
+
+Cancel plan
+
+Upgrade plan
+
+Downgrade subscription
+
+Manage access
+Grant access
+
+Disable for organizations
+
+View license usage
+
+Manage network access
+
+Manage enterprise policies
+
+Use enterprise managed settings
+Get started
+
+Deploy managed settings
+
+Enterprise team overrides
+
+Manage plugins and marketplaces
+
+Copilot Business only
+
+Manage agents
+Prepare for custom agents
+
+Create github-private repository
+
+Monitor agentic activity
+
+Manage Copilot in the cloud
+
+Block agentic features
+
+Enable Copilot code review
+
+Manage model availability
+
+Enable custom models
+
+Review audit logs
+
+Manage budget requests
+
+Manage MCP usage
+Configure enterprise allowlist
+
+Configure MCP registry
+
+Restrict based on registry
+
+Download activity report
+
+View usage and adoption
+
+View repository insights
+
+View code generation
+
+View impact dashboard
+
+Troubleshoot Copilot
+Troubleshoot common issues
+
+View logs
+
+Troubleshoot firewall settings
+
+Troubleshoot network errors
+
+Troubleshoot slow responses
+
+Reference
+Chat cheat sheet
+
+Customization cheat sheet
+
+AI models
+Supported models
+
+Model comparison
+
+Model hosting
+
+Copilot feature matrix
+
+Keyboard shortcuts
+
+Copilot CLI reference
+CLI command reference
+
+CLI plugin reference
+
+CLI programmatic reference
+
+ACP server
+
+CLI configuration directory
+
+Plugins and marketplaces
+
+GitHub Copilot app reference
+Repository configuration
+
+Slash commands
+
+Built-in skills
+
+Custom agents configuration
+
+Custom instructions support
+
+Hooks reference
+
+Supported connectors
+
+Supported surfaces for policies
+
+Copilot allowlist reference
+
+Metrics data
+
+Copilot billing
+Models and pricing
+
+Billing cycle
+
+Seat assignment
+
+License changes
+
+Azure billing
+
+Request-based billing (legacy)
+What changed with billing (legacy)
+
+Copilot requests (legacy)
+
+Billing overview (legacy)
+
+Monitor premium requests (legacy)
+
+Model multipliers for annual plans (legacy)
+
+Review excluded files
+
+Copilot usage metrics
+Copilot usage metrics data
+
+Coverage and requirements
+
+Industry comparisons
+
+Interpret usage metrics
+
+Repository insights
+
+Reconciling Copilot usage metrics
+
+Copilot LoC metrics
+
+Team-level metrics
+
+Example schema
+
+Enterprise administrators
+Agent session filters
+
+Agentic audit log events
+
+Enterprise managed settings
+
+MCP private registry enforcement
+
+OpenTelemetry reference
+
+Policy conflicts
+
+Tutorials
+All tutorials
+
+GitHub Copilot Cookbook
+All prompts
+
+Communicate effectively
+Create templates
+
+Summarize repository activity
+
+Synthesize research
+
+Create diagrams
+
+Debug errors
+Debug invalid JSON
+
+Handle API rate limits
+
+Diagnose CI test failures
+
+Analyze functionality
+Explore implementations
+
+Analyze feedback
+
+Generate code
+Implement a feature
+
+Refactor code
+Improve code readability
+
+Refactor for optimization
+
+Refactor design patterns
+
+Refactor data access layers
+
+Handle cross-cutting
+
+Simplify inheritance hierarchies
+
+Fix database deadlocks
+
+Translate code
+
+Testing code
+Generate unit tests
+
+Create mock objects
+
+Create end-to-end tests
+
+Analyze security
+Secure your repository
+
+Manage dependency updates
+
+Find vulnerabilities
+
+Customization library
+All customizations
+
+Custom instructions
+Your first custom instructions
+
+Concept explainer
+
+Debugging tutor
+
+Code reviewer
+
+GitHub Actions helper
+
+Pull request assistant
+
+Issue manager
+
+Accessibility auditor
+
+Testing automation
+
+Prompt files
+Your first prompt file
+
+Create README
+
+Onboarding plan
+
+Document API
+
+Review code
+
+Generate unit tests
+
+Custom agents
+Your first custom agent
+
+Implementation planner
+
+Bug fix teammate
+
+Cleanup specialist
+
+Cloud agent
+Get the best results
+
+Improve a project
+
+Build enterprise guardrails
+
+Give access to resources
+
+Set up budgets
+Get started with budgets
+
+Optimize budget configuration
+
+Customize code review
+
+Pull request lifecycle
+
+Enhance agent mode with MCP
+
+Speed up development work
+
+Roll out at scale
+Assign licenses
+Choose enterprise plan
+
+Set up self-serve licenses
+
+Track usage and adoption
+
+Remind inactive users
+
+Govern at scale
+Resources for approval
+
+Establish AI managers
+
+Govern for adoption
+
+Pilot a feature or model
+
+Maintain codebase standards
+
+Enable developers
+Drive adoption
+
+Roll out the Copilot app
+
+Understand agent workflows
+
+Drive agentic adoption
+
+Drive downstream impact
+Achieve company goals
+
+Increase test coverage
+
+Accelerate pull requests
+
+Reduce security debt
+
+Copilot usage metrics
+
+Communicate impact
+
+Measure trial success
+
+Explore a codebase
+
+Explore issues and discussions
+
+Explore pull requests
+
+Write tests
+
+Optimize AI usage
+
+Optimize Chat usage
+
+Optimize code reviews
+
+Reduce technical debt
+
+Stack AI pull requests
+
+Review AI code
+
+Vibe coding
+
+Roll out CLI hooks
+
+Use an AI SME
+
+Create CLI extensions
+
+Responsible use
+Chat
+
+Inline suggestions
+
+Agents
+
+In this article
+
+Configuring toolsets for the GitHub MCP Server
+
+Learn how to configure toolsets and tools for the GitHub MCP server for fine-grained control and optimized performance.
+
+Copy markdown
+
+In this article
+Configuring toolsets for the remote MCP server
+
+Configuring toolsets for the local MCP server
+
+Further reading
+
+The GitHub MCP server includes default toolsets ( repos , issues , and pull_requests ) that are enabled automatically. You can customize toolset configuration by:
+
+Enabling individual toolsets such as actions , code_security , or secret_protection . For a step-by-step guide to scanning for secrets using the secret_protection toolset, see Scanning for secrets with the GitHub MCP server .
+
+Using special keywords like all to enable every available toolset, or default to include the standard set alongside others (for example, default,stargazers )
+
+Accessing remote-only toolsets such as copilot (for Copilot cloud agent) and github_support_docs_search , which are only available on the remote MCP server
+
+Selecting specific tools for granular control when you want to exclude specific tools or combine toolsets with individual tools
+
+For a complete list of available toolsets, see Tools in the github/github-mcp-server repository. For configuration examples, see Server configuration . For a full introduction to the GitHub MCP server and an overview of MCP, see Model Context Protocol (MCP) .
+
+Configuring toolsets for the remote MCP server
+
+You can configure toolsets for the remote GitHub MCP server using:
+
+URL path parameters when enabling a single toolset
+
+HTTP headers when enabling multiple toolsets
+
+For detailed setup instructions, see Remote GitHub MCP server and Remote server configuration in the github/github-mcp-server repository.
+
+Configuring toolsets for the local MCP server
+
+You can configure toolsets for the local GitHub MCP server using:
+
+Command-line flags
+
+Environment variables (these take precedence over command-line flags)
+
+For detailed setup instructions, see Local GitHub MCP server and Tool configuration in the github/github-mcp-server repository.
+
+Further reading
+
+Setting up the GitHub MCP Server
+
+Using the GitHub MCP Server in your IDE
+
+Back to top
+
+Help and support
+Was this Doc helpful?
+Yes No
+
+Help us make GitHub Docs great!
+All Docs are open source. See something that's wrong or unclear? Submit a pull request.
+Make a contribution
+
+Still need help?
+Ask the GitHub community Contact support Expert services Blog
+
+GitHub Inc. © 2026 Terms Privacy Status Pricing

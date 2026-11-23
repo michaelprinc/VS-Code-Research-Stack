@@ -488,7 +488,7 @@
       "summary": "Planned vector-store integration.",
       "guide": "guides/qdrant-local-service.md",
       "officialUrl": "https://qdrant.tech/documentation/quickstart/",
-      "reviewedAt": "2026-10-11",
+      "reviewedAt": "2026-11-22",
       "install": {
         "mode": "planned",
         "step": null,
@@ -508,7 +508,7 @@
       "summary": "Planned CPU vector encoding.",
       "guide": "guides/cpu-embedding-runtime-and-model.md",
       "officialUrl": "https://huggingface.co/docs/transformers/index",
-      "reviewedAt": "2026-10-11",
+      "reviewedAt": "2026-11-22",
       "install": {
         "mode": "planned",
         "step": null,
@@ -528,7 +528,7 @@
       "summary": "Planned persistent source/claim/evidence storage.",
       "guide": "guides/duckdb-research-record-store.md",
       "officialUrl": "https://duckdb.org/docs/stable/",
-      "reviewedAt": "2026-10-11",
+      "reviewedAt": "2026-11-22",
       "install": {
         "mode": "planned",
         "step": null,
@@ -548,7 +548,7 @@
       "summary": "Optional planned research browser capability.",
       "guide": "guides/playwright-browser-capability.md",
       "officialUrl": "https://github.com/microsoft/playwright-mcp",
-      "reviewedAt": "2026-10-11",
+      "reviewedAt": "2026-11-22",
       "install": {
         "mode": "planned",
         "step": null,
@@ -568,7 +568,7 @@
       "summary": "Provider-specific access remains unselected.",
       "guide": "guides/institutional-provider-adapters.md",
       "officialUrl": null,
-      "reviewedAt": "2026-10-11",
+      "reviewedAt": "2026-11-22",
       "install": {
         "mode": "planned",
         "step": null,

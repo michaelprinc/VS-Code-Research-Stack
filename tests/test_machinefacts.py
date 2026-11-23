@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -247,16 +248,160 @@ def test_a_fact_with_no_moment_is_refused_because_the_reader_would_reject_it(mac
     assert machinefacts.read_facts()["facts"] == {}, "and the read still holds no claim"
 
 
+# --- 0.3.15: readiness as a machine fact, not only as an environment variable (TASK P-2) ----------------
+# Field evidence 21/22 November 2026: `PROVIDER_TERMS_NOT_ACKNOWLEDGED` was raised whenever the variable was
+# absent, including on a machine where the operator had already consented in the panel — the variable exists
+# only in the process the extension launched. That confusion produced a wrong conclusion on 21 November and
+# had to be corrected on 22 November. Consent has to be something this machine can state on its own.
+
+ACKNOWLEDGED_AT = "2026-11-21T13:08:00+00:00"
+SENTINEL_TOKEN_MOMENT = "2026-99-99T13:08:00+00:00"
+
+
+def write_s2_state(**overrides) -> dict[str, object]:
+    values: dict[str, object] = {"mode": "anonymous", "updated_at_ms": DETECTED_AT,
+                                 "license_acknowledged_at": ACKNOWLEDGED_AT,
+                                 "key_decision": "declined", "last_successful_check_at": None}
+    values.update(overrides)
+    return machinefacts.write_state("semantic_scholar", **values)
+
+
+def test_a_consent_fact_is_a_state_and_never_an_installation_fact(machine_dir: Path) -> None:
+    """A hosted API has no installation here, so its fact goes in the section that says so.
+
+    The host reader (`extension/integrationprobe.js`) refuses a Semantic Scholar entry inside `facts` and
+    rejects the whole document with it — which would take the Zotero installation fact down too. The two
+    kinds of fact are therefore kept in two sections of the one file.
+    """
+    assert write_s2_state()["written"] is True
+    document = json.loads(facts_file(machine_dir).read_text(encoding="utf-8"))
+    assert set(document) == {"schemaVersion", "facts", "providerState"}
+    assert document["facts"] == {}, "no installation fact was invented for a hosted provider"
+    assert set(document["providerState"]) == {"semantic_scholar"}
+    assert set(document["providerState"]["semantic_scholar"]) == set(machinefacts.STATE_FIELDS)
+    assert machinefacts.read_facts()["facts"] == {}
+    assert machinefacts.read_provider_state()["semantic_scholar"]["licenseAcknowledgedAt"] == ACKNOWLEDGED_AT
+
+
+def test_an_installation_fact_for_a_hosted_provider_is_still_refused(machine_dir: Path) -> None:
+    """Adding the consent section must not turn `write_fact` into a place a hosted provider can claim an install."""
+    refused = machinefacts.write_fact("semantic_scholar", found=True, classification="ready", platform="Linux",
+                                      detected_at_ms=DETECTED_AT, code=None)
+    assert refused["written"] is False and refused["code"] == "FACTS_PROVIDER_REFUSED"
+    machine_dir.mkdir(parents=True, exist_ok=True)
+    facts_file(machine_dir).write_text(json.dumps({"schemaVersion": 1, "facts": {
+        "semantic_scholar": {"found": True, "classification": "ready", "platform": "Linux",
+                             "detectedAtMs": DETECTED_AT, "code": None}}}), encoding="utf-8")
+    assert machinefacts.read_facts()["facts"] == {}, "a fake installation fact is not read back as a fact"
+
+
+def test_a_decision_the_operator_made_is_not_erased_by_a_process_that_knows_nothing(machine_dir: Path) -> None:
+    """The merge rule: a field this process was not told keeps what an earlier process recorded.
+
+    A CLI run that carries no key and no key decision must not rewrite "the operator declined a key" into
+    "nobody asked", and a check that failed must not erase the moment a check last succeeded.
+    """
+    assert write_s2_state(mode="keyed", key_decision="provided",
+                          last_successful_check_at="2026-11-21T13:20:00+00:00")["written"] is True
+    before = machinefacts.read_provider_state()["semantic_scholar"]
+    assert write_s2_state(mode="anonymous", updated_at_ms=DETECTED_AT + 60_000,
+                          license_acknowledged_at=None, key_decision=None, last_successful_check_at=None)["written"] is True
+    after = machinefacts.read_provider_state()["semantic_scholar"]
+    assert after["licenseAcknowledgedAt"] == before["licenseAcknowledgedAt"], "a consent instant is not forgotten"
+    assert after["keyDecision"] == "provided", "declining a key is not the same as never being asked"
+    assert after["lastSuccessfulCheckAt"] == before["lastSuccessfulCheckAt"], "a failed check does not un-succeed the last one"
+    assert after["mode"] == "anonymous" and after["updatedAtMs"] == DETECTED_AT + 60_000, \
+        "what this process measured is what this process states"
+
+
+def test_a_write_of_one_section_carries_the_other_section_through_unchanged(machine_dir: Path) -> None:
+    """Two writers, one file: recording Zotero must not overwrite what the operator decided about S2.
+
+    In 0.3.14 `write_fact` rebuilt the document from the facts it knew, so a second section would have been
+    dropped by the writer that did not know about it.
+    """
+    assert write_s2_state()["written"] is True
+    state = machinefacts.read_provider_state()
+    assert record()["written"] is True
+    assert machinefacts.read_provider_state() == state, "the installation write cut the decision section out"
+    assert machinefacts.read_facts()["facts"]["zotero"]["classification"] == "api-disabled"
+    assert [path.name for path in machine_dir.iterdir()] == [machinefacts.FACTS_FILE_NAME], "one file, still one file"
+    body = json.loads(facts_file(machine_dir).read_text(encoding="utf-8"))
+    assert len(facts_file(machine_dir).read_bytes()) < machinefacts.MAX_FACTS_BYTES, \
+        "T12-35: both sections together still fit the Toolkit's own bound"
+
+
+@pytest.mark.parametrize(("field", "value", "code"), [
+    ("mode", SENTINEL_KEY, "FACTS_STATE_REFUSED"),
+    ("mode", "api-key", "FACTS_STATE_REFUSED"),
+    ("mode", None, "FACTS_STATE_REFUSED"),
+    ("key_decision", SENTINEL_TOKEN, "FACTS_STATE_REFUSED"),
+    ("license_acknowledged_at", SENTINEL_USER_FILE, "FACTS_VALUE_REFUSED"),
+    ("license_acknowledged_at", SENTINEL_TOKEN, "FACTS_VALUE_REFUSED"),
+    ("license_acknowledged_at", SENTINEL_TOKEN_MOMENT, "FACTS_VALUE_REFUSED"),
+    ("last_successful_check_at", SENTINEL_WORKSPACE_PATH, "FACTS_VALUE_REFUSED"),
+])
+def test_a_state_value_that_is_not_a_mode_a_decision_or_a_moment_is_refused_by_its_rule(
+        machine_dir: Path, field: str, value: object, code: str) -> None:
+    """The state section cannot hold a credential, a path or a plausible-looking string that is not an instant."""
+    arguments: dict[str, object] = {field: value}
+    refused = write_s2_state(**arguments)
+    assert refused["written"] is False and refused["code"] == code, refused
+    assert str(value) not in json.dumps(refused), f"the refusal echoed the {field} it refused"
+    assert not facts_file(machine_dir).exists(), "a refused state left no file behind"
+    assert machinefacts.read_provider_state() == {}
+
+
+def test_a_state_with_no_moment_is_refused_because_the_reader_would_reject_it(machine_dir: Path) -> None:
+    """Same rule as the installation fact: the writer must not produce what the reader cannot honour."""
+    for moment in (0, -1, True, "1762000000000"):
+        refused = write_s2_state(updated_at_ms=moment)
+        assert refused["written"] is False and refused["code"] == "FACTS_VALUE_REFUSED", refused
+    assert not facts_file(machine_dir).exists() or not list(machine_dir.glob("integration-facts.json*"))
+
+
+def test_the_state_section_is_size_capped_and_an_oversized_write_is_refused_whole(machine_dir: Path,
+                                                                                 monkeypatch: pytest.MonkeyPatch) -> None:
+    """T12-35 applies to the whole document, not to one section of it."""
+    assert record()["written"] is True and write_s2_state()["written"] is True
+    before = facts_file(machine_dir).read_bytes()
+    monkeypatch.setattr(machinefacts, "MAX_FACTS_BYTES", 180)
+    refused = write_s2_state(mode="keyed", key_decision="provided")
+    assert refused["written"] is False and refused["code"] == "FACTS_TOO_LARGE"
+    assert facts_file(machine_dir).read_bytes() == before, "the file on disk is the file that was already there"
+    assert machinefacts.read_provider_state()["semantic_scholar"]["keyDecision"] == "declined", \
+        "the refused rewrite left the recorded decision exactly as it was"
+
+
+def test_the_vocabulary_the_host_and_the_worker_share_is_named_in_the_module() -> None:
+    """The mode and decision words are the panel's words; a variant invented here would read as damage."""
+    source = (Path(__file__).resolve().parents[1] / "src/research_stack/machinefacts.py").read_text(encoding="utf-8")
+    panel = (Path(__file__).resolve().parents[1] / "extension/integrations.js").read_text(encoding="utf-8")
+    assert set(machinefacts.STATE_KEY_DECISIONS) <= set(_panel_key_decisions(panel)), \
+        "every decision the worker can record is one the panel can already show"
+    assert "STATE_PROVIDERS" in source and "INSTALLATION_PROVIDERS" in source, \
+        "the two kinds of fact are named apart, not inferred from a provider name"
+
+
+def _panel_key_decisions(panel_source: str) -> list[str]:
+    match = re.search(r"const KEY_DECISIONS = \[([^\]]*)\]", panel_source)
+    assert match, "the panel's key decisions could not be read to compare them with the worker's"
+    return [item.strip().strip('"') for item in match.group(1).split(",")]
+
+
 def test_the_module_carries_no_forbidden_or_outbound_primitive() -> None:
     """The VSIX audit rule (scripts/verify_vsix.py:180-183), stated as a test.
 
-    Byte ceiling: 11 500 is the measured module plus headroom, stated so it cannot drift upward
-    silently. The module ships once, in the worker copy, and the artifact ceiling itself is measured
-    by the coordinator under DD12-09.
+    Byte ceiling: 17 600, raised from 11 500 (0.3.15). The module now also states a hosted provider's
+    recorded decision — consent instant, access mode, key decision, last successful check — in its own
+    section of the one machine-level file, with its own validation and its own refusals. That is readiness
+    as a fact instead of as an environment variable, which is what the 21 November field confusion needed;
+    measured 17 120 bytes, so the headroom is 480. The module ships once, in the worker copy, and the
+    artifact ceiling itself is measured by the coordinator under DD12-09.
     """
     source = Path(__file__).resolve().parents[1] / "src/research_stack/machinefacts.py"
     text = source.read_text(encoding="utf-8")
     for primitive in ("subprocess", "eval(", "exec(", "__import__(", "os.system", "os.popen", "os.exec", "pty",
                       "multiprocessing", "fcntl", "msvcrt", "urllib", "urlopen", "build_opener", "socket", "http.client"):
         assert primitive not in text, f"machinefacts.py must not contain {primitive}"
-    assert len(source.read_bytes()) < 11_500, "the module is packaged in the worker copy and the artifact has a reviewed byte ceiling"
+    assert len(source.read_bytes()) < 17_600, "the module is packaged in the worker copy and the artifact has a reviewed byte ceiling"

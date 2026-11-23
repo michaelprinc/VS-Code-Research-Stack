@@ -14,7 +14,7 @@ const integrations = require("../integrations");
 // The check window belongs to the probe module. The model's own default has to agree with it, so the test reads
 // the published number instead of repeating it: the window can move without the suite going stale. Since 0.3.14
 // the window is also a setting (HR-30), so the range and the clamp are read from the same export.
-const { PROBE_COOLDOWN_MS, PROBE_COOLDOWN_MIN_SECONDS, PROBE_COOLDOWN_MAX_SECONDS, probeBounds } = require("../integrationprobe");
+const { PROBE_COOLDOWN_MS, PROBE_COOLDOWN_MIN_SECONDS, PROBE_COOLDOWN_MAX_SECONDS, probeBounds, probeEnvironment } = require("../integrationprobe");
 
 const AT = "2026-11-08T14:00:00.000Z";
 const LATER = "2026-11-08T14:05:00.000Z";
@@ -537,4 +537,31 @@ test("the panel accepts a result only for a request it asked for, bounds its pen
   assert.match(renderer, /const startsACheck = id === "check" \|\| id === "installedNow";/, "exactly the two actions that start a check are the ones qualified");
   assert.match(renderer, /if \(startsACheck && blocked\) markUnavailable\(button, `\$\{blocked\}\$\{waitText\}`\)/, "a check this workspace cannot run is rendered as an explained unavailable button, not as one that answers a Zotero question with an error about package components");
   assert.match(renderer, /button\.title = `\$\{spec\[0\]\}\$\{waitText\}`/, "the remaining whole seconds are in the tooltip before the press");
+});
+
+test("the probe hands the worker the consent the operator actually gave, and only for the provider that was asked about", () => {
+  // 0.3.15: the worker keeps a machine-level record of what the operator decided (`providerState`, read through
+  // `machinefacts.read_provider_state`). With only the boolean flag crossing the boundary, a consent this profile
+  // had recorded reached the worker as nothing at all, and the check named it `PROVIDER_TERMS_STORED_BUT_NOT_INJECTED`
+  // — the card said confirmed while the check behaved as unconfirmed. The stored instant and the stored key
+  // decision now travel with the flag, as the names the worker already reads.
+  const declined = integrations.recordKeyDecision(authorized(), "semantic-scholar", "declined", LATER);
+  const environment = probeEnvironment({ registry: declined });
+  assert.equal(environment.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED, "true", "the switch the worker gates on is unchanged");
+  assert.equal(environment.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT, AT, "the stored consent keeps its own date across the boundary");
+  assert.equal(environment.SEMANTIC_SCHOLAR_KEY_DECISION, "declined", "and the answer the operator gave about a key is forwarded as their answer");
+  assert.deepEqual(Object.keys(environment).sort(), ["SEMANTIC_SCHOLAR_KEY_DECISION", "SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED", "SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT"],
+    "three names and nothing else: the probe environment is not a place the Toolkit dumps state");
+
+  const KEY = "s2k-0123456789abcdef0123456789abcdef";
+  const keyed = probeEnvironment({ registry: integrations.setMode(declined, "semantic-scholar", "api-key", LATER), apiKey: KEY });
+  assert.equal(keyed.SEMANTIC_SCHOLAR_API_KEY, KEY, "a credential appears only for the mode the operator chose, which is the rule 0.3.11 set and this keeps");
+  assert.ok(!JSON.stringify(environment).includes(KEY), "with no key asked for, no key value is in what the probe carries — and no consent fact is a credential");
+  assert.ok(!JSON.stringify(declined).includes(KEY), "the integration record the profile stores never holds the key itself");
+  assert.equal(declined.providers["semantic-scholar"].license.acknowledgedAt, AT, "forwarding the stored instant does not rewrite it: the probe carries what is stored");
+  assert.equal(integrations.needsConsent(declined, "semantic-scholar"), false, "a consent the operator already gave is not asked for twice");
+
+  assert.deepEqual(probeEnvironment({ registry: integrations.revokeIntegration(declined, "semantic-scholar", LATER) }), {},
+    "the provider that was not asked about gets nothing at all, so a stored consent cannot reach a probe that did not ask");
+  assert.deepEqual(probeEnvironment({ registry: integrations.emptyRegistry() }), {}, "and a profile that never consented still gets nothing");
 });

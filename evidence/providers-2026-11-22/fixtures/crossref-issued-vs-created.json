@@ -1,0 +1,85 @@
+{
+  "proves": "Crossref `created` is the DOI registration date, not the publication date; `issued` is the publication date where Crossref has one",
+  "measuredAt": "2026-11-23T05:45:27+00:00",
+  "rows": [
+    {
+      "doi": "10.32725/cetv.2017.022",
+      "allDates": {
+        "issued": "2017-03-30",
+        "published-print": "2017-03-30",
+        "created": "2021-10-11"
+      },
+      "dateField": "issued",
+      "date": "2017-03-30",
+      "title": "Kanonick\u00e9 pr\u00e1vo a spiritualita",
+      "publicationType": "journal-article"
+    },
+    {
+      "doi": "10.2307/j.ctt28524j.7",
+      "allDates": {
+        "created": "2017-09-07"
+      },
+      "dateField": "created",
+      "date": "2017-09-07",
+      "title": "Byzantine Canon Law to 1100",
+      "publicationType": "book-chapter"
+    },
+    {
+      "doi": "10.1163/9789004525863-cp092202",
+      "allDates": {
+        "created": "2023-12-18"
+      },
+      "dateField": "created",
+      "date": "2023-12-18",
+      "title": "CORPUS IURIS CANONICI",
+      "publicationType": "dataset"
+    },
+    {
+      "doi": "10.1163/2211-2685_eco_c1317",
+      "allDates": {
+        "created": "2014-10-29"
+      },
+      "dateField": "created",
+      "date": "2014-10-29",
+      "title": "Corpus Iuris Canonici",
+      "publicationType": "dataset"
+    },
+    {
+      "doi": "10.1016/s0140-6736(97)11096-0",
+      "allDates": {
+        "issued": "1998-02-01",
+        "published-print": "1998-02-01",
+        "created": "2002-07-25"
+      },
+      "dateField": "issued",
+      "date": "1998-02-01",
+      "title": "RETRACTED: Ileal-lymphoid-nodular hyperplasia, non-specific colitis, and pervasive developmental disorder in children",
+      "publicationType": "journal-article"
+    },
+    {
+      "doi": "10.1038/nature00870",
+      "allDates": {
+        "issued": "2002-06-20",
+        "published-online": "2002-06-20",
+        "published-print": "2002-07-04",
+        "created": "2002-07-28"
+      },
+      "dateField": "issued",
+      "date": "2002-06-20",
+      "title": "RETRACTED ARTICLE: Pluripotency of mesenchymal stem cells derived from adult marrow",
+      "publicationType": "journal-article"
+    },
+    {
+      "doi": "10.1056/nejmoa1200303",
+      "allDates": {
+        "issued": "2013-04-04",
+        "published-print": "2013-04-04",
+        "created": "2013-02-25"
+      },
+      "dateField": "issued",
+      "date": "2013-04-04",
+      "title": "RETRACTED: Primary Prevention of Cardiovascular Disease with a Mediterranean Diet",
+      "publicationType": "journal-article"
+    }
+  ]
+}

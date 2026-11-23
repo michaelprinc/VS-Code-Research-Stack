@@ -546,3 +546,160 @@ def test_crossref_validation_uses_the_same_identifying_headers_as_search(monkeyp
     seen.clear()
     research.search_literature("crossref", "same headers", 3)
     assert "mailto:researcher@example.org" in seen[0]["headers"]["User-Agent"], "search and DOI lookup share one request policy"
+
+
+# --- 0.3.15 provider-field patch (HR-41: each behaviour change with the test that proves it) ----------
+
+CANON_LAW_DOI = "10.32725/cetv.2017.022"
+CANON_LAW_OPENALEX_ROW = {
+    "id": "https://openalex.org/W3206688818", "doi": f"https://doi.org/{CANON_LAW_DOI}",
+    "title": "Kanonické právo a spiritualita", "type": "article", "is_retracted": False,
+    "cited_by_count": 0, "is_paratext": False,
+    "referenced_works": ["https://openalex.org/W1", "https://openalex.org/W2"],
+    "authorships": [{"author": {"display_name": "P. Svoboda"}}], "publication_year": 2017,
+    "publication_date": "2017-03-30", "primary_location": None, "open_access": None,
+}
+CANON_LAW_CROSSREF_ROW = {
+    "DOI": CANON_LAW_DOI, "title": ["Kanonické právo a spiritualita"], "type": "journal-article",
+    "issued": {"date-parts": [[2017, 3, 30]]}, "published-print": {"date-parts": [[2017, 3, 30]]},
+    "created": {"date-parts": [[2021, 10, 11]]}, "is-referenced-by-count": 0, "reference-count": 2,
+}
+
+
+def test_a_doi_query_is_looked_up_by_doi_and_not_searched_as_free_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HR-41 (item 6): a DOI-shaped query takes the identifier routes, and the receipt names the route it took.
+
+    0.3.14 sent `works?search=10.32725/cetv.2017.022` to OpenAlex — 0 rows in the 22 November measurement —
+    and `query.bibliographic=` to Crossref. Both providers have a route that answers for the identifier, and
+    the Crossref one is also the route that carries `updated-by`, the only thing naming a retraction. A query
+    that is not a DOI still takes the old path.
+    """
+    seen: list[str] = []
+
+    def response(url: str, headers: dict[str, str] | None = None):
+        seen.append(url)
+        if "api.openalex.org" in url:
+            return ({"results": [CANON_LAW_OPENALEX_ROW], "meta": {"count": 1}}, {})
+        if "/works/10." in url:
+            return ({"status": "ok", "message": CANON_LAW_CROSSREF_ROW}, {})
+        return ({"message": {"items": [CANON_LAW_CROSSREF_ROW], "total-results": 1}}, {})
+
+    monkeypatch.setattr(research, "_request_json", response)
+
+    openalex = research.search_literature("openalex", CANON_LAW_DOI, 5)
+    assert "filter=doi%3A10.32725%2Fcetv.2017.022" in seen[-1] and "search=" not in seen[-1], seen[-1]
+    assert openalex["providers"][0]["route"] == "openalex-doi-filter", "the receipt says how the answer was found"
+    record = openalex["records"][0]
+    assert record["retracted"]["value"] is False and record["citationCount"]["value"] == 0
+    assert record["referenceCount"]["value"] == 2 and record["publicationType"]["value"] == "article"
+
+    seen.clear()
+    crossref = research.search_literature("crossref", f"https://doi.org/{CANON_LAW_DOI}", 5)
+    assert seen == [f"https://api.crossref.org/works/{CANON_LAW_DOI}"], "a DOI in a citation form is still a DOI"
+    assert crossref["providers"][0]["route"] == "crossref-single-doi" and crossref["providers"][0]["reportedCount"] == 1
+    assert crossref["records"][0]["date"]["value"] == "2017-03-30"
+    assert crossref["records"][0]["dateField"]["value"] == "issued", "not 2021-10-11, which is when the DOI was registered"
+
+    seen.clear()
+    research.search_literature("openalex", "canon law", 5)
+    assert "search=canon+law" in seen[0] and "filter=" not in seen[0], "a topical query is unchanged"
+    topical = research.search_literature("crossref", "canon law", 5)
+    assert topical["providers"][0]["route"] == "crossref-bibliographic" and "query.bibliographic=canon+law" in seen[1]
+
+
+def test_a_crossref_retraction_survives_an_openalex_that_never_saw_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HR-41 (items 2 and 4, at the merge): the retraction flag is the one field the first answer does not win.
+
+    OpenAlex answers `is_retracted: false` for the retracted Lancet paper; Crossref's single-DOI row names a
+    retraction in `updated-by`. Under the documented merge rule the first observed value stays displayed —
+    which here would display "not retracted" for a retracted paper. Absence is not a refutation, so this one
+    field is the stated exception, and the disagreement is kept rather than hidden.
+    """
+    lancet = "10.1016/s0140-6736(97)11096-0"
+
+    def response(url: str, headers: dict[str, str] | None = None):
+        if "api.openalex.org" in url:
+            return ({"results": [{"id": "https://openalex.org/W99", "doi": f"https://doi.org/{lancet}", "title": "RETRACTED: Ileal-lymphoid-nodular hyperplasia",
+                                  "type": "article", "is_retracted": False, "cited_by_count": 2051, "referenced_works": [],
+                                  "authorships": [], "publication_year": 1998, "publication_date": "1998-02-01"}], "meta": {"count": 1}}, {})
+        if "/works/10." in url:
+            return ({"status": "ok", "message": {"DOI": lancet, "title": ["RETRACTED: Ileal-lymphoid-nodular hyperplasia"], "type": "journal-article",
+                                                  "issued": {"date-parts": [[1998, 2, 1]]}, "created": {"date-parts": [[2002, 7, 25]]},
+                                                  "updated-by": [{"DOI": "10.1016/s0140-6736(04)15715-2", "type": "correction", "label": "Correction"},
+                                                                 {"DOI": "10.1016/s0140-6736(99)00302-5", "type": "retraction", "label": "Retraction"}],
+                                                  "is-referenced-by-count": 2051, "reference-count": 26}}, {})
+        return ({"data": [{"paperId": "S2-11", "title": "RETRACTED: Ileal-lymphoid-nodular hyperplasia", "externalIds": {"DOI": lancet}}], "total": 1}, {})
+
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED", "true")
+    monkeypatch.setattr(research, "_request_json", response)
+    result = research.search_literature("all", lancet, 5)
+    record = next(item for item in result["records"] if item["doi"]["value"] == lancet)
+    assert record["retracted"]["value"] is True, "the retraction Crossref named is what the record says, whatever arrived first"
+    assert record["retracted"]["provenance"]["provider"] == "crossref", "the flag carries the provider that actually named it"
+    assert record["retracted"]["selectedReason"], "the reason for departing from the first-observed rule is stated on the record"
+    assert False in [item["value"] for item in record["retracted"]["observations"]] and True in [item["value"] for item in record["retracted"]["observations"]], \
+        "OpenAlex's `false` is retained as its own observation, not overwritten into silence"
+    assert record["citationCount"]["value"] == 2051, "both providers sent the same count"
+    assert record["referenceCount"]["value"] == 0 and record["referenceCount"]["conflicts"] == [0, 26], \
+        "counts keep the documented rule — OpenAlex sent an empty `referenced_works` list, which is a reported zero, and Crossref's 26 is kept as its own observation. Only the retraction flag departs from it."
+
+
+def test_ris_writes_the_date_and_says_which_provider_field_it_came_from() -> None:
+    """HR-41 (item 8): `DA` carries the normalized date and `M2` says what that date means.
+
+    A bare `PY  - 2017` in a Zotero library cannot be told apart from a 2021 registration date after the
+    import. `M2` is the field Zotero's RIS translator keeps as `extra` (measured 14 November 2026), so the
+    provenance survives the import instead of being a note only the export had.
+    """
+    record = research._normalize("crossref", CANON_LAW_CROSSREF_ROW, "2026-11-23T05:45:27+00:00", research._query_hash("crossref", CANON_LAW_DOI))
+    text = research.to_ris([record])
+    assert "DA  - 2017-03-30" in text, "the date the library stores is the normalized date, not a bare year"
+    assert "M2  - providers: Crossref; date from Crossref 'issued'" in text, text
+    assert "2021-10-11" not in text, "the DOI registration date is not the publication date and is not written as one"
+    check = research.validate_ris_text(text, expect=1)
+    assert check["valid"] is True and check["recordCount"] == 1
+    assert not [problem for problem in check["problems"] if problem["problem"] in ("unknown-tag", "repeated-field", "malformed-line")], \
+        "DA and M2 are tags Zotero's translator reads (`RIS_KNOWN_TAGS`), written exactly once each"
+    assert text.count("DA  - ") == 1 and text.count("M2  - ") == 1
+
+
+def test_a_date_that_came_from_doi_registration_says_so_in_the_library() -> None:
+    """HR-41 (item 3): `created` may be used when nothing else exists, but never silently."""
+    raw = {"DOI": "10.2307/j.ctt28524j.7", "title": ["Byzantine Canon Law to 1100"], "type": "book-chapter",
+           "created": {"date-parts": [[2017, 9, 7]]}}
+    record = research._normalize("crossref", raw, "2026-11-23T05:45:27+00:00", research._query_hash("crossref", raw["DOI"]))
+    assert record["dateField"]["value"] == "created" and any("DOI_REGISTRATION" in warning for warning in record["warnings"])
+    text = research.to_ris([record])
+    assert "DA  - 2017-09-07" in text
+    assert "date from Crossref 'created'" in text and "Crossref 'created' is the DOI registration date" in text, text
+    assert "TY  - CHAP" in text, "`book-chapter` is chapter-like whatever the word 'book' inside it suggests"
+    assert research.validate_ris_text(text, expect=1)["valid"] is True
+
+
+def test_the_new_ris_lines_do_not_disturb_the_filterable_kw_tags() -> None:
+    """HR-41 (item 8): `KW` is the only field Zotero turns into a tag a later reader can filter on."""
+    record = research._normalize("crossref", CANON_LAW_CROSSREF_ROW, "2026-11-23T05:45:27+00:00", research._query_hash("crossref", CANON_LAW_DOI))
+    record["tags"] = ["access/metadata_only", "topic/canon-law"]
+    text = research.to_ris([record])
+    assert [line for line in text.splitlines() if line.startswith("KW  - ")] == ["KW  - access/metadata_only", "KW  - topic/canon-law"], \
+        "the two facet tags arrive unchanged, in order, and nothing new was read as a tag"
+    check = research.validate_ris_text(text, expect=1)
+    assert check["valid"] is True
+    assert "N1" not in text, "status stays out of the child note that cannot be filtered"
+
+
+def test_book_and_chapter_types_are_families_not_one_name_in_the_import() -> None:
+    """HR-41 (item 5): Crossref's `type` vocabulary reaches the RIS record type as a family test.
+
+    Before this patch `monograph` fell through to `TY  - GEN` — which the translator measured on 14 November
+    2026 imports as `journalArticle` — and `book-part` was mapped as a whole book.
+    """
+    types = ("book", "monograph", "edited-book", "book-set", "reference-book", "book-chapter", "book-part")
+    records = [{"title": {"value": f"A {name}"}, "publicationType": {"value": name}, "doi": {"value": f"10.1234/{name.replace('-', '_')}"},
+                "authors": {"value": ["Ada Author"]}} for name in types]
+    text = research.to_ris(records)
+    assert text.count("TY  - BOOK") == 5, "book / monograph / edited-book / book-set / reference-book are one family"
+    assert text.count("TY  - CHAP") == 2, "book-chapter and book-part are the other family"
+    assert "TY  - GEN" not in text and "TY  - JOUR" not in text, "a monograph was imported as a journal article"
+    check = research.validate_ris_text(text, expect=len(types))
+    assert check["valid"] is True and not any(problem["problem"] == "generic-record-type" for problem in check["warnings"])

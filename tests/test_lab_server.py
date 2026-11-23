@@ -1,5 +1,7 @@
 """The Full package MCP surface: eleven corpus/record verbs with separated reads and writes."""
+import hashlib
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -197,6 +199,104 @@ def test_draft_is_an_accepted_claim_status_through_the_verb_and_an_unknown_one_i
     refused = lab_server.claims_write("A statement with an invented status.", status="under-review")
     assert refused["error"]["code"] == "CLAIM_STATUS" and "draft" in refused["error"]["message"]
     assert lab_server.claims_read()["claimCount"] == 1, "a refused status change leaves the claim as it was"
+
+
+def test_a_store_over_the_chunk_ceiling_is_refused_by_every_verb_that_would_score_a_slice(workspace, monkeypatch):
+    """T16-04 at the verb boundary: the refusal is an envelope a client can act on, not a stack trace.
+
+    The store here was built by direct SQL, which is how an over-ceiling store realistically exists:
+    a restored backup, or a store written before the ceiling was reviewed. ``index_corpus`` was never
+    asked to write it, so nothing on the write path ever checked its size, and before 0.3.15 the four
+    scoring verbs each answered from the first 20 000 chunks without saying so.
+
+    The 0.3.14 envelope is unchanged — ``resultState``/``error.code``/``error.message`` — and the
+    refusal adds the numbers as data next to the code, so the client reads ``currentChunkCount`` and
+    ``limit`` instead of parsing the sentence (HR-34). A refused read stays labelled a read.
+    """
+    root = workspace
+    records.init_store(root)
+    connection = sqlite3.connect(records.store_path(root))
+    text = "The guild records name the stitching pattern of barefoot sandals."
+    text_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    connection.executemany(
+        "INSERT INTO chunks (chunk_id, content_id, source_path, source_sha256, locator, text, text_sha256, "
+        "chunker_id, chars, current, indexed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
+        [(f"over-{index:06d}", f"content-{index:06d}", f"notes/over-{index // 1000}.md", f"{index:064x}"[:64],
+          f"paragraph={index % 1000}", text, text_sha, "hashing:1200:120", len(text), "2026-11-22T00:00:00+00:00")
+         for index in range(records.MAX_STORE_CHUNKS + 1)],
+    )
+    # The chunk rows are the store; the source rows are what ``unindex_corpus`` needs in order to be
+    # the remediation the refusal names, so the fixture writes both.
+    connection.executemany(
+        "INSERT OR REPLACE INTO sources (path, source_sha256, bytes, chunk_count, indexed_at, outcome, verification) "
+        "VALUES (?, ?, 4096, ?, '2026-11-22T00:00:00+00:00', 'complete', 'verified')",
+        [(f"notes/over-{group}.md", f"{group:064x}"[:64], min(1000, records.MAX_STORE_CHUNKS + 1 - group * 1000))
+         for group in range((records.MAX_STORE_CHUNKS + 1) // 1000 + 1)],
+    )
+    connection.commit()
+    connection.close()
+
+    for mode in ("lexical", "vector", "hybrid"):
+        refusal = lab_server.search_corpus("guild records stitching", limit=5, mode=mode)
+        assert refusal["resultState"] == "error", f"the {mode} mode answered from a slice instead of refusing"
+        error = refusal["error"]
+        assert error["code"] == records.STORE_OVER_LIMIT_READ_CODE
+        assert error["currentChunkCount"] == records.MAX_STORE_CHUNKS + 1
+        assert error["limit"] == records.MAX_STORE_CHUNKS
+        assert error["overBy"] == 1
+        assert "slice" in error["consequence"] and error["remediation"], "the payload names the consequence and the way back"
+        assert "unindex_corpus" in " ".join(error["remediation"])
+        assert refusal["readOnly"] is True, "a refused read stays labelled a read"
+
+    embed = lab_server.embed_corpus()
+    assert embed["resultState"] == "error" and embed["error"]["code"] == records.STORE_OVER_LIMIT_READ_CODE
+    assert embed["error"]["currentChunkCount"] == records.MAX_STORE_CHUNKS + 1
+
+    status = lab_server.store_status()
+    assert status["readOnly"] is True and status["chunkCount"] == records.MAX_STORE_CHUNKS + 1
+    assert status["vectorSearch"]["overLimit"] is True and status["vectorSearch"]["chunkLimit"] == records.MAX_STORE_CHUNKS
+
+    # The write-side name for the same ceiling is unchanged, and the write path stays the place where
+    # an over-ceiling store is brought back under it.
+    over_limit_write = lab_server.index_corpus(["notes/sources.md"])
+    assert over_limit_write["error"]["code"] == records.STORE_CHUNK_LIMIT_CODE
+    assert over_limit_write["error"]["code"] != records.STORE_OVER_LIMIT_READ_CODE, (
+        "the write refusal and the read refusal stay distinguishable: one stopped a write, one stopped a ranking")
+
+    removed = lab_server.unindex_corpus(["notes/over-0.md", "notes/over-1.md"])
+    assert removed["removedSources"] == ["notes/over-0.md", "notes/over-1.md"]
+    status_after = lab_server.store_status()
+    assert status_after["vectorSearch"]["overLimit"] is False, "the remediation the refusal names actually brings the store back under the ceiling"
+    assert lab_server.search_corpus("stitching pattern guild")["method"] == "bm25", "the default mode is unchanged once the store is supported again"
+
+
+def test_the_embedding_receipt_says_which_chunks_it_computed_and_which_it_reused(workspace):
+    """T16-04 in the embedding report: total, computed now, reused, and produced no signature.
+
+    ``vectorsWritten``/``vectorsReused`` existed in 0.3.14 but the receipt never said they add up to
+    the store, and a chunk whose stored row matched its labels while its blob was unreadable was
+    counted as reused. The receipt now accounts for every current chunk in one bucket each.
+    """
+    lab_server.index_corpus(["notes/sources.md"])
+    reused = lab_server.embed_corpus()
+    assert reused["writeMode"] == "store-only"
+    accounting = reused["chunkAccounting"]
+    assert accounting["totalCurrentChunks"] == reused["currentChunks"]
+    assert accounting["embeddedNow"] == 0 and accounting["reusedExistingVector"] == accounting["totalCurrentChunks"]
+    assert accounting["noSignatureProduced"] == 0 and accounting["sumsToCurrentChunks"] is True
+    assert reused["chunkLimit"] == records.MAX_STORE_CHUNKS
+
+    connection = sqlite3.connect(records.store_path(workspace))
+    target = connection.execute("SELECT chunk_id FROM chunks WHERE current = 1 ORDER BY chunk_id LIMIT 1").fetchone()[0]
+    connection.execute("UPDATE chunk_vectors SET vector = ? WHERE chunk_id = ?", ("truncated-base64", target))
+    connection.commit()
+    connection.close()
+
+    rebuilt = lab_server.embed_corpus()
+    assert rebuilt["chunkAccounting"]["rebuiltUnreadableVector"] == 1
+    assert rebuilt["chunkAccounting"]["reusedExistingVector"] == rebuilt["chunkAccounting"]["totalCurrentChunks"] - 1
+    assert rebuilt["after"]["undecodableVectorCount"] == 0
+    assert rebuilt["after"]["scoreableChunks"] == rebuilt["currentChunks"]
 
 
 def test_status_and_search_on_a_fresh_workspace_report_the_missing_store_without_creating_one(workspace):

@@ -485,6 +485,59 @@ test("a record that claims a confirmation it cannot show is treated as no confir
   assert.ok(!env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED && !("SEMANTIC_SCHOLAR_API_KEY" in env), "nothing is handed to the research worker on the strength of a claim");
 });
 
+// --- HR-41 (P3): the consent the operator gave reaches the search worker as the fact it is ---
+
+test("the search worker is told what the record says about the consent, and nothing it does not say", async (t) => {
+  // 0.3.15: the probe has carried the stored consent instant and the key answer since this release, but the
+  // server that actually calls Semantic Scholar is a different hand-off. A worker that gets only the boolean
+  // writes a machine-level record it was never told about, and the only honest reading of that state is
+  // `PROVIDER_TERMS_STORED_BUT_NOT_INJECTED` — the card says confirmed, the check behaves as unconfirmed.
+  const dated = {
+    schemaVersion: 1,
+    providers: {
+      "semantic-scholar": {
+        authorization: "authorized", readiness: "ready", onboarding: "completed", mode: "anonymous",
+        keyDecision: "declined",
+        license: { acknowledged: true, reference: integrations.LICENSE_REFERENCE, acknowledgedAt: "2026-11-18T09:00:00.000Z" },
+      },
+    },
+  };
+  const datedRoot = await scratch(t);
+  await withWorker(datedRoot);
+  const datedHarness = makeHarness({ folders: foldersFor(datedRoot), initial: GOAL, initialGlobalState: { [integrationStore.REGISTRY_STATE_KEY]: dated } });
+  const env = await injected(datedHarness);
+  assert.equal(env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED, "true");
+  assert.equal(env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT, "2026-11-18T09:00:00.000Z", "the moment the operator confirmed the licence in this profile, forwarded as the record holds it — not a timestamp this process invented");
+  assert.equal(env.SEMANTIC_SCHOLAR_KEY_DECISION, "declined", "and the answer the operator gave when a key was offered travels with it, so the worker's own record can say what was asked and refused");
+  assert.ok(!("SEMANTIC_SCHOLAR_API_KEY" in env), "neither fact is a credential: the anonymous mode is handed no key");
+  assert.ok(!JSON.stringify(env).includes("s2-api-license-2026-11"), "the licence reference is not a thing the worker needs to be told");
+
+  const undated = {
+    schemaVersion: 1,
+    providers: {
+      "semantic-scholar": {
+        authorization: "authorized", readiness: "ready", onboarding: "completed", mode: "anonymous",
+        license: { acknowledged: true, reference: integrations.LICENSE_REFERENCE },
+      },
+    },
+  };
+  const undatedRoot = await scratch(t);
+  await withWorker(undatedRoot);
+  const undatedHarness = makeHarness({ folders: foldersFor(undatedRoot), initial: GOAL, initialGlobalState: { [integrationStore.REGISTRY_STATE_KEY]: undated } });
+  const quiet = await injected(undatedHarness);
+  assert.equal(quiet.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED, "true", "a confirmation the record cannot date is still the operator's confirmation");
+  assert.ok(!("SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT" in quiet), "but the worker is not told when it happened, because the record does not know");
+  const storedDecision = undatedHarness.globalState.get(integrationStore.REGISTRY_STATE_KEY).providers["semantic-scholar"].keyDecision;
+  assert.equal(storedDecision, undefined, "the record this profile arrived with never recorded an answer about a key");
+  if ("SEMANTIC_SCHOLAR_KEY_DECISION" in quiet) {
+    // The state model fills a record that predates the field with its own default, and the default is the
+    // honest one: no key was offered in this profile, so nothing was accepted. What may not happen is the
+    // hand-off inventing an answer that reads as consent to use a credential.
+    assert.equal(quiet.SEMANTIC_SCHOLAR_KEY_DECISION, "not-offered", "what the worker is told is the state model's own default for a record that holds no answer, not an answer this hand-off chose");
+  }
+  assert.ok(!["guided", "provided"].includes(quiet.SEMANTIC_SCHOLAR_KEY_DECISION), "a key is never treated as offered, accepted or configured on the strength of a record that says nothing about one");
+});
+
 // --- guided installation and the guided key request (INT-13A, INT-14.1) ---
 
 const labelsOffered = (harness) => harness.events.quickPicks.at(-1).items.map((item) => item.label);

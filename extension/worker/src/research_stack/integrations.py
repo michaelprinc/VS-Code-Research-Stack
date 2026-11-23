@@ -14,8 +14,11 @@ import os
 import platform
 import re
 import shutil
+import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from . import machinefacts, research
 from .research import ResearchError
@@ -23,6 +26,24 @@ from .research import ResearchError
 PROBE_PROVIDERS = ("zotero", "semantic_scholar")
 API_KEY_ENV = "SEMANTIC_SCHOLAR_API_KEY"
 LICENSE_ENV = "SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED"
+# Two carry-alongs the extension may add to the same call (0.3.15): the instant the operator's confirmation
+# was recorded, and what they decided about a key. Both are values the panel already holds and neither is a
+# credential; a value that is not an ISO instant or not a known decision is dropped, never guessed at.
+LICENSE_INSTANT_ENV = "SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT"
+KEY_DECISION_ENV = "SEMANTIC_SCHOLAR_KEY_DECISION"
+# The four answers to "why was nothing asked of this provider", named instead of collapsed into one boolean.
+# The collapse is what produced the wrong field conclusion on 21 November 2026 and the correction on 22
+# November: `PROVIDER_TERMS_NOT_ACKNOWLEDGED` was raised on a machine where the operator had already consented
+# in the panel, because the only evidence the worker had was a variable the panel sets in the process it
+# launches. A stored consent and a missing switch have different next steps. The gate itself stays where it is
+# — `research.py` refuses the request when the switch is absent — and this module only names which situation
+# that refusal actually was.
+TERMS_STATES = ("PROVIDER_TERMS_ACKNOWLEDGED", "PROVIDER_TERMS_ACKNOWLEDGED_BY_SWITCH_ONLY",
+                "PROVIDER_TERMS_STORED_BUT_NOT_INJECTED", "PROVIDER_TERMS_NOT_ACKNOWLEDGED")
+# What the provider is like to this operator in practice, which is not the same question as "which HTTP
+# status came back": authorised, anonymous, no key taken, and no check ever reached the service.
+ACCESS_STATES = ("awaiting-consent", "consent-stored-not-injected", "usable", "rate-limited",
+                 "consented-but-unusable", "unchecked")
 PROBE_QUERY = "quantum entanglement"  # fixed query
 READ_ONLY_WARNING = "The probe is read-only: it writes no workspace file and reports no credential value."
 _NOT_WRITING = " No library file was opened, no workspace file was written, no configuration changed."
@@ -33,6 +54,18 @@ _S2_FAILURES = {
     "PROVIDER_AUTH_REQUIRED": ("auth-required", "The provider refused the request; an API key may be required."),
     "PROVIDER_RATE_LIMITED": ("rate-limited", "The provider rate-limited the probe: a degraded readiness window, not a lost credential."),
 }
+# The sentence for the case the old wording got wrong. It names the record, names what this process did not
+# get, and sends the operator to the path that carries it — not back to a confirmation they already gave.
+_S2_STORED_NOT_INJECTED = ("Your confirmation of the Semantic Scholar agreements is recorded on this machine, but this check ran in a process "
+                           "that was not given that confirmation, so nothing was asked of the provider. Check integrations from the Toolkit's "
+                           "own card, which is the path that carries your confirmation to the worker. Nothing needs to be confirmed again, "
+                           "and no key was read.")
+# Added to a refusal when the whole picture says "allowed to ask, never reached": anonymous mode, no key
+# taken, no successful check on this machine. The 429 alone reads as a pause; this is the part that says
+# the pause is what an anonymous pool does to an operator who declined a key.
+_S2_UNUSABLE = (" The check was authorised and still did not reach the service. The Toolkit asks anonymously, where every unauthenticated "
+                "caller shares one global pool, your record shows no key was taken, and no check has reached this provider on this machine "
+                "yet. Your confirmation stands unchanged; a key is the step that changes the answer.")
 # Confirmed 8 November 2026 from https://www.zotero.org/support/dev/web_api/v3/local_api, which names this setting
 # and states that requests return 403 Forbidden without it. No other Zotero setting is named in this module.
 ZOTERO_LOCAL_API_SETTING_TEXT = ("The local API must be enabled in Zotero's preferences (Settings → Advanced → "
@@ -194,18 +227,110 @@ def probe_zotero() -> dict[str, object]:
             "evidence": _scrub(_answered(root, head), 160), "detail": head_text + _NOT_WRITING}
 
 
+def _terms_state(switch: bool, stored: dict[str, Any], carried: str | None = None) -> str:
+    """Which of the four consent situations this process is actually in, as one named state.
+
+    `switch` is what this process was handed; `stored` is what this machine recorded; `carried` is the instant
+    the extension handed over with the switch. Reading only the first is the defect the 21 November report
+    fell into — an environment variable is a switch, not proof that the operator agreed, and its absence is
+    not proof that they refused.
+    """
+    if switch and (stored.get("licenseAcknowledgedAt") or carried):
+        return "PROVIDER_TERMS_ACKNOWLEDGED"
+    if switch:
+        return "PROVIDER_TERMS_ACKNOWLEDGED_BY_SWITCH_ONLY"
+    if stored.get("licenseAcknowledgedAt"):
+        return "PROVIDER_TERMS_STORED_BUT_NOT_INJECTED"
+    return "PROVIDER_TERMS_NOT_ACKNOWLEDGED"
+
+
+def _carried_instant() -> str | None:
+    """The consent instant the extension carried, or nothing. A value that is not an ISO instant is dropped."""
+    value = (os.environ.get(LICENSE_INSTANT_ENV) or "").strip()
+    if not value or len(value) > machinefacts.MOMENT_MAX_LENGTH:
+        return None
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return value
+
+
+def _carried_decision() -> str | None:
+    """The key decision the extension carried, or nothing. A word the panel does not record is dropped."""
+    value = (os.environ.get(KEY_DECISION_ENV) or "").strip()
+    return value if value in machinefacts.STATE_KEY_DECISIONS else None
+
+
+def _record_s2_state(terms: str, mode: str, stored: dict[str, Any], reached: bool, carried: str | None) -> dict[str, Any]:
+    """Copy what this process was told and what it measured into the machine-level file, or write nothing.
+
+    The consent instant is recorded only for a consent the extension handed to this process: the Toolkit
+    records a decision it was given, never one it inferred, and never on the operator's behalf — the switch
+    stays deliberate, and `authorizeSemanticScholar` in the panel still refuses to record anything without
+    the operator's own confirmation. When neither happened, no state is written and no earlier state is
+    rewritten, so a process that knows nothing cannot erase what an operator decided.
+    """
+    authorised = terms in ("PROVIDER_TERMS_ACKNOWLEDGED", "PROVIDER_TERMS_ACKNOWLEDGED_BY_SWITCH_ONLY")
+    if not authorised and not reached:
+        return stored
+    machinefacts.write_state("semantic_scholar", mode=mode, updated_at_ms=int(time.time() * 1000),
+                             license_acknowledged_at=carried if terms == "PROVIDER_TERMS_ACKNOWLEDGED" else None,
+                             key_decision=_carried_decision(),
+                             last_successful_check_at=datetime.now(UTC).isoformat() if reached else None)
+    return machinefacts.read_provider_state().get("semantic_scholar") or stored
+
+
+def _access_state(terms: str, state: dict[str, Any], reached: bool, outcome: str) -> str:
+    """Whether this provider is usable for this operator, said as one named state rather than as a status."""
+    if terms == "PROVIDER_TERMS_NOT_ACKNOWLEDGED":
+        return "awaiting-consent"
+    if terms == "PROVIDER_TERMS_STORED_BUT_NOT_INJECTED":
+        return "consent-stored-not-injected"
+    if reached:
+        return "usable"
+    if state.get("lastSuccessfulCheckAt"):
+        return "rate-limited"
+    return "consented-but-unusable" if outcome in ("rate-limited", "unreachable", "auth-required") else "unchecked"
+
+
 def probe_semantic_scholar() -> dict[str, object]:
-    """Read-only Semantic Scholar readiness: booleans for the two gates, never values."""
-    gates = {"credentialConfigured": bool(os.environ.get(API_KEY_ENV)), "licenseAcknowledged": os.environ.get(LICENSE_ENV, "").lower() == "true"}
+    """Read-only Semantic Scholar readiness: named states for the gates, booleans for the credentials, never values.
+
+    The receipt answers three questions that used to be collapsed into one: was the operator asked to agree
+    and did they, was this process given that agreement, and is the provider reachable for this operator in
+    practice. A `credentialConfigured`/`licenseAcknowledged` pair cannot answer the second or the third, and
+    an anonymous 429 reported as a bare `rate-limited` hides the fact that the operator declined a key.
+    """
+    switch = os.environ.get(LICENSE_ENV, "").strip().lower() == "true"
+    stored = machinefacts.read_provider_state().get("semantic_scholar") or {}
+    carried = _carried_instant()
+    gates = {"credentialConfigured": bool(os.environ.get(API_KEY_ENV)), "licenseAcknowledged": switch}
+    mode = "keyed" if gates["credentialConfigured"] else "anonymous"
+    terms = _terms_state(switch, stored, carried)
+    reached = False
     try:
         result = research.search_literature("semantic_scholar", PROBE_QUERY, 1)
+        records = result.get("records") or []
+        reached = True
+        detail = (f"Semantic Scholar answered the fixed probe query with {len(records)} record(s)."
+                  if records else "The endpoint answered and returned no matching record; that is not a failure.") + _S2_SCOPE
+        report: dict[str, object] = {"outcome": "ready", "code": None, "detail": detail, **gates}
     except ResearchError as exc:
         outcome, head = _S2_FAILURES.get(exc.code, _S2_DEFAULT)
-        return {"outcome": outcome, "code": exc.code, "detail": head + _S2_SCOPE, **gates, **({"retryAfter": exc.retry_after} if exc.retry_after else {})}
-    records = result.get("records") or []
-    detail = (f"Semantic Scholar answered the fixed probe query with {len(records)} record(s)."
-              if records else "The endpoint answered and returned no matching record; that is not a failure.") + _S2_SCOPE
-    return {"outcome": "ready", "code": None, "detail": detail, **gates}
+        code = exc.code
+        if exc.code == "PROVIDER_TERMS_NOT_ACKNOWLEDGED" and stored.get("licenseAcknowledgedAt"):
+            code, head = "PROVIDER_TERMS_STORED_BUT_NOT_INJECTED", _S2_STORED_NOT_INJECTED
+        report = {"outcome": outcome, "code": code, "detail": head + _S2_SCOPE, **gates,
+                  **({"retryAfter": exc.retry_after} if exc.retry_after else {})}
+    state = _record_s2_state(terms, mode, stored, reached, carried)
+    access = _access_state(terms, state, reached, str(report["outcome"]))
+    if access == "consented-but-unusable":
+        report["detail"] = str(report["detail"]) + _S2_UNUSABLE
+    return {**report, "termsState": terms, "accessState": access,
+            "providerState": {"mode": mode, "keyDecision": state.get("keyDecision"),
+                              "licenseAcknowledgedAt": state.get("licenseAcknowledgedAt"),
+                              "lastSuccessfulCheckAt": state.get("lastSuccessfulCheckAt")}}
 
 
 def _guarded(provider: str, probe: Callable[[], dict[str, object]]) -> dict[str, object]:

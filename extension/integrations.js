@@ -30,6 +30,22 @@ const LICENSE_REFERENCE = "s2-api-license-2026-11";
 const LICENSE_URL = "https://api.semanticscholar.org/license/"; // Dataset License Agreement
 const API_LICENSE_URL = "https://www.semanticscholar.org/product/api/license"; // API Licence, last updated 17 May 2023
 const MODES = ["anonymous", "api-key"];
+// 0.3.15 (TASK P-3): the worker reports a practical state, not only an HTTP outcome, and the card says what
+// that state means for this operator. `consent-stored-not-injected` is the 21 November 2026 confusion — the
+// operator had confirmed both agreements, a check ran in a process that was not given the confirmation, and
+// the receipt read as a missing confirmation. `consented-but-unusable` is 22 November: authorised, anonymous,
+// no key, a 429 and no check that ever reached the service, which a bare "rate limited" hides.
+const ACCESS_STATES = ["usable", "rate-limited", "awaiting-consent", "consent-stored-not-injected",
+                       "consented-but-unusable", "unchecked"];
+// Why the anonymous pool is what it is, in the operator's own recorded decision. Naming the decision is what
+// makes the sentence actionable; "rate limited" is not a next step.
+const KEY_CLAUSES = {
+  declined: "your record shows you chose to continue without a key",
+  removed: "the key this profile had was removed",
+  provided: "a key is recorded for this profile, and this check asked anonymously",
+  guided: "the way to a key was shown here and none was taken",
+  "not-offered": "no key has been offered in this profile yet",
+};
 const NAMES = { zotero: "Zotero", "semantic-scholar": "Semantic Scholar" };
 // The official Zotero download page — the one `guides/zotero-local-api.md` names, kept in one place so the card,
 // the guide action and the wording cannot drift to three different addresses.
@@ -90,7 +106,7 @@ function readRegistry(stored) {
       else notes.push(`${NAMES[provider]}: ${dimension} was "${String(value).slice(0, 40)}", not a value this release understands; reset to "${target[dimension]}".`);
     }
     if (typeof entry.lastSuccessfulCheckAt === "string") target.lastSuccessfulCheckAt = entry.lastSuccessfulCheckAt;
-    if (entry.lastCheck) target.lastCheck = Object.fromEntries(["at", "outcome", "code", "detail", "retryAfter"].map((field) => [field, entry.lastCheck[field] ?? null]));
+    if (entry.lastCheck) target.lastCheck = Object.fromEntries(["at", "outcome", "code", "detail", "retryAfter", "accessState"].map((field) => [field, entry.lastCheck[field] ?? null]));
     // INT-15: where the installation value came from travels with it, so a restart does not turn another
     // window's fact into this profile's own verdict. A source this release cannot name is dropped out loud.
     if (entry.installationSource !== undefined) {
@@ -243,13 +259,22 @@ function recordProbe(registry, provider, probe, at) {
     entry.readiness = "unchecked";
     detail = `The readiness worker reported "${report.outcome ?? "nothing"}", which this release does not understand.${detail ? ` Worker detail: ${detail}` : ""}`;
   }
+  // 0.3.15 (TASK P-2): a check the worker was never allowed to ask says nothing about whether the service
+  // answers. Recording it as "not answering" is how a consent the operator had already given read, on
+  // 21 November 2026, as a provider that was broken — and sent them to confirm something twice. The state is
+  // applied after the outcome rules so it overrides the readiness they would otherwise stamp, and it never
+  // touches authorization, consent or the key.
+  if (report.accessState === "consent-stored-not-injected") entry.readiness = "unchecked";
   if (typeof report.installed === "boolean") entry.installation = report.installed ? "detected" : "not-detected";
   // A hosted API is not something this machine installs: no probe verdict makes it "not installed".
   if (hosted) entry.installation = "not-applicable";
   // A check this window ran is the strongest source the installation dimension can have, and it replaces a
   // pre-fill another window left behind (INT-15.4).
   if (provider === "zotero") entry.installationSource = "profile-check";
-  entry.lastCheck = { at, outcome: report.outcome ?? null, code: report.code || null, detail, retryAfter: report.retryAfter || null, serverId: report.serverId || null, evidence: report.evidence || null };
+  entry.lastCheck = { at, outcome: report.outcome ?? null, code: report.code || null, detail, retryAfter: report.retryAfter || null, serverId: report.serverId || null, evidence: report.evidence || null,
+    // 0.3.15: the worker's named practical state, kept as data beside the sentence. An unknown word is stored
+    // as null rather than passed through, so a future worker cannot invent a state the card has no wording for.
+    accessState: ACCESS_STATES.includes(report.accessState) ? report.accessState : null };
   if (report.outcome === "ready") entry.lastSuccessfulCheckAt = at; // only a check that reached the service counts
   // The shared budget is compared as a number, so it is stored as one. An ISO string here would make every
   // window believe no check had ever run, and several windows would stampede the same service.
@@ -284,6 +309,13 @@ const WORDING = {
   // Saying "not checked yet" after a check that answered would be a lie about the check that just ran.
   "answered-badly": ["Answered, but not readable", "Something answered where the Toolkit expected to find the service, but the answer was not one this release can read. Nothing was assumed about your setup.", "Check integrations again. If it repeats, open the integration guide."],
   unavailable: ["Not answering right now", "The last check did not reach the service. Your confirmation and your key are unchanged.", "Check again."],
+  // 0.3.15 (TASK P-3): two states the worker now names, both of which used to read as "not answering".
+  // `confirmed-not-injected` is the 21 November 2026 confusion — the operator had confirmed both agreements,
+  // the check ran in a process that was not given the confirmation, and the card implied a missing
+  // confirmation. `confirmed-anonymous-refused` is 22 November: authorised, anonymous, no key taken, HTTP 429
+  // and no check that ever reached the service — which a bare "temporarily rate limited" hides.
+  "confirmed-not-injected": ["Confirmed — this check did not carry it", "Your confirmation of the Semantic Scholar agreements is recorded on this machine. The check ran in a worker process that was not given that confirmation, so nothing was asked of the service; your confirmation and your key are unchanged.", "Use Check now on this card: it is the path that carries your confirmation to the worker. Nothing needs to be confirmed again."],
+  "confirmed-anonymous-refused": ["Confirmed — refused while anonymous", "This provider is authorised here and no check has reached it on this machine. The Toolkit asks anonymously, where every unauthenticated caller shares one global request pool, ", "Choose a key in the Semantic Scholar guide, or check again after a pause."],
 };
 
 /**
@@ -363,7 +395,13 @@ function integrationViews(registry, { now, canProbe = true, cooldownMs = PROBE_C
       provenance = `Another window of the same OS user looked for Zotero on this machine and could not tell what it found. This profile has not checked it.${factWindow}`;
       provenanceAt = factAt;
     }
+    // The worker's named practical state is consulted before the outcome word, because it is the more
+    // specific fact: a 429 that never reached the service and a 429 after a successful check carry the same
+    // outcome and deserve different sentences.
+    const accessState = entry.lastCheck?.accessState ?? null;
     const key = consentRequired ? "consent" : entry.authorization === "revoked" ? "revoked"
+      : accessState === "consent-stored-not-injected" ? "confirmed-not-injected"
+      : accessState === "consented-but-unusable" ? "confirmed-anonymous-refused"
       : entry.lastCheck?.outcome === "unknown" ? "answered-badly"
       : machine ? (entry.installation === "detected" ? "machine-found" : "machine-missing")
       : entry.readiness === "degraded" || entry.readiness === "ready" || entry.readiness === "unchecked" ? entry.readiness
@@ -391,6 +429,14 @@ function integrationViews(registry, { now, canProbe = true, cooldownMs = PROBE_C
     if (key === "ready" && instant !== null && entry.lastSuccessfulCheckAt && instant - Date.parse(entry.lastSuccessfulCheckAt) > 86_400_000) view.detail += " That check is more than 24 hours old.";
     // An installer offer beside a found-on-this-machine line has to say why it is back.
     if (installationUnconfirmed) view.detail += ` The guided installation is offered again because that confirmation is older than the Toolkit's ${MACHINE_FACT_DAYS}-day window.`;
+    // 0.3.15 (TASK P-3): the anonymous refusal names the operator's own recorded decision, because "rate
+    // limited" is not a next step and the decision is what makes one. What is named is the decision, never a
+    // key: `keyDecision` says whether the operator was offered one and what they answered, and no credential
+    // value is stored anywhere in this record.
+    if (key === "confirmed-anonymous-refused") {
+      view.detail += `${KEY_CLAUSES[entry.keyDecision] ?? "no key decision is recorded in this profile"}.`
+        + ` Last check that reached this service from this machine: ${entry.lastSuccessfulCheckAt ?? "none"}.`;
+    }
     return view;
   });
 }

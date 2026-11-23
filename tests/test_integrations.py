@@ -607,11 +607,166 @@ def test_a_refused_fact_write_leaves_the_probe_answer_untouched(monkeypatch: pyt
 
 def test_semantic_scholar_is_never_recorded_as_an_installation(monkeypatch: pytest.MonkeyPatch,
                                                                 machine_facts: Path) -> None:
-    """A hosted endpoint has no installation on this machine, so the probe records nothing for it."""
+    """A hosted endpoint has no installation on this machine, so nothing lands in the installation section.
+
+    0.3.15 changed what this case asserts, and why: the probe now also records what the operator decided and
+    whether the service was ever reached, in the decision section of the same file. "No file at all" was only
+    ever a stand-in for "no installation fact", and the stand-in would now hide the fact the fix adds. The
+    assertion is made on the section that matters, in the file that now legitimately exists.
+    """
     _semantic_scholar(monkeypatch, receipt={"records": []})
     assert integrations.probe_semantic_scholar()["outcome"] == "ready"
     integrations.probe_integrations("semantic_scholar")
-    assert not (machine_facts / machinefacts.FACTS_FILE_NAME).exists(), "a hosted endpoint gains no installation fact"
+    document = json.loads((machine_facts / machinefacts.FACTS_FILE_NAME).read_text(encoding="utf-8"))
+    assert document["facts"] == {} and "semantic_scholar" not in document["facts"], "a hosted endpoint gains no installation fact"
+    assert machinefacts.read_provider_state()["semantic_scholar"]["lastSuccessfulCheckAt"], \
+        "what the probe reached is recorded as a fact about this machine, not only as a receipt that disappears"
+
+
+# --- 0.3.15: consent is a fact on this machine, and readiness says what it is like in practice ----------
+# Field evidence 21/22 November 2026: the operator had consented in the panel, a hand-run check said
+# `PROVIDER_TERMS_NOT_ACKNOWLEDGED`, and the 21 November conclusion drawn from it had to be corrected the
+# next day. The switch lives only in the process the extension launched; the consent lives in the profile.
+
+CARRIED_AT = "2026-11-21T13:08:00+00:00"
+CARRIED_CHECK = "2026-11-21T13:20:00+00:00"
+
+
+def _consented(machinefacts_dir_env: object = None, **overrides) -> None:
+    """Seed the machine-level decision record the way the extension would have left it."""
+    values: dict[str, object] = {"mode": "anonymous", "updated_at_ms": 1_762_000_000_000,
+                                 "license_acknowledged_at": CARRIED_AT, "key_decision": "declined"}
+    values.update(overrides)
+    assert machinefacts.write_state("semantic_scholar", **values)["written"] is True
+
+
+def _env(monkeypatch: pytest.MonkeyPatch, *, switch: bool, key: bool = False,
+         instant: str | None = None, decision: str | None = None) -> None:
+    for name in (integrations.LICENSE_ENV, integrations.API_KEY_ENV, integrations.LICENSE_INSTANT_ENV,
+                 integrations.KEY_DECISION_ENV):
+        monkeypatch.delenv(name, raising=False)
+    if switch:
+        monkeypatch.setenv(integrations.LICENSE_ENV, "true")
+    if key:
+        monkeypatch.setenv(integrations.API_KEY_ENV, SENTINEL_KEY)
+    if instant:
+        monkeypatch.setenv(integrations.LICENSE_INSTANT_ENV, instant)
+    if decision:
+        monkeypatch.setenv(integrations.KEY_DECISION_ENV, decision)
+
+
+def test_a_consent_recorded_on_this_machine_is_not_reported_as_a_missing_consent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The correction of 22 November 2026, as a state the receipt has to carry.
+
+    Same refusal from the same gate, two different situations. With a stored consent the answer names the
+    record and the path that carries it; it does not send the operator back to a confirmation they gave.
+    """
+    _env(monkeypatch, switch=False)
+    _consented()
+    _semantic_scholar(monkeypatch, error=research.ResearchError(
+        "PROVIDER_TERMS_NOT_ACKNOWLEDGED", "Semantic Scholar is disabled until the current API license is reviewed and this process explicitly opts in."))
+    result = integrations.probe_semantic_scholar()
+    assert result["code"] == "PROVIDER_TERMS_STORED_BUT_NOT_INJECTED"
+    assert result["termsState"] == "PROVIDER_TERMS_STORED_BUT_NOT_INJECTED"
+    assert result["accessState"] == "consent-stored-not-injected"
+    assert result["outcome"] == "auth-required", "the host's vocabulary is unchanged; the precision is in the named state"
+    assert "recorded on this machine" in result["detail"] and "not given that confirmation" in result["detail"]
+    assert "Nothing needs to be confirmed again" in result["detail"]
+    assert not re.search(r"read both agreements|acknowledgement of the Semantic Scholar API licence", str(result["detail"]))
+    assert result["providerState"]["licenseAcknowledgedAt"] == CARRIED_AT, "the stored consent travels into the receipt"
+
+
+def test_no_consent_recorded_says_awaiting_consent_and_writes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The gate stays deliberate: an absent switch is reported as it is, and no consent is recorded for the operator."""
+    _env(monkeypatch, switch=False)
+    _semantic_scholar(monkeypatch, error=research.ResearchError("PROVIDER_TERMS_NOT_ACKNOWLEDGED", "licence gate"))
+    result = integrations.probe_semantic_scholar()
+    assert result["termsState"] == "PROVIDER_TERMS_NOT_ACKNOWLEDGED" == result["code"]
+    assert result["accessState"] == "awaiting-consent"
+    assert "API licence" in result["detail"], "the missing step is still named, because it really is missing here"
+    assert machinefacts.read_provider_state() == {}, "the Toolkit never records a consent on the operator's behalf"
+
+
+def test_the_consent_the_extension_carries_becomes_a_machine_fact(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TASK P-2: the authorisation the extension performs is what turns a stored consent into a fact."""
+    _env(monkeypatch, switch=True, instant=CARRIED_AT, decision="declined")
+    _semantic_scholar(monkeypatch, receipt={"records": []})
+    assert integrations.probe_semantic_scholar()["termsState"] == "PROVIDER_TERMS_ACKNOWLEDGED"
+    state = machinefacts.read_provider_state()["semantic_scholar"]
+    assert state["licenseAcknowledgedAt"] == CARRIED_AT and state["keyDecision"] == "declined"
+    assert state["mode"] == "anonymous" and state["updatedAtMs"] > 0
+    assert state["lastSuccessfulCheckAt"], "the check that reached the provider is what makes it a readiness fact"
+
+
+def test_a_switch_alone_is_named_as_a_switch_and_records_no_instant(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A variable is not proof of permitted use, so a switch with no carried consent states exactly that."""
+    _env(monkeypatch, switch=True)
+    _semantic_scholar(monkeypatch, receipt={"records": []})
+    result = integrations.probe_semantic_scholar()
+    assert result["termsState"] == "PROVIDER_TERMS_ACKNOWLEDGED_BY_SWITCH_ONLY"
+    assert machinefacts.read_provider_state()["semantic_scholar"]["licenseAcknowledgedAt"] is None, \
+        "no consent instant is invented for a switch this process cannot account for"
+
+
+def test_authorised_anonymous_and_never_reached_is_reported_as_such(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TASK P-3: 'rate-limited' alone hides the operator's actual position on 22 November 2026.
+
+    Measured position: consent given, mode anonymous, key declined, HTTP 429 repeated, and no check had ever
+    reached the provider. The outcome word stays in the host's vocabulary; the named state says what the
+    operator is actually looking at.
+    """
+    _env(monkeypatch, switch=True)
+    _consented(key_decision="declined")
+    _semantic_scholar(monkeypatch, error=research.ResearchError("PROVIDER_RATE_LIMITED", "429", retry_after="31 seconds"))
+    result = integrations.probe_semantic_scholar()
+    assert result["outcome"] == "rate-limited" and result["retryAfter"] == "31 seconds"
+    assert result["accessState"] == "consented-but-unusable"
+    assert result["providerState"] == {"mode": "anonymous", "keyDecision": "declined",
+                                       "licenseAcknowledgedAt": CARRIED_AT, "lastSuccessfulCheckAt": None}
+    assert "no key was taken" in result["detail"] and "Your confirmation stands unchanged" in result["detail"]
+
+
+def test_a_pause_after_a_check_that_reached_the_provider_stays_a_pause(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The same 429 with a successful check behind it is not the same situation, and does not read as one."""
+    _env(monkeypatch, switch=True)
+    _consented(key_decision="provided", last_successful_check_at=CARRIED_CHECK)
+    _semantic_scholar(monkeypatch, error=research.ResearchError("PROVIDER_RATE_LIMITED", "429", retry_after="31 seconds"))
+    result = integrations.probe_semantic_scholar()
+    assert result["accessState"] == "rate-limited"
+    assert "no key was taken" not in result["detail"], "a pause is not turned into a verdict about the operator's choices"
+    assert result["providerState"]["lastSuccessfulCheckAt"] == CARRIED_CHECK
+
+
+def test_the_two_gate_states_and_the_practical_state_are_always_from_the_named_vocabulary(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A state an operator could be shown has to be a state this release can name."""
+    for index, error in enumerate((research.ResearchError("PROVIDER_RATE_LIMITED", "429"),
+                                   research.ResearchError("PROVIDER_AUTH_REQUIRED", "401"),
+                                   research.ResearchError("PROVIDER_UNAVAILABLE", "no answer"),
+                                   research.ResearchError("QUERY_TOO_LONG", "unexpected"))):
+        _env(monkeypatch, switch=bool(index % 2))
+        if index >= 2:
+            _consented()
+        _semantic_scholar(monkeypatch, error=error)
+        result = integrations.probe_semantic_scholar()
+        assert result["termsState"] in integrations.TERMS_STATES, result
+        assert result["accessState"] in integrations.ACCESS_STATES, result
+
+
+def test_no_credential_value_enters_a_receipt_or_the_machine_file(monkeypatch: pytest.MonkeyPatch,
+                                                                   machine_facts: Path) -> None:
+    """T12-11/T12-34 extended to the new states: a key is reported as a boolean, and a token that arrives in
+    a consent field is dropped rather than recorded or echoed."""
+    _env(monkeypatch, switch=True, key=True, instant=SENTINEL_KEY, decision="provided")
+    _semantic_scholar(monkeypatch, receipt={"records": []})
+    result = integrations.probe_integrations("semantic_scholar")
+    assert result["semanticScholar"]["credentialConfigured"] is True
+    assert isinstance(result["semanticScholar"]["credentialConfigured"], bool)
+    assert SENTINEL_KEY not in json.dumps(result), "the receipt holds no credential value"
+    assert machinefacts.read_provider_state()["semantic_scholar"]["licenseAcknowledgedAt"] is None, \
+        "a key-shaped value in the consent-instant field is dropped, not stored"
+    written = (machine_facts / machinefacts.FACTS_FILE_NAME).read_bytes()
+    assert SENTINEL_KEY not in written.decode("utf-8")
+    assert machinefacts.MAX_FACTS_BYTES >= len(written), "the state section still fits the Toolkit's own bound on the file"
 
 
 def test_the_integration_facts_verb_reads_the_file_and_reaches_no_probe(machine_facts: Path,
@@ -673,4 +828,12 @@ def test_the_module_carries_no_forbidden_or_outbound_primitive() -> None:
     # that is not the preference, a 501 and a 404 each mean in the operator's words, and says what a refused port
     # can and cannot mean. No transport call site was added: the module still holds no `urllib.request`,
     # `build_opener`, `urlopen`, `socket` or `http.client`, all asserted above, and those assertions are unchanged.
-    assert len(source.read_bytes()) < 17500, "the module is packaged in the worker copy and the artifact has a reviewed byte ceiling"
+    # Raised to 26 000 (module now 25 681) for 0.3.15 TASK P-2/P-3, and it is a capability, not padding: the
+    # receipt now names which consent situation this process is really in (four states instead of one boolean),
+    # copies the consent the extension carried into the machine-level fact, and says what the provider is like
+    # for this operator in practice ("authorised, anonymous, no key taken, never reached") instead of reporting
+    # a bare 429. That is the correction of the 21 November field conclusion. No transport call site was added:
+    # the module still holds no `urllib.request`, `build_opener`, `urlopen`, `socket` or `http.client`, all
+    # asserted above, and those assertions are unchanged. The artifact's own ceiling is measured by
+    # `scripts/verify_vsix.py`, not here.
+    assert len(source.read_bytes()) < 26_000, "the module is packaged in the worker copy and the artifact has a reviewed byte ceiling"

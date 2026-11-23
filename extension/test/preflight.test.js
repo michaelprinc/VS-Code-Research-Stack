@@ -5,6 +5,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const os = require("node:os");
 const { makeHarness } = require("./harness");
+const { fileLink } = require("./linkfixture");
 const { inspectLock, lockPath, runPreflight, clearStaleLock, requiredTools, setupWindowMs, STALE_BY_PID_AFTER_MS } = require("../preflight");
 const { STEPS_BY_ID } = require("../installer");
 const { MANAGED_FOLDER } = require("../runtime");
@@ -170,7 +171,9 @@ test("a lock that is a directory or a link is named with the remedy, never repor
   await fs.rm(file, { recursive: true });
   const target = path.join(root, "not-a-lock");
   await fs.writeFile(target, "text");
-  await fs.symlink(target, file);
+  // A file link, so a host without the privilege to make one records that instead of asserting a
+  // refusal it was never able to set up (see test/linkfixture.js).
+  if (!fileLink(t, target, file)) return;
   assert.equal((await inspectLock(root)).state, "invalid");
   const link = await clearStaleLock(root);
   assert.equal(link.removed, true, "the link itself is removed");

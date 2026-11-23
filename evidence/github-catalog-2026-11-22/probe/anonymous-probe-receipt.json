@@ -1,0 +1,260 @@
+{
+  "captured_utc": "2026-11-23T01:59:09+00:00",
+  "tool": "python3 urllib (no curl in this container)",
+  "script": "probe_anonymous_mcp.py",
+  "python": "3.13.5",
+  "credential_used": false,
+  "note": "No GitHub test account and no token exist in this container, so no live tools/list could be captured. These are the raw anonymous responses that establish that boundary.",
+  "endpoints": [
+    {
+      "preset_server": "research-max-github-full server URL",
+      "url": "https://api.githubcopilot.com/mcp/x/all",
+      "authentication_used": "none (no token, no OAuth, no Authorization header)",
+      "steps": [
+        {
+          "step": "initialize",
+          "utc_timestamp": "2026-11-23T01:59:07+00:00",
+          "url": "https://api.githubcopilot.com/mcp/x/all",
+          "jsonrpc_body": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-06-18",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "research-stack-toolkit-catalog-check",
+                "version": "0.3.15"
+              }
+            }
+          },
+          "request_headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "User-Agent": "research-stack-toolkit/0.3.15 catalog-check (anonymous probe)"
+          },
+          "http_status": 401,
+          "error_class": "HTTPError",
+          "response_headers": {
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Content-Type": "text/plain; charset=utf-8",
+            "Strict-Transport-Security": "max-age=31536000",
+            "www-authenticate": "Bearer error=\"invalid_request\", error_description=\"No access token was provided in this request\", resource_metadata=\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/x/all\"",
+            "X-Content-Type-Options": "nosniff",
+            "x-copilot-service-request-id": "edc0244f-d073-4dcf-973c-6b7b86898800",
+            "Date": "Mon, 23 Nov 2026 01:59:06 GMT",
+            "Content-Length": "51",
+            "x-github-backend": "Kubernetes",
+            "Server": "github.com",
+            "X-GitHub-Request-Id": "38F4:362A:4284088:4A1E418:6B039DEA",
+            "x-github-edge-region": "iad",
+            "connection": "close"
+          },
+          "response_body": "bad request: missing required Authorization header\n"
+        },
+        {
+          "step": "tools/list",
+          "utc_timestamp": "2026-11-23T01:59:07+00:00",
+          "url": "https://api.githubcopilot.com/mcp/x/all",
+          "jsonrpc_body": {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list",
+            "params": {}
+          },
+          "request_headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "User-Agent": "research-stack-toolkit/0.3.15 catalog-check (anonymous probe)"
+          },
+          "http_status": 401,
+          "error_class": "HTTPError",
+          "response_headers": {
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Content-Type": "text/plain; charset=utf-8",
+            "Strict-Transport-Security": "max-age=31536000",
+            "www-authenticate": "Bearer error=\"invalid_request\", error_description=\"No access token was provided in this request\", resource_metadata=\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/x/all\"",
+            "X-Content-Type-Options": "nosniff",
+            "x-copilot-service-request-id": "2be6b532-6a4f-4b71-b2c8-e60044702a3b",
+            "Date": "Mon, 23 Nov 2026 01:59:07 GMT",
+            "Content-Length": "51",
+            "x-github-backend": "Kubernetes",
+            "Server": "github.com",
+            "X-GitHub-Request-Id": "5324:37D13F:439F0DC:4B38E91:6B039DEB",
+            "x-github-edge-region": "iad",
+            "connection": "close"
+          },
+          "response_body": "bad request: missing required Authorization header\n"
+        },
+        {
+          "step": "initialize + X-MCP-Toolsets",
+          "utc_timestamp": "2026-11-23T01:59:08+00:00",
+          "url": "https://api.githubcopilot.com/mcp/x/all",
+          "jsonrpc_body": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-06-18",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "research-stack-toolkit-catalog-check",
+                "version": "0.3.15"
+              }
+            }
+          },
+          "request_headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "User-Agent": "research-stack-toolkit/0.3.15 catalog-check (anonymous probe)",
+            "X-MCP-Toolsets": "context,repos,git,issues,pull_requests,labels,users,orgs,gists",
+            "X-MCP-Readonly": "true"
+          },
+          "http_status": 401,
+          "error_class": "HTTPError",
+          "response_headers": {
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Content-Type": "text/plain; charset=utf-8",
+            "Strict-Transport-Security": "max-age=31536000",
+            "www-authenticate": "Bearer error=\"invalid_request\", error_description=\"No access token was provided in this request\", resource_metadata=\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/x/all\"",
+            "X-Content-Type-Options": "nosniff",
+            "x-copilot-service-request-id": "da2fa529-c65b-4837-a4ce-6cc6f6d8d873",
+            "Date": "Mon, 23 Nov 2026 01:59:07 GMT",
+            "Content-Length": "51",
+            "x-github-backend": "Kubernetes",
+            "Server": "github.com",
+            "X-GitHub-Request-Id": "26B4:2814A1:6F6B4DE:7B8EF99:6B039DEB",
+            "x-github-edge-region": "iad",
+            "connection": "close"
+          },
+          "response_body": "bad request: missing required Authorization header\n"
+        }
+      ]
+    },
+    {
+      "preset_server": "research-max-github-limited server URL",
+      "url": "https://api.githubcopilot.com/mcp/readonly",
+      "authentication_used": "none (no token, no OAuth, no Authorization header)",
+      "steps": [
+        {
+          "step": "initialize",
+          "utc_timestamp": "2026-11-23T01:59:08+00:00",
+          "url": "https://api.githubcopilot.com/mcp/readonly",
+          "jsonrpc_body": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-06-18",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "research-stack-toolkit-catalog-check",
+                "version": "0.3.15"
+              }
+            }
+          },
+          "request_headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "User-Agent": "research-stack-toolkit/0.3.15 catalog-check (anonymous probe)"
+          },
+          "http_status": 401,
+          "error_class": "HTTPError",
+          "response_headers": {
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Content-Type": "text/plain; charset=utf-8",
+            "Strict-Transport-Security": "max-age=31536000",
+            "www-authenticate": "Bearer error=\"invalid_request\", error_description=\"No access token was provided in this request\", resource_metadata=\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/readonly\"",
+            "X-Content-Type-Options": "nosniff",
+            "x-copilot-service-request-id": "75b24aad-24ca-44c3-b65e-023675e29dcf",
+            "Date": "Mon, 23 Nov 2026 01:59:08 GMT",
+            "Content-Length": "51",
+            "x-github-backend": "Kubernetes",
+            "Server": "github.com",
+            "X-GitHub-Request-Id": "7578:2C2959:449263A:4C292FD:6B039DEB",
+            "x-github-edge-region": "iad",
+            "connection": "close"
+          },
+          "response_body": "bad request: missing required Authorization header\n"
+        },
+        {
+          "step": "tools/list",
+          "utc_timestamp": "2026-11-23T01:59:08+00:00",
+          "url": "https://api.githubcopilot.com/mcp/readonly",
+          "jsonrpc_body": {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list",
+            "params": {}
+          },
+          "request_headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "User-Agent": "research-stack-toolkit/0.3.15 catalog-check (anonymous probe)"
+          },
+          "http_status": 401,
+          "error_class": "HTTPError",
+          "response_headers": {
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Content-Type": "text/plain; charset=utf-8",
+            "Strict-Transport-Security": "max-age=31536000",
+            "www-authenticate": "Bearer error=\"invalid_request\", error_description=\"No access token was provided in this request\", resource_metadata=\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/readonly\"",
+            "X-Content-Type-Options": "nosniff",
+            "x-copilot-service-request-id": "76f2ebb1-9977-4020-ae0b-8e8e14ab49f8",
+            "Date": "Mon, 23 Nov 2026 01:59:08 GMT",
+            "Content-Length": "51",
+            "x-github-backend": "Kubernetes",
+            "Server": "github.com",
+            "X-GitHub-Request-Id": "2B03:1E4383:43A8470:4B3F41A:6B039DEC",
+            "x-github-edge-region": "iad",
+            "connection": "close"
+          },
+          "response_body": "bad request: missing required Authorization header\n"
+        },
+        {
+          "step": "initialize + X-MCP-Toolsets",
+          "utc_timestamp": "2026-11-23T01:59:09+00:00",
+          "url": "https://api.githubcopilot.com/mcp/readonly",
+          "jsonrpc_body": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-06-18",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "research-stack-toolkit-catalog-check",
+                "version": "0.3.15"
+              }
+            }
+          },
+          "request_headers": {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "User-Agent": "research-stack-toolkit/0.3.15 catalog-check (anonymous probe)",
+            "X-MCP-Toolsets": "context,repos,git,issues,pull_requests,labels,users,orgs,gists",
+            "X-MCP-Readonly": "true"
+          },
+          "http_status": 401,
+          "error_class": "HTTPError",
+          "response_headers": {
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Content-Type": "text/plain; charset=utf-8",
+            "Strict-Transport-Security": "max-age=31536000",
+            "www-authenticate": "Bearer error=\"invalid_request\", error_description=\"No access token was provided in this request\", resource_metadata=\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/readonly\"",
+            "X-Content-Type-Options": "nosniff",
+            "x-copilot-service-request-id": "28d4a5de-e818-4099-aa33-2cf1f62e7905",
+            "Date": "Mon, 23 Nov 2026 01:59:08 GMT",
+            "Content-Length": "51",
+            "x-github-backend": "Kubernetes",
+            "Server": "github.com",
+            "X-GitHub-Request-Id": "6D6F:2CC740:6A3A313:7663C99:6B039DEC",
+            "x-github-edge-region": "iad",
+            "connection": "close"
+          },
+          "response_body": "bad request: missing required Authorization header\n"
+        }
+      ]
+    }
+  ]
+}

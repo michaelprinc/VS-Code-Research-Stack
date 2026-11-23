@@ -55,18 +55,23 @@ _KEYED_ENVIRONMENT = {"openalex": "OPENALEX_API_KEY", "crossref": "CROSSREF_PLUS
 class ResearchError(RuntimeError):
     """An actionable provider or local-library error with a stable code."""
 
-    def __init__(self, code: str, message: str, *, retry_after: str | None = None, evidence: str | None = None):
+    def __init__(self, code: str, message: str, *, retry_after: str | None = None, evidence: str | None = None, report: dict[str, Any] | None = None):
         super().__init__(message)
         self.code = code
         self.retry_after = retry_after
         # What the local server actually answered, clipped: the readiness receipt carries it so an operator's
         # report says which answer Zotero gave instead of leaving the cause to be guessed.
         self.evidence = evidence
+        # A write that stopped partway describes the library, not only the failure: the report names which
+        # operations arrived and which did not, so refusing the rest does not erase what already happened.
+        self.report = report
 
     def as_dict(self) -> dict[str, object]:
         result: dict[str, object] = {"code": self.code, "message": str(self)}
         if self.retry_after:
             result["retryAfter"] = self.retry_after
+        if self.report:
+            result["writeReport"] = self.report
         return result
 
 
@@ -218,9 +223,17 @@ def _provider_request(provider: str, url: str, headers: dict[str, str] | None = 
         carried = outcome.get("error") or {}
         if carried.get("code"):
             raise ResearchError(carried["code"], carried["message"], retry_after=carried.get("retryAfter"))
+        seconds = str(max(1, -(-outcome["waitMs"] // 1000)))
+        if outcome["deferred"] == "in-flight":
+            # Not a rate limit. The provider was not refused, did not answer 429, and has not been asked
+            # twice: a second Toolkit check is already asking this provider this exact query and is holding
+            # the key for it. Saying "rate limit" here sends an operator to the wrong page.
+            raise ResearchError("PROVIDER_BUDGET_DEFERRED",
+                                f"Another Toolkit check is already asking {provider} this exact query, so this one was held back rather than asking the provider the same thing twice. Nothing failed and no limit was reported; ask again in {seconds} s.",
+                                retry_after=seconds)
         raise ResearchError("PROVIDER_BUDGET_DEFERRED",
                             "Another Toolkit process is already waiting out this provider's rate limit; the Toolkit will not ask again before the shared budget opens.",
-                            retry_after=str(max(1, -(-outcome["waitMs"] // 1000))))
+                            retry_after=seconds)
     return outcome["payload"], outcome["headers"], outcome
 
 
@@ -232,6 +245,98 @@ def _field(value: Any, provider: str, upstream_id: str, fetched_at: str, query_h
     return {"value": value, "provenance": {"provider": provider, "upstreamId": upstream_id, "fetchedAt": fetched_at, "queryHash": query_hash}}
 
 
+# --- provider vocabulary, all of it measured 22/23 November 2026 (evidence/providers-2026-11-22/) ---
+# Crossref `type` is a vocabulary of near-synonyms, not a taxonomy. Measured on one book chapter
+# (`fixtures/crossref-type-vocabulary.json`): `filter=type:book,doi:10.2307/j.ctt28524j.7` returns 0 rows,
+# `filter=type:monograph,doi:…` returns 0, `filter=type:edited-book,doi:…` returns 0, and
+# `filter=type:book-chapter,doi:…` returns 1. A plain query over the same work returned a mix of ten types.
+# A family is therefore a named set, and a filter that means "books" has to say all five names.
+CROSSREF_BOOK_TYPES = ("book", "monograph", "edited-book", "book-set", "reference-book")
+CROSSREF_CHAPTER_TYPES = ("book-chapter", "book-part")
+# The four Crossref date fields, in the order the adapter is allowed to read them. Measured apart
+# (`fixtures/crossref-issued-vs-created.json`): `10.32725/cetv.2017.022` carries issued 2017-03-30 against
+# created 2021-10-11, and `10.1056/nejmoa1200303` carries created 2013-02-25 before its issued 2013-04-04.
+# `created` is the DOI registration date, so it comes last and it is never used without naming itself.
+CROSSREF_DATE_FIELDS = ("issued", "published-online", "published-print", "created")
+PROVIDER_LABELS = {"openalex": "OpenAlex", "crossref": "Crossref", "semantic_scholar": "Semantic Scholar"}
+
+
+def crossref_type_filter(family: str) -> str:
+    """The filter clause for a Crossref type family, as one repeated value: `type:book,monograph,…`.
+
+    Crossref reads repeated values inside one filter name as an OR and different filter names as an AND, so
+    the union of a family is one `type:` clause with comma-separated members. (The clause is built here so
+    there is one writer of it; the run measured the single-name filters and refuses to claim what it did not
+    ask — see `tests/test_provider_release.py::test_one_crossref_type_filter_is_not_books`.)
+    """
+    members = {"book": CROSSREF_BOOK_TYPES, "chapter": CROSSREF_CHAPTER_TYPES}.get(family)
+    if members is None:
+        raise ResearchError("PROVIDER_TYPE_FAMILY_UNKNOWN", f"The Toolkit has no Crossref type family named {family!r}; it names 'book' and 'chapter'.")
+    return "type:" + ",".join(members)
+
+
+def _crossref_date_parts(value: Any) -> str | None:
+    """Crossref's `{"date-parts": [[2017, 3, 30]]}` as `2017-03-30`; a year-only list as `2017`."""
+    if not isinstance(value, dict):
+        return None
+    parts = value.get("date-parts")
+    if not (isinstance(parts, list) and parts and isinstance(parts[0], list) and parts[0]):
+        return None
+    numbers = [item for item in parts[0] if isinstance(item, int)]
+    if not numbers:
+        return None
+    return str(numbers[0]) if len(numbers) == 1 else "-".join([str(numbers[0]), *[f"{item:02d}" for item in numbers[1:3]]])
+
+
+def _crossref_date(raw: dict[str, Any]) -> tuple[str | None, str | None]:
+    """The publication date and which Crossref field it came from — the field is part of the answer."""
+    for field in CROSSREF_DATE_FIELDS:
+        date = _crossref_date_parts(raw.get(field))
+        if date:
+            return date, field
+    return None, None
+
+
+def _crossref_retracted(raw: dict[str, Any]) -> bool | None:
+    """`updated-by` is the only thing at Crossref that names a retraction, and it is route-dependent.
+
+    Measured over three known retractions: `updated-by` is on the single-DOI route and on the `filter=doi:`
+    route for all three, and on 0 of 25 plain search rows. So an absent key is `None` — this request did not
+    see the field — and only a present `updated-by` is allowed to answer `False`, which is what "not
+    retracted" would otherwise quietly mean for every search row the Toolkit has ever shown.
+    """
+    updated = raw.get("updated-by")
+    if updated is None:
+        return None
+    entries = updated if isinstance(updated, list) else []
+    return any(entry.get("type") == "retraction" for entry in entries if isinstance(entry, dict))
+
+
+def _count(value: Any) -> int | None:
+    """A count the provider sent, including a real zero. A field the provider omitted is not a zero."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _reference_count(raw: dict[str, Any]) -> int | None:
+    """OpenAlex carries the works as `referenced_works`; the count is the length of that list, or absent."""
+    works = raw.get("referenced_works")
+    return len(works) if isinstance(works, list) else None
+
+
+def _field_providers(record: dict[str, Any]) -> list[str]:
+    """Every provider named behind this record's fields, in the order first seen, with no duplicates."""
+    providers: list[str] = []
+    for item in record.values():
+        if not isinstance(item, dict):
+            continue
+        sources = item.get("provenance")
+        for source in sources if isinstance(sources, list) else [sources]:
+            name = source.get("provider") if isinstance(source, dict) else None
+            if isinstance(name, str) and name and name not in providers:
+                providers.append(name)
+    return providers
+
+
 def _normalize(provider: str, raw: dict[str, Any], fetched_at: str, query_hash: str) -> dict[str, Any]:
     if provider == "openalex":
         upstream_id = str(raw.get("id", ""))
@@ -241,7 +346,11 @@ def _normalize(provider: str, raw: dict[str, Any], fetched_at: str, query_hash: 
         source = location.get("source") if isinstance(location.get("source"), dict) else {}
         doi = normalize_doi(raw.get("doi"))
         open_access = raw.get("open_access") if isinstance(raw.get("open_access"), dict) else {}
-        values = {"title": _first_text(raw.get("title")), "authors": authors, "year": raw.get("publication_year") if isinstance(raw.get("publication_year"), int) else None, "date": raw.get("publication_date") if isinstance(raw.get("publication_date"), (list, str)) else None, "venue": source.get("display_name"), "publicationType": raw.get("type"), "abstract": _abstract_from_inverted_index(raw.get("abstract_inverted_index") if isinstance(raw.get("abstract_inverted_index"), dict) else None), "url": upstream_id or None, "openAccessUrl": open_access.get("oa_url"), "license": None}
+        values = {"title": _first_text(raw.get("title")), "authors": authors, "year": raw.get("publication_year") if isinstance(raw.get("publication_year"), int) else None, "date": raw.get("publication_date") if isinstance(raw.get("publication_date"), (list, str)) else None, "venue": source.get("display_name"), "publicationType": raw.get("type"), "abstract": _abstract_from_inverted_index(raw.get("abstract_inverted_index") if isinstance(raw.get("abstract_inverted_index"), dict) else None), "url": upstream_id or None, "openAccessUrl": open_access.get("oa_url"), "license": None,
+                  # Read from the fields the request now asks for (`_request_for`): the 21 November receipts
+                  # showed these empty because `select=` did not name them, not because OpenAlex lacks them.
+                  # An absent field stays None; `cited_by_count: 0` on W3206688818 stays 0.
+                  "dateField": "publication_date" if raw.get("publication_date") else None, "retracted": raw.get("is_retracted") if isinstance(raw.get("is_retracted"), bool) else None, "citationCount": _count(raw.get("cited_by_count")), "referenceCount": _reference_count(raw)}
     elif provider == "crossref":
         upstream_id = str(raw.get("DOI", ""))
         authors = [" ".join(filter(None, (a.get("given"), a.get("family")))) for a in _dict_list(raw.get("author"))]
@@ -249,14 +358,23 @@ def _normalize(provider: str, raw: dict[str, Any], fetched_at: str, query_hash: 
         title = _first_text(raw.get("title"))
         doi = normalize_doi(raw.get("DOI"))
         links = _dict_list(raw.get("link"))
-        values = {"title": title, "authors": authors, "year": _first_date_part(raw.get("published-print")) or _first_date_part(raw.get("published-online")) or _first_date_part(raw.get("created")), "date": None, "venue": _first_text(raw.get("container-title")), "publicationType": raw.get("type"), "abstract": _plain_text(raw.get("abstract")) if isinstance(raw.get("abstract"), str) else None, "url": raw.get("URL"), "openAccessUrl": next((x.get("URL") for x in links if isinstance(x.get("content-type"), str) and "pdf" in x["content-type"].lower()), None), "license": None}
+        # The year and the date come from the same field, in the measured precedence. Until 0.3.15 the year
+        # was read from `published-print`, then `published-online`, then `created` — so a work whose `issued`
+        # date Crossref states got its year from the DOI registration date, and `date` was written as None.
+        date, date_field = _crossref_date(raw)
+        values = {"title": title, "authors": authors, "year": _first_date_part(raw.get(date_field)) if date_field else None, "date": date, "dateField": date_field, "retracted": _crossref_retracted(raw), "citationCount": _count(raw.get("is-referenced-by-count")), "referenceCount": _count(raw.get("reference-count")), "venue": _first_text(raw.get("container-title")), "publicationType": raw.get("type"), "abstract": _plain_text(raw.get("abstract")) if isinstance(raw.get("abstract"), str) else None, "url": raw.get("URL"), "openAccessUrl": next((x.get("URL") for x in links if isinstance(x.get("content-type"), str) and "pdf" in x["content-type"].lower()), None), "license": None}
     else:
         upstream_id = str(raw.get("paperId", ""))
         external = raw.get("externalIds") if isinstance(raw.get("externalIds"), dict) else {}
         doi = normalize_doi(external.get("DOI"))
         types = [item for item in (raw.get("publicationTypes") if isinstance(raw.get("publicationTypes"), list) else []) if isinstance(item, str)]
         open_pdf = raw.get("openAccessPdf") if isinstance(raw.get("openAccessPdf"), dict) else {}
-        values = {"title": _first_text(raw.get("title")), "authors": [a.get("name") for a in _dict_list(raw.get("authors")) if a.get("name")], "year": raw.get("year") if isinstance(raw.get("year"), int) else None, "date": raw.get("publicationDate"), "venue": _first_text(raw.get("venue")), "publicationType": types[0] if types else None, "abstract": raw.get("abstract") if isinstance(raw.get("abstract"), str) else None, "url": raw.get("url"), "openAccessUrl": open_pdf.get("url"), "license": open_pdf.get("license") if isinstance(open_pdf.get("license"), str) else None}
+        values = {"title": _first_text(raw.get("title")), "authors": [a.get("name") for a in _dict_list(raw.get("authors")) if a.get("name")], "year": raw.get("year") if isinstance(raw.get("year"), int) else None, "date": raw.get("publicationDate"), "venue": _first_text(raw.get("venue")), "publicationType": types[0] if types else None, "abstract": raw.get("abstract") if isinstance(raw.get("abstract"), str) else None, "url": raw.get("url"), "openAccessUrl": open_pdf.get("url"), "license": open_pdf.get("license") if isinstance(open_pdf.get("license"), str) else None,
+                  # Read when Semantic Scholar sends them (the request now asks: `fields=` carries
+                  # publicationTypes, citationCount, referenceCount, isRetracted). Their fill is NOT proven
+                  # here — every anonymous request in the 22 November run was refused with 429 — so an absent
+                  # field stays absent and no test claims a value the provider never sent.
+                  "dateField": "publicationDate" if raw.get("publicationDate") else None, "retracted": raw.get("isRetracted") if isinstance(raw.get("isRetracted"), bool) else None, "citationCount": _count(raw.get("citationCount")), "referenceCount": _count(raw.get("referenceCount"))}
 
     record_id = f"doi:{doi}" if doi else f"{provider}:{upstream_id or query_hash[:16]}"
     normalized: dict[str, Any] = {"id": record_id, "doi": _field(doi, provider, upstream_id, fetched_at, query_hash), "sourceIds": {provider: upstream_id} if upstream_id else {}, "attribution": [], "warnings": []}
@@ -270,6 +388,10 @@ def _normalize(provider: str, raw: dict[str, Any], fetched_at: str, query_hash: 
         if name == "abstract":
             value = _plain_text(value) if isinstance(value, str) else value
         normalized[name] = _field(value, provider, upstream_id, fetched_at, query_hash)
+    if provider == "crossref" and values.get("dateField") == "created":
+        # `created` is allowed to be used — a work with no publication date is better dated than dropped —
+        # but never silently: the record carries the field it came from and this warning says what it means.
+        normalized["warnings"].append("DATE_FIELD_IS_DOI_REGISTRATION: this date comes from Crossref `created`, the DOI registration date, not from `issued`, `published-online` or `published-print`.")
     normalized["evidenceScope"] = "abstract-only" if values.get("abstract") else "metadata-only"
     normalized["access"] = {"status": "link-reported" if values.get("openAccessUrl") else "unknown", "url": values.get("openAccessUrl"), "license": None, "retrieved": False}
     normalized["review"] = {"status": "unreviewed", "notes": []}
@@ -291,28 +413,60 @@ def __version_label() -> str:
     return __version__
 
 
-def _request_for(provider: str, query: str, limit: int) -> tuple[str, dict[str, str]]:
-    encoded = urllib.parse.urlencode({"search": query, "per_page": limit, "select": "id,doi,title,authorships,publication_year,publication_date,primary_location,abstract_inverted_index,open_access"})
+# OpenAlex answers with the whole work by default and with ONLY the named fields when `select=` is used.
+# Measured on W3206688818 (`evidence/providers-2026-11-22/fixtures/openalex-select-field-availability.json`):
+# the default representation carries 58 keys — `type`, `is_retracted`, `cited_by_count`, `is_paratext` and
+# `referenced_works` among them — and the response built with the adapter's old nine-name `select=` carried
+# exactly those nine and none of the others. So every field `_normalize("openalex", …)` reads has to be named
+# here, or the empty columns in the 21 November field receipts come back exactly as they were.
+OPENALEX_SELECT_FIELDS = ("id", "doi", "title", "authorships", "publication_year", "publication_date",
+                          "primary_location", "abstract_inverted_index", "open_access",
+                          "type", "is_retracted", "cited_by_count", "is_paratext", "referenced_works")
+# The four new names are asked for. Their fill is not claimed: what the 22 November run proved about
+# Semantic Scholar is one anonymous 429, so a test may only assert what the adapter asks and reads.
+SEMANTIC_SCHOLAR_FIELDS = ("paperId", "title", "authors", "year", "publicationDate", "venue", "abstract",
+                           "externalIds", "url", "openAccessPdf", "publicationTypes", "citationCount",
+                           "referenceCount", "isRetracted")
+
+
+def _request_for(provider: str, query: str, limit: int) -> tuple[str, dict[str, str], str]:
+    """Build the request, and name the route it is — a route is part of what an answer can prove.
+
+    A query that is a DOI is an identifier, not a search phrase. Measured 22 November 2026 over
+    `10.32725/cetv.2017.022` (OpenAlex W3206688818): `filter=doi:` returns it, Crossref's `works/{doi}`
+    returns it, OpenAlex's own id and doi-lookup routes return it, and `works?search=<doi>` as free text
+    returned 0 rows in that run. The DOI routes are also the routes measured to carry Crossref's
+    `updated-by`, the only thing that names a retraction. A query that is not a DOI takes exactly the path
+    0.3.14 took; nothing about it changes.
+    """
+    doi = normalize_doi(query)
     if provider == "openalex":
+        params: dict[str, Any] = {"per_page": limit, "select": ",".join(OPENALEX_SELECT_FIELDS)}
+        params["filter" if doi else "search"] = f"doi:{doi}" if doi else query
+        encoded = urllib.parse.urlencode(params)
         key = os.environ.get("OPENALEX_API_KEY")
         if key:
             encoded += "&" + urllib.parse.urlencode({"api_key": key})
-        return f"https://api.openalex.org/works?{encoded}", {}
+        return f"https://api.openalex.org/works?{encoded}", {}, "openalex-doi-filter" if doi else "openalex-search"
     if provider == "crossref":
+        if doi:
+            # The single-DOI route: measured to carry `updated-by` for all three retraction fixtures, where
+            # the bibliographic search row carried it for two of the three and 0 of 25 plain search rows.
+            return f"https://api.crossref.org/works/{urllib.parse.quote(doi, safe='/')}", _crossref_headers(), "crossref-single-doi"
         params = {"query.bibliographic": query, "rows": limit}
         mailto = os.environ.get("CROSSREF_MAILTO")
         if mailto:
             params["mailto"] = mailto
-        return f"https://api.crossref.org/works?{urllib.parse.urlencode(params)}", _crossref_headers()
+        return f"https://api.crossref.org/works?{urllib.parse.urlencode(params)}", _crossref_headers(), "crossref-bibliographic"
     if provider == "semantic_scholar":
-        params = {"query": query, "limit": limit, "fields": "paperId,title,authors,year,publicationDate,venue,abstract,externalIds,url,openAccessPdf"}
+        params = {"query": query, "limit": limit, "fields": ",".join(SEMANTIC_SCHOLAR_FIELDS)}
         headers = {"x-api-key": os.environ["SEMANTIC_SCHOLAR_API_KEY"]} if os.environ.get("SEMANTIC_SCHOLAR_API_KEY") else {}
-        return f"https://api.semanticscholar.org/graph/v1/paper/search?{urllib.parse.urlencode(params)}", headers
+        return f"https://api.semanticscholar.org/graph/v1/paper/search?{urllib.parse.urlencode(params)}", headers, "semantic-scholar-search"
     raise ResearchError("PROVIDER_UNKNOWN", "Choose openalex, crossref, semantic_scholar, or all.")
 
 
 def _search_one(provider: str, query: str, limit: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    url, headers = _request_for(provider, query, limit)
+    url, headers, route = _request_for(provider, query, limit)
     query_hash = _query_hash(provider, query)
     payload, response_headers, budget = _provider_request(provider, url, headers, cache_key=query_hash)
     if provider == "openalex":
@@ -320,7 +474,13 @@ def _search_one(provider: str, query: str, limit: int) -> tuple[list[dict[str, A
         meta = payload.get("meta", {}) if isinstance(payload, dict) else {}
     elif provider == "crossref":
         message = payload.get("message", {}) if isinstance(payload, dict) else {}
-        rows, meta = message.get("items"), {"totalResults": message.get("total-results")}
+        if route == "crossref-single-doi":
+            # `works/{doi}` answers with one work, not a list of items. Reading it as a list is what would
+            # turn a found DOI into "the provider returned no result list".
+            rows = [message] if isinstance(message, dict) and message.get("DOI") else []
+            meta = {"totalResults": len(rows)}
+        else:
+            rows, meta = message.get("items"), {"totalResults": message.get("total-results")}
     else:
         rows = payload.get("data") if isinstance(payload, dict) else None
         meta = {"totalResults": payload.get("total") if isinstance(payload, dict) else None}
@@ -345,7 +505,8 @@ def _search_one(provider: str, query: str, limit: int) -> tuple[list[dict[str, A
             skipped_rows += 1
             continue
         normalized.append(record)
-    outcome = {"provider": provider, "state": "ok", "reportedCount": meta.get("count", meta.get("totalResults")),
+    outcome = {"provider": provider, "state": "ok", "route": route,
+               "reportedCount": meta.get("count", meta.get("totalResults")),
                "returned": len(normalized), "skippedRows": skipped_rows, "fromCache": bool(budget.get("fromCache")),
                "providerAttempts": budget.get("attempts"),
                "rateLimit": response_headers.get("x-rate-limit-limit"), "rateLimitInterval": response_headers.get("x-rate-limit-interval")}
@@ -367,13 +528,26 @@ def _merge_exact_doi(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for attribution in record["attribution"]:
             if attribution not in current["attribution"]:
                 current["attribution"].append(attribution)
-        for field in ("title", "authors", "year", "date", "venue", "publicationType", "abstract", "url", "openAccessUrl", "license"):
+        for field in ("title", "authors", "year", "date", "venue", "publicationType", "abstract", "url", "openAccessUrl", "license",
+                      "dateField", "retracted", "citationCount", "referenceCount"):
+            if field not in record or field not in current:
+                continue
             incoming = record[field]
             existing = current[field]
             if incoming["value"] is None:
                 continue
             existing_sources = existing["provenance"] if isinstance(existing["provenance"], list) else [existing["provenance"]]
             observations = existing.get("observations") or [{"value": existing["value"], "provenance": existing["provenance"]}]
+            if field == "retracted" and incoming["value"] is True and existing["value"] is not True:
+                # The one exception to "the first observed value stays displayed", and it is stated because
+                # the generic rule below would display `False` whenever the provider whose route never carried
+                # `updated-by` happened to answer first. A provider that names a retraction is never overridden
+                # by a provider that has not seen the field: absence is not a refutation.
+                observations = [*observations, {"value": True, "provenance": incoming["provenance"]}]
+                current[field] = {"value": True, "provenance": incoming["provenance"], "observations": observations,
+                                  "conflicts": [item["value"] for item in observations],
+                                  "selectedReason": "a provider named a retraction; a provider that never carried the field cannot refute it"}
+                continue
             if existing["value"] is None:
                 current[field] = incoming
             elif existing["value"] == incoming["value"]:
@@ -485,7 +659,7 @@ def _zotero_said(exc: Exception) -> str:
     return f"{type(exc).__name__} {exc}".strip()[:160]
 
 
-def _zotero_request(path: str, *, timeout: int, expect_json: bool = True, method: str = "GET", body: dict[str, Any] | None = None, extra_headers: dict[str, str] | None = None, write: bool = False) -> tuple[Any, dict[str, str]]:
+def _zotero_request(path: str, *, timeout: int, expect_json: bool = True, method: str = "GET", body: dict[str, Any] | list[dict[str, Any]] | None = None, body_is_list: bool = False, extra_headers: dict[str, str] | None = None, write: bool = False) -> tuple[Any, dict[str, str]]:
     """One bounded request to the fixed loopback Zotero port, and what the port said when it refused.
 
     A bare path is read under `/api`, so an empty path is `/api/` itself. A full URL is honoured only when it
@@ -495,6 +669,13 @@ def _zotero_request(path: str, *, timeout: int, expect_json: bool = True, method
     a `Host` of `127.0.0.1:23119`, one of the three Zotero accepts. Every caller states its own `timeout`
     because the stages of one check are not equally cheap: Zotero answers the local API only after the library
     has loaded, so the listing waits far longer than the endpoints that answer before the preference is read.
+
+    `body_is_list` is the caller's explicit statement of the JSON shape the endpoint wants, which is the fix
+    for defect D1: measured 19 November 2026 (P1) against Zotero 10.0.8, `POST /api/users/0/collections` with
+    one object answers `400 {"error":"Uploaded data must be a JSON array"}` and with an array `[{...}]` answers
+    `200 {"success":{"0":"KEY"},"failed":{}}` — the same on `POST users/0/items`. `PUT` and `PATCH` are the
+    opposite shape (P4: one object, 204). The shape is therefore a reviewed property of the request, not
+    something inferred from what happened to be in the dict.
     """
     url = path if path.startswith(ZOTERO_LOOPBACK_ORIGIN) else f"{ZOTERO_LOCAL_API}/{path.lstrip('/')}"
     # Bypass proxy settings for this fixed loopback-only address.
@@ -502,7 +683,14 @@ def _zotero_request(path: str, *, timeout: int, expect_json: bool = True, method
     headers = {"Accept": "application/json", "Zotero-API-Version": "3", "Zotero-Allowed-Request": "1", **(extra_headers or {})}
     payload: bytes | None = None
     if body is not None:
-        payload = json.dumps(body).encode("utf-8")
+        if body_is_list and method != "POST":
+            raise ResearchError("ZOTERO_REQUEST_BODY_SHAPE_INVALID", f"A JSON array body belongs to a POST. {method} on the local API takes one object (measured 19 November 2026: PUT/PATCH on an item answers 204 with an object body; POST users/0/collections answers 400 with one).")
+        if body_is_list:
+            payload = json.dumps(body if isinstance(body, list) else [body]).encode("utf-8")
+        elif isinstance(body, list):
+            raise ResearchError("ZOTERO_REQUEST_BODY_SHAPE_INVALID", "A list body was sent without `body_is_list`, so it would have been serialized as one object and answered 400 (P1). A POST states `body_is_list=True`.")
+        else:
+            payload = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
     request = urllib.request.Request(url, data=payload, headers=headers, method=method)
     try:
@@ -589,11 +777,146 @@ def zotero_connector_ping() -> bool:
         return exc.code not in ("ZOTERO_NOT_AVAILABLE", "ZOTERO_NO_ANSWER")
 
 
+# The local API answers at most 100 rows per request, which is what 0.3.13 asked for and then treated as the
+# whole library. The listing is paged instead, and the bound is reported instead of being assumed away (defect,
+# 22 November 2026: `collectionCount` was stated as fact while the read could only have answered 100).
+ZOTERO_COLLECTION_PAGE_LIMIT = 100
+ZOTERO_COLLECTION_MAX_PAGES = 10
+
+
+def _zotero_total_results(headers: dict[str, str], returned: int, endpoint: str) -> tuple[str | None, bool]:
+    """Zotero's own total for a listing, and whether what came back falls short of it.
+
+    A `Total-Results` header that is not a number is named, not guessed at: 0.3.13 ran `int(total)` and a
+    malformed header raised a bare `ValueError` out of a read the tool layer only catches as `ResearchError`
+    (defect, 22 November 2026).
+    """
+    raw = headers.get("zotero-total-results")
+    if raw is None:
+        return None, False
+    total = _zotero_header_int(raw)
+    if total is None:
+        raise ResearchError("ZOTERO_TOTAL_RESULTS_INVALID", f"Zotero answered `Total-Results: {raw!r}` for {endpoint}, which is not a number, so this read cannot say whether it stopped early. The {returned} records it did answer are not presented as the whole answer.", evidence=None)
+    return str(total), total > returned
+
+
 def list_zotero_collections() -> dict[str, Any]:
-    payload, headers = _zotero_request("users/0/collections?limit=100&format=json", timeout=ZOTERO_LISTING_TIMEOUT_SECONDS)
-    rows = payload if isinstance(payload, list) else []
-    collections = [{"key": row.get("key"), "name": (row.get("data") or {}).get("name"), "parentCollection": (row.get("data") or {}).get("parentCollection")} for row in rows if isinstance(row, dict)]
-    return {"collections": collections, "serverId": headers.get("zotero-server-id"), "readOnly": True}
+    """Every collection this Zotero lists, with the numbers it reports and the path its parent chain spells.
+
+    A name is not an identifier (P2, measured 19 November 2026: two collections with the same name are two
+    different collections with two different keys), so the key stays the identity while `numItems` and
+    `numCollections` are Zotero's own counts and `path` is spelled from `parentCollection` (P3) — the two
+    fields 0.3.13 read and then threw away (defect D4). `collectionCount` is what `zotero_library_status`
+    needs before a filing, and `path` is what tells an operator which `projekty` a filing lands in.
+    """
+    collections: list[dict[str, Any]] = []
+    by_key: dict[str, dict[str, Any]] = {}
+    server_id: str | None = None
+    total_results: str | None = None
+    truncated = True
+    for page in range(ZOTERO_COLLECTION_MAX_PAGES):
+        # `start` is left off the first page: `start=0` is what the local API assumes anyway, and the request a
+        # reviewed test pins is the one-page request a library of this size actually needs.
+        query = f"users/0/collections?limit={ZOTERO_COLLECTION_PAGE_LIMIT}&format=json" if page == 0 else f"users/0/collections?limit={ZOTERO_COLLECTION_PAGE_LIMIT}&start={page * ZOTERO_COLLECTION_PAGE_LIMIT}&format=json"
+        payload, headers = _zotero_request(query, timeout=ZOTERO_LISTING_TIMEOUT_SECONDS)
+        rows = payload if isinstance(payload, list) else []
+        server_id = headers.get("zotero-server-id") or server_id
+        total_results = headers.get("zotero-total-results") or total_results
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            data = row.get("data") or {}
+            entry = {
+                "key": str(row.get("key") or ""),
+                "name": data.get("name"),
+                "parentCollection": data.get("parentCollection"),
+                "numItems": data.get("numItems"),
+                "numCollections": data.get("numCollections"),
+            }
+            by_key[entry["key"]] = entry
+            collections.append(entry)
+        total_number = _zotero_total_results(headers, len(collections), "users/0/collections")[1]
+        if len(rows) < ZOTERO_COLLECTION_PAGE_LIMIT and not total_number:
+            truncated = False
+            break
+    for entry in collections:
+        entry["path"] = _zotero_collection_path(entry, by_key)
+    return {
+        "collections": collections,
+        "collectionCount": len(collections),
+        "returnedCount": len(collections),
+        "totalCount": total_results,
+        "truncated": truncated,
+        "serverId": server_id,
+        "readOnly": True,
+        "note": "The count is what this read answered. `truncated` says whether that is the whole library: `ensure_collection` and `add_to_collection` refuse to match names over a partial listing, because half a census cannot tell an operator whether a name is unique (P2).",
+    }
+
+
+def _zotero_collection_path(entry: dict[str, Any], by_key: dict[str, dict[str, Any]]) -> str:
+    """Spell one collection's place in the tree from `parentCollection`, which P3 measured to be the parent key."""
+    parts = [str(entry.get("name") or "")]
+    seen = {str(entry.get("key") or "")}
+    parent = entry.get("parentCollection")
+    for _ in range(10):  # a collection tree is not ten levels deep in practice; the bound is what keeps a cycle from looping
+        if not isinstance(parent, str) or not parent:
+            break
+        if parent in seen:
+            parts.append("(cycle)")
+            break
+        ancestor = by_key.get(parent)
+        if ancestor is None:
+            parts.append(f"?{parent}")  # the parent exists but was outside the 100 collections this listing read
+            break
+        parts.append(str(ancestor.get("name") or ""))
+        seen.add(parent)
+        parent = ancestor.get("parentCollection")
+    return " / ".join(reversed(parts))
+
+
+def zotero_collection_items(key: str, limit: int = 100) -> dict[str, Any]:
+    """Read what is in one collection — the only way the local API answers that question.
+
+    Measured 19 November 2026 (P5): `GET /collections/<key>/items` → 200, and it answers with the items AND
+    their notes (43 items → 93 records), while `GET /items?collection=<key>` is IGNORED and answers with the
+    whole library and `?noCollections=1` is ignored too. So the notes are reported apart: a bibliography that
+    counted `returned` would count 50 child notes as 50 works. `members` is the membership fact — records
+    whose own `data.collections` carries this key, notes excluded.
+    """
+    if not ZOTERO_ITEM_KEY_PATTERN.fullmatch(key):
+        raise ResearchError("ZOTERO_COLLECTION_KEY_INVALID", "Zotero collection keys must be eight uppercase letters or digits.")
+    bounded = max(1, min(int(limit), 100))
+    document, headers = _zotero_request(f"users/0/collections/{key}/items?format=json&limit={bounded}", timeout=ZOTERO_LISTING_TIMEOUT_SECONDS)
+    rows = [row for row in (document if isinstance(document, list) else []) if isinstance(row, dict) and isinstance(row.get("data"), dict)]
+    records = [_zotero_record(row) for row in rows]
+    notes = [row for row in rows if str(row["data"].get("itemType")) in ZOTERO_NOTE_ITEM_TYPES or row["data"].get("parentItem")]
+    members = [str(row.get("key")) for row in rows if key in (row["data"].get("collections") or []) and row not in notes]
+    total, truncated_total = _zotero_total_results(headers, len(records), f"users/0/collections/{key}/items")
+    return {
+        "readOnly": True,
+        "key": key,
+        "items": records,
+        "returned": len(records),
+        "notesIncluded": len(notes),
+        "members": members,
+        "memberCount": len(members),
+        "totalResults": total,
+        "truncated": truncated_total,
+        "serverId": headers.get("zotero-server-id"),
+        "note": "The answer carries child notes as records of their own (P5: 43 items arrived as 93 records). `notesIncluded` says how many; `members` counts only the records whose own `data.collections` names this collection.",
+    }
+
+
+def zotero_collection_tags(key: str) -> dict[str, Any]:
+    """Refuse a collection-scoped tag read instead of answering it with an empty list (defect D7).
+
+    Measured 19 November 2026 (P5): `GET /collections/<key>/tags` → 404 on Zotero 10.0.8. An empty list would
+    read as "this collection has no tags", which is a claim the port never made, so the refusal is made here,
+    before any request, and names the tag reads that do exist.
+    """
+    if not ZOTERO_ITEM_KEY_PATTERN.fullmatch(key):
+        raise ResearchError("ZOTERO_COLLECTION_KEY_INVALID", "Zotero collection keys must be eight uppercase letters or digits.")
+    raise ResearchError("ZOTERO_COLLECTION_TAGS_UNSUPPORTED", f"Tags cannot be read for one collection. Measured 19 November 2026 against Zotero 10.0.8: GET /collections/{key}/tags answers 404. Read tags from `zotero_library(action=\"status\")`, which counts the library's tags, or from each item's own record. No request was made.")
 
 
 def get_zotero_item(key: str) -> dict[str, Any]:
@@ -615,19 +938,45 @@ ZOTERO_WRITE_KEY_ENV = "RESEARCH_STACK_ZOTERO_WRITE_KEY"
 # A literal the caller must reproduce exactly. A boolean named `dryRun` would be a suggestion the model can
 # drop; a required string is a gate (DD14-04).
 ZOTERO_WRITE_CONFIRM = "write-to-zotero"
+# The number of operations one batch carries, and how many batches one write may carry. 0.3.15 kept 25 as the
+# reviewable size of one batch but made it a batch limit instead of a limit on the whole write: the operator
+# filed 43 items on 19 November 2026 (P9), which is two batches, and a Toolkit that refused the list outright
+# left a 43-item filing to be hand-split by the caller with no record of where the split was (defect D8).
 ZOTERO_WRITE_MAX_OPERATIONS = 25
+ZOTERO_WRITE_MAX_BATCHES = 4
 ZOTERO_TAG_MAX_LENGTH = 64
 # The facets `references/zotero-vocabulary.md` defines. A tag outside them is refused before it reaches the
 # library, because an unbounded vocabulary decays into dozens of near-identical tags.
 ZOTERO_TAG_FACETS = ("access/", "topic/", "type/", "status/")
-ZOTERO_WRITE_OPS = ("add_tags", "add_to_collection", "create_collection", "create_item", "remove_tags", "set_item_type", "update_fields")
+ZOTERO_WRITE_OPS = ("add_tags", "add_to_collection", "create_collection", "create_item", "ensure_collection", "remove_tags", "set_item_type", "update_fields")
 # Named so the refusal says why: the local API has no merge endpoint and no restore, so a delete cannot be
 # undone by the Toolkit (DD14-07), and duplicate detection is UI-only in Zotero.
 ZOTERO_REFUSED_OPS = ("delete", "delete_item", "duplicate_check", "merge")
 ZOTERO_EXPORT_FORMATS = ("csljson", "bibtex", "biblatex", "csv")
 ZOTERO_ITEM_KEY_PATTERN = re.compile(r"[A-Z0-9]{8}")
+# `collections` is deliberately NOT in this list. Membership is not a field this Toolkit edits as a plain
+# item field: measured 19 November 2026 (P4), filing is set by `PUT`/`PATCH` on the ITEM with
+# `collections:[key]` → 204, `POST /collections/<key>/items` answers 405, and `PATCH` on a document NOTE with
+# `collections` answers 500. `add_to_collection` owns that one field, its key validation, its note guard and
+# its plan-shape guard; an attempt to write `collections` through `update_fields` is refused as a field the
+# Toolkit does not write (defect D9).
 ZOTERO_WRITABLE_FIELDS = frozenset({"title", "creators", "date", "itemType", "abstractNote", "DOI", "url", "extra", "libraryCatalog", "publisher", "volume", "issue", "pages", "accessDate", "shortTitle", "language"})
 ZOTERO_STATUS_ENDPOINTS = ("api-root", "collections", "items", "tags", "searches", "fulltext", "itemTypes")
+# The actions `zotero_library` answers, in one place so the dispatcher and the message that enumerates them
+# cannot drift apart (defect D4).
+ZOTERO_LIBRARY_ACTIONS = ("status", "collections", "collection_items", "item", "search", "fulltext", "export")
+# Not an action, and not a request either: measured 19 November 2026 (P5), `GET /collections/<key>/tags`
+# answers 404 on Zotero 10.0.8. The dispatcher still recognises the name so a caller who asks for it is
+# answered with that fact instead of with an empty list that reads as "this collection has no tags".
+ZOTERO_UNSUPPORTED_LIBRARY_ACTIONS = ("collection_tags",)
+# Zotero's own special collections (defect D7). Measured 19 November 2026 (P8): the local API does not see
+# them at all — `GET /collections/<key>` answers 404 — so a collection carrying one of these names is an
+# imitation with its own key, never My Publications. The names are refused exactly, case-sensitive, because
+# `projekty / My Publications` is a filing decision the operator made, not a spelling accident.
+ZOTERO_RESERVED_COLLECTION_NAMES = frozenset({"My Publications", "Unfiled Items", "Duplicate Items", "Retracted Items", "New Items", "Feed Documents"})
+# Measured 19 November 2026 (P4): a document NOTE is a child record, and a write that puts `collections` on it
+# answers 500. It is filed through its parent item, which the Toolkit does not do silently.
+ZOTERO_NOTE_ITEM_TYPES = frozenset({"note"})
 
 
 def zotero_write_key_present() -> bool:
@@ -688,11 +1037,27 @@ def zotero_library_status(*, fulltext_probe: str = "zotero") -> dict[str, Any]:
         if probe["endpoint"] == "searches" and "returned" in probe:
             counts["savedSearches"] = probe["returned"]
     fulltext = next((probe for probe in probes if probe["endpoint"] == "fulltext"), {})
+    # One more small loopback read, for a number the HEAD probe cannot give (defect D4). The `collections`
+    # probe above stays a HEAD because a HEAD answers before Zotero consults the local-API preference and so
+    # separates "endpoint missing" from "endpoint switched off"; a HEAD carries no body and therefore no
+    # count. A list read is the only honest source of `collectionCount`, and it is also the read that names
+    # the collections a filing would target — which `ensure_collection` and `add_to_collection` need anyway.
+    try:
+        listing = list_zotero_collections()
+    except ResearchError as exc:
+        collection_count = None
+        collection_note = f"Collection count was not read: {exc.code}."
+    else:
+        collection_count = listing["collectionCount"]
+        collection_note = None
+    if collection_count is not None:
+        counts["collectionCount"] = collection_count
     return {
         "readOnly": True,
         "endpoints": probes,
         "answeredEndpoints": sorted(answered),
         "counts": counts,
+        "collectionNote": collection_note,
         # An empty full-text answer does not distinguish "the index is empty" from "nothing matched this
         # word", and the Toolkit says so instead of reporting an empty index as a fact.
         "fullTextProbe": {"matches": fulltext.get("returned"), "note": "A zero-answer means no match for this probe word; it is not proof that the full-text index is empty."},
@@ -712,8 +1077,8 @@ def search_zotero_items(query: str, limit: int = 25) -> dict[str, Any]:
     document, headers = _zotero_request(f"users/0/items?q={urllib.parse.quote(query.strip())}&format=json&limit={bounded}", timeout=ZOTERO_LISTING_TIMEOUT_SECONDS)
     rows = document if isinstance(document, list) else []
     items = [_zotero_record(row) for row in rows if isinstance(row, dict) and isinstance(row.get("data"), dict)]
-    total = headers.get("zotero-total-results")
-    return {"readOnly": True, "query": query.strip(), "items": items, "returned": len(items), "totalResults": total, "truncated": bool(total and int(total) > len(items)), "serverId": headers.get("zotero-server-id")}
+    total, truncated_total = _zotero_total_results(headers, len(items), "users/0/items?q=…")
+    return {"readOnly": True, "query": query.strip(), "items": items, "returned": len(items), "totalResults": total, "truncated": truncated_total, "serverId": headers.get("zotero-server-id")}
 
 
 def _zotero_record(row: dict[str, Any]) -> dict[str, Any]:
@@ -747,12 +1112,39 @@ def zotero_fulltext(*, key: str = "", query: str = "") -> dict[str, Any]:
     return {"readOnly": True, "query": query.strip(), "matches": [{"key": item_key, "characters": len(value) if isinstance(value, str) else None} for item_key, value in sorted(matches.items())], "note": "Zotero answers this only for text its own indexer stored. A zero-answer is not proof that no full text exists."}
 
 
-def zotero_export(fmt: str = "csljson", limit: int = 50) -> dict[str, Any]:
-    """Ask Zotero for its own export body. `markdown` and `counts` are not formats this API answers with."""
+# What the 19 November 2026 measurement says about notes in an export (P6). A format that was not measured
+# gets a sentence saying it was not measured, which is not the same as being silent about notes.
+ZOTERO_EXPORT_NOTE_MEASUREMENTS = {
+    "csljson": "CSL-JSON carries document notes as records of their own: 93 records arrived for 43 items. A bibliography counted from this export counts 50 notes as 50 works.",
+    "bibtex": "BibTeX carried no document notes: 43 records for the same 43 items.",
+}
+
+
+def zotero_export(fmt: str = "csljson", limit: int = 50, collection_key: str = "") -> dict[str, Any]:
+    """Ask Zotero for its own export body, whole library or one collection. `markdown` and `counts` are not formats this API answers with.
+
+    Defect D5: 0.3.13 could only export the whole library, and a whole-library export carries no membership
+    at all (P6, measured 19 November 2026 — 43 items, 0 membership facts). With a collection key the export
+    goes through `users/0/collections/<key>/items?format=…`, the path P5 measured to answer `format=`, and the
+    result says which scope it is, which collection it came from, and that membership is still not in the body.
+    """
     if fmt not in ZOTERO_EXPORT_FORMATS:
         raise ResearchError("ZOTERO_EXPORT_FORMAT_UNSUPPORTED", f"Zotero's local API exports {', '.join(ZOTERO_EXPORT_FORMATS)}. It refused markdown and counts in the 14 November 2026 measurement; a Markdown bibliography has to be generated from the records.", evidence=f"asked for {fmt}")
     bounded = max(1, min(int(limit), 100))
-    document, headers = _zotero_request(f"users/0/items?format={fmt}&limit={bounded}", timeout=ZOTERO_LISTING_TIMEOUT_SECONDS, expect_json=(fmt == "csljson"))
+    scope = "library"
+    collection_name: str | None = None
+    path = f"users/0/items?format={fmt}&limit={bounded}"
+    if collection_key:
+        if not ZOTERO_ITEM_KEY_PATTERN.fullmatch(collection_key):
+            raise ResearchError("ZOTERO_COLLECTION_KEY_INVALID", "Zotero collection keys must be eight uppercase letters or digits.")
+        listing = list_zotero_collections()
+        match = next((row for row in listing["collections"] if row.get("key") == collection_key), None)
+        if match is None:
+            raise ResearchError("ZOTERO_COLLECTION_NOT_FOUND", f"Nothing was exported: this Zotero does not list a collection {collection_key}. A special collection (My Publications, Unfiled Items, Duplicate Items) is invisible to the local API — GET /collections/<key> answers 404 (measured 19 November 2026) — so it cannot be exported through this path either.", evidence=f"{listing['collectionCount']} collection(s) listed")
+        collection_name = match.get("name")
+        scope = "collection"
+        path = f"users/0/collections/{collection_key}/items?format={fmt}&limit={bounded}"
+    document, headers = _zotero_request(path, timeout=ZOTERO_LISTING_TIMEOUT_SECONDS, expect_json=(fmt == "csljson"))
     body = document if isinstance(document, str) else json.dumps(document, ensure_ascii=False)
     return {
         "readOnly": True,
@@ -763,6 +1155,13 @@ def zotero_export(fmt: str = "csljson", limit: int = 50) -> dict[str, Any]:
         # Measured 14 November 2026: CSL-JSON carries neither `extra` nor tags, so an access label cannot be
         # read out of this export. BibTeX carries `extra` as `annote`.
         "accessLabelsInExport": fmt in ("bibtex", "biblatex"),
+        "scope": scope,
+        "collectionKey": collection_key or None,
+        "collectionName": collection_name,
+        # P6: no export format this API answers with carries collection membership, not even the scoped one.
+        # The membership fact lives in each item's `data.collections`, read through `collection_items`.
+        "membershipInExport": False,
+        "noteWarning": ZOTERO_EXPORT_NOTE_MEASUREMENTS.get(fmt) or f"The note behaviour of a {fmt} export was not measured: the 19 November 2026 measurement covers csljson and bibtex only.",
     }
 
 
@@ -795,17 +1194,171 @@ def _zotero_item_data(key: str) -> tuple[dict[str, Any], int]:
     return document["data"], int(document.get("version") or 0)
 
 
+def _zotero_collection_name(name: Any) -> str:
+    """Validate a collection name and refuse Zotero's own special-collection names (defect D7)."""
+    cleaned = str(name or "").strip()
+    if not cleaned or len(cleaned) > 200:
+        raise ResearchError("ZOTERO_COLLECTION_NAME_INVALID", "A collection needs a name of 1-200 characters.")
+    if cleaned in ZOTERO_RESERVED_COLLECTION_NAMES:
+        raise ResearchError("ZOTERO_COLLECTION_NAME_RESERVED", f"{cleaned!r} is one of Zotero's own special collections ({', '.join(sorted(ZOTERO_RESERVED_COLLECTION_NAMES))}). The local API cannot see a special collection at all: GET /collections/<key> answers 404 (P8, measured 19 November 2026). A collection this Toolkit created with that name would carry a key of its own and be an imitation, not My Publications. No HTTP request was made.", evidence=None)
+    return cleaned
+
+
+def _zotero_plan_guard(step: dict[str, Any]) -> None:
+    """Refuse, on the way into the plan, a request shape the measured Zotero cannot answer.
+
+    `POST /collections/<key>/items` answers 405 (P4, measured 19 November 2026) and is the shape a filing
+    instinct reaches for first. Membership is set on the ITEM — `PUT`/`PATCH …/items/<key>` with
+    `collections:[key]` → 204 — which is what `add_to_collection` builds. The guard sits on the plan rather
+    than on one caller so that a later operation cannot reintroduce the bad shape (defect D9).
+    """
+    method = str(step.get("method") or "")
+    path = str(step.get("path") or "")
+    if method == "POST" and re.fullmatch(r"users/0/collections/[A-Z0-9]{8}/items", path):
+        raise ResearchError("ZOTERO_PLAN_SHAPE_INVALID", "A write step tried to POST users/0/collections/<key>/items. Measured 19 November 2026 (P4): that request answers 405. A filing is a PUT on the item with `collections:[key]`, which is what `add_to_collection` builds.")
+    if method in ("PUT", "PATCH") and isinstance(step.get("body"), list):
+        raise ResearchError("ZOTERO_PLAN_SHAPE_INVALID", f"A {method} step carries a JSON array body. Measured (P1/P4): a POST takes an array, PUT and PATCH take one object.")
+    if method == "POST" and step.get("bodyIsList") is not True:
+        raise ResearchError("ZOTERO_PLAN_SHAPE_INVALID", "A POST step must state `bodyIsList: true`. With an object body the local API answers 400 \"Uploaded data must be a JSON array\" (P1, defect D1).")
+
+
+def _zotero_plan_append(plan: list[dict[str, Any]], step: dict[str, Any]) -> dict[str, Any]:
+    """The only way a step enters a plan: past the shape guard."""
+    _zotero_plan_guard(step)
+    plan.append(step)
+    return step
+
+
+def _zotero_collection_parent(name: str, plan: list[dict[str, Any]], rows: list[dict[str, Any]], planned: dict[str, dict[str, Any]], depth: int) -> tuple[str | None, int | None]:
+    """Resolve a `parentCollection` given as a NAME: find it, or plan its own creation first.
+
+    Returns the key when the parent is already in the library, or the plan position of the step that will
+    create it — a key a parent creates cannot be known before that POST answers (P1: the key arrives in its
+    `success` map), so the child says which step it comes from instead of inventing one.
+    """
+    if depth > 3:
+        raise ResearchError("ZOTERO_COLLECTION_PARENT_DEPTH", "A `parentCollection` chain deeper than four collections is not planned. Name each level with its own `ensure_collection` operation so the operator sees every collection a write creates.")
+    matches = [row for row in rows if row.get("name") == name]
+    if len(matches) > 1:
+        raise ResearchError("ZOTERO_COLLECTION_AMBIGUOUS", f"The parent name {name!r} matches {len(matches)} collections: {', '.join(sorted(str(row.get('key')) for row in matches))}. A name is not an identifier (P2), so no parent is chosen and nothing is planned. Give the parent by key.", evidence=f"{len(matches)} exact-name matches")
+    if matches:
+        return str(matches[0].get("key")), None
+    already_planned = planned.get(name)
+    if already_planned is not None:
+        return None, plan.index(already_planned)
+    _zotero_ensure_collection_step(name, parent_name="", plan=plan, rows=rows, planned=planned, depth=depth + 1)
+    return None, plan.index(plan[-1])
+
+
+def _zotero_ensure_collection_step(name: str, *, parent_name: str, plan: list[dict[str, Any]], rows: list[dict[str, Any]], planned: dict[str, dict[str, Any]], depth: int) -> None:
+    """Plan one `ensure_collection`: take the collection that is already there, or create the missing one.
+
+    An exact-name match is taken as it is (P2: a name is not an identifier), and several matches are named
+    rather than guessed. A match that does not sit under the parent the operator named is an ambiguity, not a
+    licence to create a second collection of the same name. A missing collection is a POST array
+    `[{name, parentCollection}]` (P1/P3) whose key comes back in `success`.
+    """
+    clean = _zotero_collection_name(name)
+    parent_key: str | None = None
+    parent_from_step: int | None = None
+    if parent_name:
+        parent_key, parent_from_step = _zotero_collection_parent(parent_name, plan, rows, planned, depth)
+    matches = [row for row in rows if row.get("name") == clean]
+    elsewhere: list[str] = []
+    if matches and parent_name:
+        if parent_key is not None:
+            elsewhere = sorted(str(row.get("key")) for row in matches if str(row.get("parentCollection") or "") != parent_key)
+            matches = [row for row in matches if str(row.get("parentCollection") or "") == parent_key]
+        elif matches:
+            # The parent does not exist yet — this write is about to create it (P3). A collection already in the
+            # library cannot sit under a parent that does not exist, so adopting the same-name match would leave
+            # the operator's child beside the new parent rather than under it, and moving a collection is not
+            # something `ensure_collection` was asked to do. Refused, with the two parents named (reviewed defect,
+            # 22 November 2026: a root `projekt/krestanstvi` was adopted as existing while `projekty` was created).
+            row = matches[0]
+            actual = f"collection {row.get('parentCollection')}" if row.get("parentCollection") else "the library root"
+            raise ResearchError(
+                "ZOTERO_COLLECTION_PARENT_MISMATCH",
+                f"{clean!r} already exists as {row.get('key')}, under {actual}. This write asked for it under {parent_name!r}, which does not exist yet and would be created by the same write, so the name does not identify one collection. `ensure_collection` does not re-parent a collection as a side effect. File into {row.get('key')} by key with `add_to_collection`, or name the parent {row.get('key')} really has.",
+                evidence=f"{clean!r} found at {actual}; parent {parent_name!r} not in the library",
+            )
+    if len(matches) > 1:
+        raise ResearchError("ZOTERO_COLLECTION_AMBIGUOUS", f"{len(matches)} collections carry the name {clean!r}: {', '.join(sorted(str(row.get('key')) for row in matches))}. A name is not an identifier (P2), so nothing is planned and no key is guessed. Target one by key with `add_to_collection`, or name a `parentCollection` that separates them.", evidence=f"{len(matches)} exact-name matches")
+    if matches:
+        row = matches[0]
+        step = {
+            "op": "ensure_collection", "action": "existing", "write": False, "method": None, "path": None, "body": None,
+            "key": row.get("key"), "collectionKey": row.get("key"), "collectionName": clean, "name": clean,
+            "collectionPath": row.get("path"), "undoable": False, "before": None, "changedFields": [],
+            "note": f"Already there: {row.get('key')} ({row.get('path') or clean}). `ensure_collection` sends no request for it.",
+        }
+        if elsewhere:
+            step["alsoNamedElsewhere"] = elsewhere
+            step["note"] += f" {', '.join(elsewhere)} carry this name somewhere else; none of them is adopted or touched."
+        _zotero_plan_append(plan, step)
+        planned[clean] = plan[-1]
+        return
+    if parent_name and parent_key is None and parent_from_step is None:
+        raise ResearchError("ZOTERO_COLLECTION_PARENT_NOT_FOUND", f"No collection {parent_name!r} exists and no step creates it, so {clean!r} has nowhere to be created.", evidence=None)
+    body: list[dict[str, Any]] = [{"name": clean}]
+    if parent_key:
+        body[0]["parentCollection"] = parent_key
+    step: dict[str, Any] = {
+        "op": "ensure_collection", "action": "create", "write": True, "method": "POST", "path": "users/0/collections",
+        "body": body, "bodyIsList": True, "key": None, "collectionKey": None, "collectionName": clean, "name": clean,
+        "parentCollectionName": parent_name or None, "parentFromStep": parent_from_step,
+        "undoable": False,
+        "undoReason": "recorded as not undoable: this write created a collection and the Toolkit has no delete verb (DD14-07), so `undo` refuses this entry and names it. The snapshot is what a created collection can be checked against.",
+        "before": None, "changedFields": [],
+    }
+    if parent_from_step is not None:
+        step["bodyNote"] = f"`parentCollection` is filled in at apply time from the key step {parent_from_step} creates: a key cannot be known before that POST answers (P1: it arrives in the `success` map)."
+    if elsewhere:
+        # P2 again: the library can hold this name somewhere else. Creating it under the named parent is what
+        # was asked for; the other collections of the same name are named so the operator sees them instead of
+        # finding out afterwards that the Toolkit picked one.
+        step["alsoNamedElsewhere"] = elsewhere
+        step["note"] = f"This write creates {clean!r} under {parent_name!r}. The library also holds {', '.join(elsewhere)} under this name somewhere else; none of them is touched or adopted."
+    planned[clean] = _zotero_plan_append(plan, step)
+
+
 def _zotero_plan(changes: Any) -> list[dict[str, Any]]:
     """Turn the requested changes into the exact requests a write would send, reading what is there now.
 
     `preview` and `apply` share this one planner so that what the operator saw in the preview is the same
     body the apply sends. A plan that cannot be built is refused here, before any request is made.
+
+    The body shape is a property of the plan, not something apply improvises: a POST to `…/collections` or
+    `…/items` carries a JSON array — 0.3.13 sent one object and the local API answered 400, so neither
+    `create_collection` nor `create_item` ever worked while the preview showed them as valid (defect D1, P1) —
+    and a PUT on an item carries one object (P4). Every step passes `_zotero_plan_guard` on its way in.
     """
-    if not isinstance(changes, list) or not changes or len(changes) > ZOTERO_WRITE_MAX_OPERATIONS:
-        raise ResearchError("ZOTERO_WRITE_COUNT_INVALID", f"A Zotero write takes 1 to {ZOTERO_WRITE_MAX_OPERATIONS} operations.")
+    if not isinstance(changes, list) or not changes:
+        raise ResearchError("ZOTERO_WRITE_COUNT_INVALID", "A Zotero write takes at least one operation.")
+    if len(changes) > ZOTERO_WRITE_MAX_OPERATIONS * ZOTERO_WRITE_MAX_BATCHES:
+        raise ResearchError("ZOTERO_WRITE_COUNT_INVALID", f"A Zotero write takes 1 to {ZOTERO_WRITE_MAX_OPERATIONS * ZOTERO_WRITE_MAX_BATCHES} operations, sent in batches of at most {ZOTERO_WRITE_MAX_OPERATIONS}. `preview` reports `batchesNeeded` for the list you give it.")
     known_item_types: list[str] | None = None
-    known_collections: set[str] | None = None
+    collection_rows: list[dict[str, Any]] | None = None
+    planned_collections: dict[str, dict[str, Any]] = {}
+    written_items: dict[str, int] = {}
     plan: list[dict[str, Any]] = []
+
+    def collections() -> list[dict[str, Any]]:
+        """The collections this Zotero lists, read at most once per plan (P2: identity is the key, not the name).
+
+        A listing that stopped early is refused rather than used. Whether a name is unique, whether a named
+        parent exists, and where a collection sits are questions about the whole library, and a partial census
+        answers none of them — it would let `ensure_collection` create a second collection of a name that
+        already exists past the bound (defect, 22 November 2026).
+        """
+        nonlocal collection_rows
+        if collection_rows is None:
+            listing = list_zotero_collections()
+            if listing["truncated"]:
+                raise ResearchError("ZOTERO_COLLECTION_LISTING_TRUNCATED", f"This Zotero reports {listing['totalCount']} collections and the listing stopped after {listing['returnedCount']}, so these names are not the library's names. `ensure_collection` and `add_to_collection` need the whole listing to tell whether a name is unique (P2) or which parent a collection has (P3). Name the collection by its key, which needs no census.", evidence=None)
+            collection_rows = listing["collections"]
+        return collection_rows
+
     for change in changes:
         if not isinstance(change, dict):
             raise ResearchError("ZOTERO_WRITE_OPERATION_INVALID", "Every Zotero write operation is an object with an `op`.")
@@ -815,10 +1368,27 @@ def _zotero_plan(changes: Any) -> list[dict[str, Any]]:
         if op not in ZOTERO_WRITE_OPS:
             raise ResearchError("ZOTERO_WRITE_ACTION_UNSUPPORTED", f"Unknown Zotero write operation {op!r}. Offered: {', '.join(ZOTERO_WRITE_OPS)}.")
         if op == "create_collection":
-            name = str(change.get("name") or "").strip()
-            if not name or len(name) > 200:
-                raise ResearchError("ZOTERO_COLLECTION_NAME_INVALID", "A collection needs a name of 1-200 characters.")
-            plan.append({"op": op, "method": "POST", "path": "users/0/collections", "body": {"name": name}, "undoable": False, "before": None})
+            name = _zotero_collection_name(change.get("name"))
+            body: list[dict[str, Any]] = [{"name": name}]
+            parent = str(change.get("parentCollection") or "")
+            if parent:
+                if not ZOTERO_ITEM_KEY_PATTERN.fullmatch(parent):
+                    raise ResearchError("ZOTERO_COLLECTION_PARENT_INVALID", "`parentCollection` on `create_collection` is the parent's 8-character key. Give a name to `ensure_collection`, which finds the parent or creates it first (P3: `data.parentCollection` returns the parent key).")
+                if not any(row.get("key") == parent for row in collections()):
+                    raise ResearchError("ZOTERO_COLLECTION_NOT_FOUND", f"No collection {parent} exists, so nothing was planned under it. Create the parent first, or use `ensure_collection` with `parentCollection` as a name.", evidence=None)
+                body[0]["parentCollection"] = parent
+            _zotero_plan_append(plan, {
+                "op": op, "action": "create", "write": True, "method": "POST", "path": "users/0/collections",
+                "body": body, "bodyIsList": True, "key": None, "collectionKey": None, "collectionName": name, "name": name,
+                "undoable": False, "before": None, "changedFields": [],
+                "undoReason": "recorded as not undoable: this write created a collection and the Toolkit has no delete verb (DD14-07), so `undo` refuses this entry and names it. The snapshot is what a created collection can be checked against.",
+            })
+            continue
+        if op == "ensure_collection":
+            # The reserved-name refusal is checked before the library is read, so asking for a special
+            # collection sends no request at all (defect D7).
+            _zotero_collection_name(change.get("name"))
+            _zotero_ensure_collection_step(str(change.get("name") or ""), parent_name=str(change.get("parentCollection") or "").strip(), plan=plan, rows=collections(), planned=planned_collections, depth=0)
             continue
         if op == "create_item":
             title = str(change.get("title") or "").strip()
@@ -828,20 +1398,25 @@ def _zotero_plan(changes: Any) -> list[dict[str, Any]]:
             known_item_types = known_item_types or _zotero_item_types()
             if known_item_types and item_type not in known_item_types:
                 raise ResearchError("ZOTERO_ITEM_TYPE_UNKNOWN", f"Zotero does not list an item type {item_type!r}. It lists: {', '.join(known_item_types)}.", evidence=None)
-            body: dict[str, Any] = {"itemType": item_type, "title": title}
+            item_body: dict[str, Any] = {"itemType": item_type, "title": title}
             creators = change.get("creators") or []
             if not isinstance(creators, list):
                 raise ResearchError("ZOTERO_CREATORS_INVALID", "Creators must be a list of names.")
-            body["creators"] = [_zotero_creator(creator) for creator in creators]
+            item_body["creators"] = [_zotero_creator(creator) for creator in creators]
             for field in ("date", "DOI", "url", "abstractNote", "extra", "publisher"):
                 if change.get(field) is not None:
-                    body[field] = str(change[field])
+                    item_body[field] = str(change[field])
             if change.get("tags") is not None:
-                body["tags"] = [{"tag": tag} for tag in _zotero_tag_list(change["tags"])]
-            plan.append({"op": op, "method": "POST", "path": "users/0/items", "body": body, "undoable": False, "before": None})
+                item_body["tags"] = [{"tag": tag} for tag in _zotero_tag_list(change["tags"])]
+            _zotero_plan_append(plan, {
+                "op": op, "action": "create", "write": True, "method": "POST", "path": "users/0/items",
+                "body": [item_body], "bodyIsList": True, "key": None, "undoable": False, "before": None, "changedFields": [],
+                "undoReason": "recorded as not undoable: the local API has no restore for a created item",
+            })
             continue
         data, version = _zotero_item_data(str(change.get("key") or ""))
         body = dict(data)
+        collection_key: str | None = None
         if op == "set_item_type":
             item_type = str(change.get("itemType") or "")
             known_item_types = known_item_types or _zotero_item_types()
@@ -867,14 +1442,31 @@ def _zotero_plan(changes: Any) -> list[dict[str, Any]]:
             collection_key = str(change.get("collectionKey") or "")
             if not ZOTERO_ITEM_KEY_PATTERN.fullmatch(collection_key):
                 raise ResearchError("ZOTERO_COLLECTION_KEY_INVALID", "Zotero collection keys must be eight uppercase letters or digits.")
-            listing = list_zotero_collections()
-            known_collections = {str(row.get("key")) for row in listing["collections"]}
-            if collection_key not in known_collections:
-                raise ResearchError("ZOTERO_COLLECTION_NOT_FOUND", f"No collection {collection_key} exists. Create it first with `create_collection`.")
+            row = next((item for item in collections() if item.get("key") == collection_key), None)
+            if row is None:
+                raise ResearchError("ZOTERO_COLLECTION_NOT_FOUND", f"No collection {collection_key} exists in this Zotero, so nothing was sent. Create it first with `ensure_collection`. A special collection (My Publications, Unfiled Items, Duplicate Items) is invisible to the local API — GET /collections/<key> answers 404 (P8) — and cannot be filed into from here.", evidence=None)
+            if str(data.get("itemType")) in ZOTERO_NOTE_ITEM_TYPES or data.get("parentItem"):
+                raise ResearchError("ZOTERO_NOTE_NOT_FILEABLE", f"{change.get('key')} is a document note. Measured 19 November 2026 (P4): PATCH on a note with `collections` answers 500, so a note is not filed directly — file the item the note belongs to ({data.get('parentItem') or 'its parent'}) and the note travels with it. No write request was made.", evidence=None)
             current = [str(item) for item in data.get("collections") or []]
             body["collections"] = list(dict.fromkeys([*current, collection_key]))
         changed = {name: value for name, value in body.items() if data.get(name) != value}
-        plan.append({"op": op, "key": str(change.get("key")), "method": "PUT", "path": f"users/0/items/{change.get('key')}", "body": body, "guard": version, "changedFields": sorted(changed), "undoable": True, "before": {name: data.get(name) for name in changed}})
+        step: dict[str, Any] = {
+            "op": op, "action": "modify", "write": True, "key": str(change.get("key")), "method": "PUT",
+            "path": f"users/0/items/{change.get('key')}", "body": body, "guard": version,
+            "changedFields": sorted(changed), "undoable": True, "before": {name: data.get(name) for name in changed},
+        }
+        if collection_key:
+            step["collectionKey"] = collection_key
+            step["collectionName"] = next((item.get("name") for item in collections() if item.get("key") == collection_key), None)
+        earlier = written_items.get(str(change.get("key")))
+        if earlier is not None:
+            # Two operations, one item. The plan read the item once, so this step's body and guard came from a
+            # library the earlier step has already changed. The preview says so instead of showing two requests
+            # that would answer 412 against each other (review 2).
+            step["sameItemAsStep"] = earlier
+            step["sameItemNote"] = f"Step {earlier} writes {change.get('key')} first in this write. A PUT replaces the whole item, so this step is sent as that step's body plus {', '.join(sorted(changed)) or 'no fields'}; its version guard is the version that step's response reports, not the one this plan read."
+        written_items[str(change.get("key"))] = len(plan)
+        _zotero_plan_append(plan, step)
     return plan
 
 
@@ -896,31 +1488,261 @@ def zotero_write_preview(changes: Any) -> dict[str, Any]:
         "zoteroModified": False,
         "planned": plan,
         "operationCount": len(plan),
+        "operationsPerBatch": ZOTERO_WRITE_MAX_OPERATIONS,
+        # D8: the batch split is stated where the operator can see it before authorizing. The 43-item filing
+        # the operator ran on 19 November 2026 (P9) is two batches; 0.3.13 could only say "not allowed".
+        "batchesNeeded": -(-len(plan) // ZOTERO_WRITE_MAX_OPERATIONS),
+        # What one confirmation actually authorizes, stated rather than left to be inferred from a batch size.
+        # 0.3.13 refused more than 25 operations per call; 0.3.15 sends a longer plan in batches of 25, so the
+        # number the operator is agreeing to is the whole plan, not the batch (reviewed 22 November 2026).
+        "authorizedOperations": len(plan),
+        "maxOperationsPerAuthorization": ZOTERO_WRITE_MAX_OPERATIONS * ZOTERO_WRITE_MAX_BATCHES,
+        "authorizationNote": f"confirm={ZOTERO_WRITE_CONFIRM!r} authorizes all {len(plan)} operations of this plan, sent in {-(-len(plan) // ZOTERO_WRITE_MAX_OPERATIONS)} batch(es) of at most {ZOTERO_WRITE_MAX_OPERATIONS}. The ceiling one authorization can cover is {ZOTERO_WRITE_MAX_OPERATIONS * ZOTERO_WRITE_MAX_BATCHES} operations; a longer list is refused with `ZOTERO_WRITE_COUNT_INVALID` before anything is sent.",
         "writeKeyPresent": zotero_write_key_present(),
-        "nextStep": f"Apply with confirm={ZOTERO_WRITE_CONFIRM!r}. A snapshot of the library is taken first and its path is reported.",
+        # D2: the preview names the answer apply will read back, so what the operator read and what the Toolkit
+        # read are the same fact. Measured 19 November 2026 (P1, P4).
+        "responseShapes": {
+            "POST": "200 with {\"success\":{\"<position>\":\"<KEY>\"},\"failed\":{}} — an array body only; an object body answers 400 (P1). The key comes from `success`; anything in `failed` is reported as `serverFailures`.",
+            "PUT": "204 with no body (P4). Membership arrives on the item, never on a collection request.",
+            "no request": "An `ensure_collection` that found the collection already there plans no request at all.",
+        },
+        "notUndoable": [{"op": step.get("op"), "key": step.get("key"), "name": step.get("name") or step.get("collectionName"), "collectionName": step.get("collectionName"), "reason": step.get("undoReason") or "recorded as not undoable: the local API has no restore for a created item"} for step in plan if not step.get("undoable")],
+        "nextStep": f"Apply with confirm={ZOTERO_WRITE_CONFIRM!r}. A snapshot of the library is taken first and its path is reported. Apply then re-reads the item count and, for every collection a step names, that collection's own `numItems` and the items whose `data.collections` carry its key; the result carries `countCheck` and `collectionCheck`, and a 200 or 204 on its own is not treated as proof (DD14-11).",
     }
 
 
-def zotero_write_apply(changes: Any, *, confirm: str) -> dict[str, Any]:
-    """Apply a previewed plan, then read the counts back. A 200 or 204 is not treated as proof."""
+def _zotero_header_int(value: Any) -> int | None:
+    """Read a Zotero version header as a number, or say it was not one."""
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def zotero_collection_state(keys: list[str]) -> list[dict[str, Any]]:
+    """Read each affected collection back, the way P5 says the API answers membership.
+
+    `numItems` is Zotero's own number for the collection; `members` is what the membership path reports. Both
+    are read after the write so that a 204 is checked against a library fact instead of being taken as one.
+    """
+    listing = {str(row.get("key")): row for row in list_zotero_collections()["collections"]}
+    state: list[dict[str, Any]] = []
+    for key in keys:
+        row = listing.get(key) or {}
+        read = zotero_collection_items(key)
+        state.append({
+            "key": key,
+            "name": row.get("name"),
+            "path": row.get("path"),
+            "listed": key in listing,
+            "numItems": row.get("numItems"),
+            "numCollections": row.get("numCollections"),
+            "members": read["members"],
+            "memberCount": read["memberCount"],
+            "recordsRead": read["returned"],
+            "notesIncluded": read["notesIncluded"],
+        })
+    return state
+
+
+def zotero_write_apply(changes: Any, *, confirm: str, resume_after: int = 0) -> dict[str, Any]:
+    """Apply a previewed plan in batches of at most 25 operations, then read back what the write did.
+
+    A 200 or 204 is not treated as proof (DD14-11), which 0.3.13 asserted without doing (defects D2, D3):
+    a created key is read out of the server's own `success` map (P1), every entry of `failed` is reported, the
+    library version is taken from the response, and every collection a step named is read back through
+    `GET /collections/<key>/items` — the one path that answers membership (P5).
+
+    A plan that stops partway raises with the item-level report attached to the error (`error.writeReport`,
+    surfaced by the tool as `error.writeReport` too): which operations arrived, which did not, and the next
+    batch `resume_after` would run. A 412 or 428 marks that report `blocked`, because the version guards the
+    plan was built from no longer describe this library.
+    """
     if confirm != ZOTERO_WRITE_CONFIRM:
         raise ResearchError("WRITE_CONFIRM_REQUIRED", f"A Zotero write needs confirm={ZOTERO_WRITE_CONFIRM!r}. Run `preview` first and read it.")
     plan = _zotero_plan(changes)
+    if isinstance(resume_after, bool) or not isinstance(resume_after, int) or resume_after < 0 or resume_after > len(plan):
+        raise ResearchError("ZOTERO_WRITE_RESUME_INVALID", f"`resume_after` is how many operations an earlier apply already reported as applied: 0 to {len(plan) - 1} for this plan. It is the number the earlier report's `nextBatch.resumeAfter` named.")
+    if resume_after == len(plan):
+        # An authorization that sends nothing is not a completed write, and journaling it would make it look
+        # like one. The number that skips every operation is the number that says the write is already over.
+        raise ResearchError("ZOTERO_WRITE_NOTHING_TO_APPLY", f"`resume_after={resume_after}` leaves no operation to send for this plan of {len(plan)}. The earlier apply reported what it applied; nothing here would be added to it. Re-run `preview` to plan against the library as it is now.")
+    batches_needed = -(-len(plan) // ZOTERO_WRITE_MAX_OPERATIONS)
     applied: list[dict[str, Any]] = []
-    for step in plan:
-        headers = _zotero_write_headers(version=step.get("guard"))
-        document, _ = _zotero_request(step["path"], timeout=ZOTERO_LISTING_TIMEOUT_SECONDS, method=step["method"], body=step["body"], extra_headers=headers, write=True)
-        key = (document or {}).get("key") if isinstance(document, dict) else step.get("key")
-        version = (document or {}).get("version") if isinstance(document, dict) else None
-        applied.append({"op": step["op"], "key": key, "version": version, "undoable": step["undoable"], "before": step.get("before"), "changedFields": step.get("changedFields")})
-    return {
+    created_keys: list[str] = []
+    server_failures: list[dict[str, Any]] = []
+    collection_keys: list[str] = []
+    created_by_name: dict[str, str] = {}
+    library_version: int | None = None
+    # What this write has already changed, item by item: the version each write's own response reported. A
+    # second operation on the same item is guarded by that, not by the single plan-time read (defect, 22 November 2026).
+    versions_by_key: dict[str, int | None] = {}
+    guard_from_step: dict[str, int] = {}
+    bodies_by_key: dict[str, tuple[int, dict[str, Any]]] = {}
+    applied_fields_by_key: dict[str, set[str]] = {}
+
+    def describe(index: int, step: dict[str, Any]) -> dict[str, Any]:
+        return {"index": index, "batch": index // ZOTERO_WRITE_MAX_OPERATIONS + 1, "op": step.get("op"), "key": step.get("key"), "collectionName": step.get("collectionName")}
+
+    def stop(index: int, exc: ResearchError) -> None:
+        """Say which operations arrived, which did not, and what the next batch would be — then refuse the rest."""
+        remaining = list(range(index, len(plan)))
+        report: dict[str, Any] = {
+            "applied": list(applied),
+            "notApplied": [describe(i, plan[i]) for i in remaining],
+            "stoppedAtIndex": index,
+            "stoppedBatch": index // ZOTERO_WRITE_MAX_OPERATIONS + 1,
+            "batchesNeeded": batches_needed,
+            "operationsPerBatch": ZOTERO_WRITE_MAX_OPERATIONS,
+            "createdKeys": sorted(set(created_keys)),
+            "serverFailures": list(server_failures),
+            "libraryVersion": library_version,
+            "nextBatch": {
+                "resumeAfter": index,
+                "batchesRemaining": -(-len(remaining) // ZOTERO_WRITE_MAX_OPERATIONS),
+                "operations": [describe(i, plan[i]) for i in remaining[:ZOTERO_WRITE_MAX_OPERATIONS]],
+                "note": "Apply again with `resume_after` set to `resumeAfter` and the same `changes` list: these are the operations that were not sent. An applied step is not sent again blindly — its version guard came from a library that has since changed.",
+            },
+        }
+        if exc.code in ("ZOTERO_WRITE_CONFLICT", "ZOTERO_WRITE_VERSION_REQUIRED"):
+            report["blocked"] = {
+                "code": exc.code,
+                "condition": "the library version this plan was built from is not the library's version any more",
+                "blocksNextApply": True,
+                "until": "re-read the library: `zotero_write(action=\"snapshot\")`, then `preview` again, then apply the new plan",
+            }
+        if collection_keys:
+            try:
+                report["collectionState"] = zotero_collection_state(sorted(set(collection_keys)))
+            except ResearchError as read_exc:
+                report["collectionStateNote"] = f"The read-back after the interruption did not complete: {read_exc.code}."
+        exc.report = report
+        raise exc
+
+    for index in range(resume_after, len(plan)):
+        step = plan[index]
+        batch = index // ZOTERO_WRITE_MAX_OPERATIONS + 1
+        if step.get("write") is False:
+            # `ensure_collection` found the collection already there. It planned no request and sends none.
+            applied.append({**describe(index, step), "request": False, "action": step.get("action"), "method": None, "version": None, "created": False, "undoable": False, "before": None, "changedFields": [], "collectionKey": step.get("collectionKey"), "collectionName": step.get("collectionName"), "note": step.get("note")})
+            collection_keys.append(str(step.get("collectionKey")))
+            continue
+        body: Any = step["body"]
+        if step.get("parentFromStep") is not None and isinstance(body, list) and body:
+            parent_name = str(step.get("parentCollectionName") or "")
+            parent_key = created_by_name.get(parent_name)
+            if not parent_key:
+                stop(index, ResearchError("ZOTERO_COLLECTION_PARENT_UNRESOLVED", f"The step that was to create the parent collection {parent_name!r} produced no key, so {step.get('collectionName')!r} was not created loose. Nothing was sent for this operation.", evidence=None))
+            body = [{**body[0], "parentCollection": parent_key}]
+        guard = step.get("guard")
+        guard_source = "snapshot"
+        step_key = str(step.get("key") or "")
+        if step.get("method") in ("PUT", "PATCH") and step_key and step_key in versions_by_key:
+            # Two operations on one item in one authorized write (reviewed defect, 22 November 2026). The plan
+            # read the item once, so both steps carry the same `If-Unmodified-Since-Version`; the first write
+            # moves the item's version and the second would answer 412 while the first stays applied. The guard
+            # is taken from the version this library actually reported for that item, because that is the version
+            # the second request is allowed to claim. Without a reported version the step is refused before it is
+            # sent rather than sent unguarded, which Zotero answers with 428.
+            fresh = versions_by_key[step_key]
+            if fresh is None:
+                stop(index, ResearchError("ZOTERO_WRITE_VERSION_UNKNOWN", f"Step {index} ({step.get('op')}) is the second write to item {step_key} in this authorization, and the earlier write to it reported no version to build a guard from. Nothing was sent for this operation. Re-snapshot and preview to finish the rest.", evidence=None))
+            guard, guard_source = fresh, f"the version step {guard_from_step[step_key]} reported for {step_key}"
+        if step.get("method") in ("PUT", "PATCH") and step_key and isinstance(body, dict) and step_key in bodies_by_key:
+            # A PUT replaces the whole item. A second step for the same item was planned from the same single
+            # read, so its body carries the library as it was *before* the first step of this write — sending it
+            # as planned would quietly undo what the first step changed (a filing erased by a later tag edit on
+            # the same item). The step is sent as the body the earlier step actually sent, plus the fields this
+            # step changes, which is the same field-by-field shape the journal undoes with (review 2).
+            earlier_index, earlier_body = bodies_by_key[step_key]
+            changed = [str(name) for name in (step.get("changedFields") or []) if name in body]
+            overwritten = sorted(set(changed) & applied_fields_by_key.get(step_key, set()))
+            body = {**earlier_body, **{name: body[name] for name in changed}}
+            entry_note = f"sent as the body step {earlier_index} wrote for {step_key}, plus {', '.join(changed) or 'no fields'}; the plan-time read of this item is out of date by that step"
+        else:
+            entry_note = None
+            overwritten = []
+        try:
+            document, response_headers = _zotero_request(step["path"], timeout=ZOTERO_LISTING_TIMEOUT_SECONDS, method=step["method"], body=body, body_is_list=step.get("bodyIsList") is True, extra_headers=_zotero_write_headers(version=guard), write=True)
+        except ResearchError as exc:
+            stop(index, exc)
+        entry: dict[str, Any] = {**describe(index, step), "request": True, "action": step.get("action"), "method": step["method"], "key": step.get("key"), "version": None, "created": step.get("action") == "create", "undoable": bool(step.get("undoable")), "before": step.get("before"), "changedFields": step.get("changedFields"), "undoReason": step.get("undoReason"), "guard": guard, "guardSource": guard_source}
+        if entry_note:
+            entry["builtFrom"] = entry_note
+        if overwritten:
+            entry["overwritesFields"] = overwritten
+        if step["method"] == "POST":
+            success = document.get("success") if isinstance(document, dict) else None
+            failed = document.get("failed") if isinstance(document, dict) else None
+            created = sorted({str(value) for value in (success or {}).values() if isinstance(value, str)})
+            created_keys.extend(created)
+            if len(created) == 1:
+                entry["key"] = created[0]
+            elif created:
+                entry["keys"] = created
+            if isinstance(failed, dict):
+                for position, reason in sorted(failed.items(), key=lambda pair: str(pair[0])):
+                    server_failures.append({"index": index, "batch": batch, "op": step.get("op"), "position": str(position), "reason": reason})
+            if not created and not (isinstance(failed, dict) and failed):
+                server_failures.append({"index": index, "batch": batch, "op": step.get("op"), "position": None, "reason": "the POST answered without a created key in `success`, so the Toolkit cannot name what it created", "success": success if isinstance(success, dict) else None})
+            if step.get("collectionName") and isinstance(entry.get("key"), str):
+                # A child collection named its parent by name (P3), and the only key that parent has is the one
+                # this response just returned. Remembering it is what lets a later step in the same write file
+                # under it instead of inventing a key.
+                created_by_name[str(step["collectionName"])] = str(entry["key"])
+        version = _zotero_header_int(response_headers.get("last-modified-version"))
+        if version is None and isinstance(document, dict):
+            version = _zotero_header_int(document.get("version"))
+        if version is not None:
+            library_version = version if library_version is None else max(library_version, version)
+        entry["version"] = version
+        if step.get("method") in ("PUT", "PATCH") and step_key:
+            # What this library now reports for the item this step changed. A later step of the same write is
+            # guarded by this number instead of by the one read the plan was built from.
+            versions_by_key[step_key] = version
+            guard_from_step[step_key] = index
+            if isinstance(body, dict):
+                bodies_by_key[step_key] = (index, dict(body))
+            applied_fields_by_key.setdefault(step_key, set()).update(str(name) for name in (step.get("changedFields") or []))
+        named_key = step.get("collectionKey") or (entry["key"] if step.get("collectionName") else None)
+        if named_key:
+            entry["collectionKey"] = str(named_key)
+            entry["collectionName"] = step.get("collectionName")
+            collection_keys.append(entry["collectionKey"])
+        elif step.get("collectionName"):
+            entry["collectionName"] = step.get("collectionName")
+        applied.append(entry)
+
+    result: dict[str, Any] = {
         "dryRun": False,
-        "zoteroModified": True,
+        # `ensure_collection` that found the collection already there sent nothing, and a write that sent
+        # nothing did not modify the library. Saying `true` there would be a claim about a request that never happened.
+        "zoteroModified": any(entry.get("request") for entry in applied),
         "applied": applied,
         "operationCount": len(applied),
-        "notUndoable": [entry for entry in applied if not entry["undoable"]],
-        "nextStep": "Check the library against the snapshot: the Toolkit re-reads the item count and reports a mismatch as an error.",
+        "batchesNeeded": batches_needed,
+        "operationsPerBatch": ZOTERO_WRITE_MAX_OPERATIONS,
+        "resumedAfter": resume_after,
+        # A resume skips operations on the strength of the earlier report. They are named here so that a write
+        # which sends 14 of 43 operations cannot be read as a write of 43.
+        "skippedOperations": [describe(i, plan[i]) for i in range(resume_after)],
+        "skippedNote": (
+            f"These {resume_after} operations were not sent again: an earlier apply reported them as applied. The Toolkit did not re-read them to confirm that, so this receipt covers only the {len(plan) - resume_after} operations it sent."
+            if resume_after else None
+        ),
+        "createdKeys": sorted(set(created_keys)),
+        "serverFailures": server_failures,
+        "libraryVersion": library_version,
+        "collectionKeys": sorted(set(collection_keys)),
+        "notUndoable": [{"op": entry["op"], "key": entry.get("key"), "collectionName": entry.get("collectionName"), "reason": entry.get("undoReason") or "recorded as not undoable: the local API has no restore for a created item"} for entry in applied if not entry["undoable"]],
+        "nextStep": "Compare the write with the snapshot before trusting it. The tool result carries `countCheck` (item counts before and after, with `mismatch` named) and, for every collection a step named, `collectionCheck` (that collection's `numItems` and the items whose `data.collections` carry its key, before and after). An item count that did not move is normal for a filing — filing moves membership, not the number of items (P9) — which is why `collectionCheck` is the check that proves a filing (DD14-11).",
     }
+    if result["collectionKeys"]:
+        try:
+            result["collectionState"] = zotero_collection_state(result["collectionKeys"])
+        except ResearchError as exc:
+            result["collectionStateNote"] = f"The collections this write named were not read back: {exc.code}. `collectionCheck` reports that as a mismatch rather than as a clean result."
+    return result
 
 
 ZOTERO_SNAPSHOT_PAGE_LIMIT = 100
@@ -938,11 +1760,13 @@ def zotero_snapshot_document() -> dict[str, Any]:
     items: list[Any] = []
     truncated = True
     total_results: str | None = None
+    library_version: int | None = None
     for page in range(ZOTERO_SNAPSHOT_MAX_PAGES):
         document, headers = _zotero_request(f"users/0/items?format=json&limit={ZOTERO_SNAPSHOT_PAGE_LIMIT}&start={page * ZOTERO_SNAPSHOT_PAGE_LIMIT}", timeout=ZOTERO_LISTING_TIMEOUT_SECONDS)
         rows = document if isinstance(document, list) else []
         items.extend(rows)
         total_results = headers.get("zotero-total-results")
+        library_version = _zotero_header_int(headers.get("last-modified-version")) or library_version
         if len(rows) < ZOTERO_SNAPSHOT_PAGE_LIMIT:
             truncated = False
             break
@@ -960,7 +1784,12 @@ def zotero_snapshot_document() -> dict[str, Any]:
         "itemCount": len(items),
         "totalResults": total_results,
         "truncated": truncated,
+        # The library version the snapshot was taken at. `If-Unmodified-Since-Version` guards come from item
+        # versions read at plan time; this is the library-level number the version-conflict report names.
+        "libraryVersion": library_version,
         "items": items,
+        # Each entry carries `key`, `name`, `parentCollection`, `numItems`, `numCollections` and `path`, which
+        # is what `zotero_store.collection_check` compares the post-write read against (D3/D4).
         "collections": collections,
         "tags": [tag for tag in tags if tag],
         "tagNote": tag_note,
@@ -975,7 +1804,10 @@ def zotero_write_undo(entries: Any) -> dict[str, Any]:
     refused: list[dict[str, Any]] = []
     for entry in reversed(entries):
         if not isinstance(entry, dict) or not entry.get("undoable") or not entry.get("key"):
-            refused.append({"key": (entry or {}).get("key"), "reason": "recorded as not undoable: the local API has no restore for a created item"})
+            # A created collection or a created item is refused with the reason it was recorded with, so the
+            # operator reads the same sentence in the preview, in the journal and in the refusal (D7).
+            stated = entry.get("undoReason") if isinstance(entry, dict) else None
+            refused.append({"key": (entry or {}).get("key"), "reason": stated or "recorded as not undoable: the local API has no restore for a created item"})
             continue
         data, version = _zotero_item_data(str(entry["key"]))
         body = dict(data)
@@ -988,6 +1820,40 @@ def zotero_write_undo(entries: Any) -> dict[str, Any]:
             continue
         undone.append({"key": entry["key"], "restoredFields": sorted(entry.get("before") or {})})
     return {"dryRun": False, "zoteroModified": bool(undone), "undone": undone, "refused": refused}
+
+
+def _ris_date(value: Any) -> str | None:
+    """The record's normalized date as one RIS `DA` value; a list becomes a dashed date."""
+    if isinstance(value, (list, tuple)):
+        value = "-".join(str(item) for item in value if isinstance(item, (str, int)))
+    if value is None:
+        return None
+    text = str(value).replace("\r", " ").replace("\n", " ").strip()
+    return text or None
+
+
+def _ris_provenance_note(record: dict[str, Any], date_text: str | None) -> str | None:
+    """Which providers answered, and which provider's which date field the `DA` value came from.
+
+    `M2` is the field Zotero's RIS translator keeps as `extra` (measured 14 November 2026), so this is the one
+    place in the imported library where a later reader can see that a 2021 date was a DOI registration date
+    rather than a publication date. It says what was measured; it never restates a provider's claim as the
+    Toolkit's own.
+    """
+    parts: list[str] = []
+    providers = _field_providers(record)
+    if providers:
+        parts.append("providers: " + ", ".join(PROVIDER_LABELS.get(name, name) for name in providers))
+    field = record.get("dateField")
+    if date_text and isinstance(field, dict) and isinstance(field.get("value"), str):
+        source = field.get("provenance")
+        label = PROVIDER_LABELS.get(source.get("provider", ""), "") if isinstance(source, dict) else ""
+        parts.append(f"date from {label or 'the provider'} {field['value']!r}")
+        if field["value"] == "created":
+            parts.append("Crossref 'created' is the DOI registration date")
+    elif date_text:
+        parts.append("date field not recorded by the provider")
+    return "; ".join(parts)[:240] or None
 
 
 def to_ris(records: list[dict[str, Any]]) -> str:
@@ -1003,15 +1869,19 @@ def to_ris(records: list[dict[str, Any]]) -> str:
         # Measured 14 November 2026: this build's RIS translator turns `TY  - GEN` into `journalArticle`,
         # which is wrong for a code of canon law and for an apostolic constitution. An unmapped type is
         # therefore named in `ris_warnings` instead of being quietly written as GEN.
+        # The book and chapter tests are family tests, not substring tests, because Crossref's `type` is a
+        # vocabulary: `monograph` was written as GEN and `book-part` as BOOK, and a chapter asked for under
+        # `type:book` is not returned at all (`fixtures/crossref-type-vocabulary.json`). Chapter-like is
+        # checked first: `book-chapter` and `book-part` both contain the word "book".
         if "statute" in item_type or "legislat" in item_type:
             ris_type = "STAT"
         elif "thesis" in item_type or "dissert" in item_type:
             ris_type = "THES"
         elif "report" in item_type:
             ris_type = "RPRT"
-        elif "chapter" in item_type or "booksection" in item_type:
+        elif item_type in CROSSREF_CHAPTER_TYPES or "chapter" in item_type or "booksection" in item_type:
             ris_type = "CHAP"
-        elif "book" in item_type:
+        elif item_type in CROSSREF_BOOK_TYPES or "book" in item_type:
             ris_type = "BOOK"
         elif "proceeding" in item_type or "conference" in item_type:
             ris_type = "CPAPER"
@@ -1027,6 +1897,16 @@ def to_ris(records: list[dict[str, Any]]) -> str:
             value = fields.get(field)
             if value is not None:
                 lines.append(f"{tag}  - {str(value).replace(chr(13), ' ').replace(chr(10), ' ')}")
+        # `DA` is the normalized date, and `M2` says where it came from: the 21 November receipts dated works
+        # by Crossref `created`, which is the DOI registration date, and a reader of the library cannot tell
+        # that back out of a bare year. `DA` and `M2` are both in `RIS_KNOWN_TAGS` and neither is repeatable
+        # in Zotero's translator, so exactly one of each is written per record.
+        date_text = _ris_date(fields.get("date"))
+        if date_text:
+            lines.append(f"DA  - {date_text}")
+        provenance_note = _ris_provenance_note(record, date_text)
+        if provenance_note:
+            lines.append(f"M2  - {provenance_note}")
         # `KW` is the one RIS field Zotero turns into tags, and tags are the only thing in the library a
         # later reader can filter on. `N1` becomes a child note, which cannot be filtered (measured 14 Nov 2026).
         if fields.get("tags"):

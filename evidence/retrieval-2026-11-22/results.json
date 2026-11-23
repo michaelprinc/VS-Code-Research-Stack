@@ -1,0 +1,2994 @@
+{
+  "run": {
+    "measuredAt": "2026-11-23T03:34:57+00:00",
+    "seed": 20261122,
+    "repetitions": 5,
+    "k": 10,
+    "modes": [
+      "lexical",
+      "vector",
+      "hybrid"
+    ],
+    "networkUsed": false,
+    "modelDownloaded": false,
+    "deterministicAcrossRepetitions": true,
+    "corpusNature": "Synthetic fixture text authored for this measurement. It is not the operator's research corpus, and no private text is present in it. Relevance is judged by construction: the relevant passage is the passage written to answer the query.",
+    "host": {
+      "python": "3.12.16",
+      "machine": "x86_64",
+      "cpuCount": 16,
+      "singleProcessSingleThread": true
+    },
+    "indexReceipt": {
+      "chunksStored": 40,
+      "vectorsWritten": 40,
+      "chunksWithoutSignature": 0,
+      "storeChunks": 40
+    },
+    "backend": {
+      "backendId": "rsk-hashing-v1",
+      "dimensions": 256,
+      "tokenizerId": "unicode-word-v1",
+      "features": "tokens + character 3-grams + character 4-grams, signed feature hashing",
+      "encoding": "base64-int16-le",
+      "modelDownloaded": false,
+      "networkRequired": false,
+      "nature": "lexical signature, not a trained semantic model"
+    },
+    "fusion": {
+      "reciprocalRankConstant": 60,
+      "weights": {
+        "reciprocalRankFusion": 0.5,
+        "lexicalScore": 0.25,
+        "vectorScore": 0.25
+      },
+      "fusionPool": 50
+    }
+  },
+  "corpus": {
+    "files": 10,
+    "bytes": 6994,
+    "chunkCount": 40,
+    "fileSha256": {
+      "corpus/cz/archivni-prirucka.md": "64e67995dddfc15c3d3e0c7fd9d18104b83ba8e6ace5ab5df059d4c6672ba712",
+      "corpus/cz/iluminace.md": "e4df833c8029b88be9d552dce2e302f8c8d5c0d8ea47a7c3fa0014c5ec064321",
+      "corpus/cz/korespondence.md": "9c7456164ea6742282589f0e1e2a6715c190e2ba40dd71d86c8047a898a93656",
+      "corpus/cz/metody.md": "8a28eccb341b7c7ddf51f4b07a0b95e4a7a3f9ef8ae861f7c8f1cf23adb40d14",
+      "corpus/cz/preklady.md": "10b046181791d66455de6a466922fba132511f8976c806ac77494b5e3839f347",
+      "corpus/en/citation-export.md": "df5541c58d90305980b7c4eb25845a9b9993ac37a102763384fe86f97ea37a43",
+      "corpus/en/guild-records.md": "3f6f03c71d513dfe2e3e8ff49954ed368b5979348abce7bc2da6cef953b099c0",
+      "corpus/en/illuminations.md": "04a0eebc50557de5c911d78d939cdf9221eb5b7d36863465b9c7016caead0da0",
+      "corpus/en/retrieval-methods.md": "a6498f1134cd5e66fdfbacdc61078432a67edfdb802b9969cf53b4fb02a4d519",
+      "corpus/en/workshop-notes.md": "75556828e764a269ca01a752d8e43d5927c59b266e1def8e22a981b085e81d24"
+    }
+  },
+  "vectorCoverage": {
+    "currentChunks": 40,
+    "vectorRows": 40,
+    "decodableSignatures": 40,
+    "metadataMatchOnly": 40,
+    "undecodableSignatures": 0,
+    "storeChunkCeiling": 20000,
+    "overLimit": false,
+    "coverageOfCurrentChunks": 1.0,
+    "measuredBy": "decoded at query time by the search path; not inferred from row metadata (T16-04)"
+  },
+  "queries": {
+    "total": 29,
+    "byGroup": {
+      "czech": 10,
+      "english": 10,
+      "diacritic-free-or-typo": 5,
+      "no-relevant-answer": 4
+    }
+  },
+  "latencyMs": {
+    "lexical": {
+      "samples": 145,
+      "medianMs": 1.086,
+      "p95Ms": 1.439,
+      "maxMs": 1.555,
+      "meanMs": 1.126
+    },
+    "vector": {
+      "samples": 145,
+      "medianMs": 2.683,
+      "p95Ms": 3.576,
+      "maxMs": 4.498,
+      "meanMs": 2.808
+    },
+    "hybrid": {
+      "samples": 145,
+      "medianMs": 3.333,
+      "p95Ms": 4.383,
+      "maxMs": 5.571,
+      "meanMs": 3.459
+    }
+  },
+  "refusals": [],
+  "aggregate": {
+    "lexical": {
+      "groups": {
+        "czech": {
+          "queries": 10,
+          "recallAtK": {
+            "count": 10,
+            "mean": 0.95,
+            "median": 1.0,
+            "min": 0.5,
+            "max": 1.0
+          },
+          "ndcgAtK": {
+            "count": 10,
+            "mean": 0.891972,
+            "median": 1.0,
+            "min": 0.306574,
+            "max": 1.0
+          },
+          "precisionAtK": {
+            "count": 10,
+            "mean": 0.12,
+            "median": 0.1,
+            "min": 0.1,
+            "max": 0.2
+          },
+          "queriesWithNoRelevantHit": 0
+        },
+        "english": {
+          "queries": 10,
+          "recallAtK": {
+            "count": 10,
+            "mean": 1.0,
+            "median": 1.0,
+            "min": 1.0,
+            "max": 1.0
+          },
+          "ndcgAtK": {
+            "count": 10,
+            "mean": 0.963093,
+            "median": 1.0,
+            "min": 0.63093,
+            "max": 1.0
+          },
+          "precisionAtK": {
+            "count": 10,
+            "mean": 0.1,
+            "median": 0.1,
+            "min": 0.1,
+            "max": 0.1
+          },
+          "queriesWithNoRelevantHit": 0
+        },
+        "diacritic-free-or-typo": {
+          "queries": 5,
+          "recallAtK": {
+            "count": 5,
+            "mean": 0.8,
+            "median": 1.0,
+            "min": 0.0,
+            "max": 1.0
+          },
+          "ndcgAtK": {
+            "count": 5,
+            "mean": 0.7,
+            "median": 1.0,
+            "min": 0.0,
+            "max": 1.0
+          },
+          "precisionAtK": {
+            "count": 5,
+            "mean": 0.08,
+            "median": 0.1,
+            "min": 0.0,
+            "max": 0.1
+          },
+          "queriesWithNoRelevantHit": 1
+        },
+        "no-relevant-answer": {
+          "queries": 4,
+          "queriesReturningAtLeastOneHit": 4,
+          "shareReturningAHit": 1.0,
+          "meanHitsReturned": 7.5,
+          "highestScoreReturned": 7.327853,
+          "note": "Nothing in the corpus answers these queries, so every hit returned is a false positive. Reported as a rate because the modes apply no relevance threshold."
+        }
+      },
+      "overall": {
+        "assessedQueries": 25,
+        "recallAtK": {
+          "count": 25,
+          "mean": 0.94,
+          "median": 1.0,
+          "min": 0.0,
+          "max": 1.0
+        },
+        "ndcgAtK": {
+          "count": 25,
+          "mean": 0.882026,
+          "median": 1.0,
+          "min": 0.0,
+          "max": 1.0
+        },
+        "precisionAtK": {
+          "count": 25,
+          "mean": 0.104,
+          "median": 0.1,
+          "min": 0.0,
+          "max": 0.2
+        }
+      }
+    },
+    "vector": {
+      "groups": {
+        "czech": {
+          "queries": 10,
+          "recallAtK": {
+            "count": 10,
+            "mean": 0.95,
+            "median": 1.0,
+            "min": 0.5,
+            "max": 1.0
+          },
+          "ndcgAtK": {
+            "count": 10,
+            "mean": 0.866839,
+            "median": 1.0,
+            "min": 0.184576,
+            "max": 1.0
+          },
+          "precisionAtK": {
+            "count": 10,
+            "mean": 0.12,
+            "median": 0.1,
+            "min": 0.1,
+            "max": 0.2
+          },
+          "queriesWithNoRelevantHit": 0
+        },
+        "english": {
+          "queries": 10,
+          "recallAtK": {
+            "count": 10,
+            "mean": 1.0,
+            "median": 1.0,
+            "min": 1.0,
+            "max": 1.0
+          },
+          "ndcgAtK": {
+            "count": 10,
+            "mean": 0.926186,
+            "median": 1.0,
+            "min": 0.63093,
+            "max": 1.0
+          },
+          "precisionAtK": {
+            "count": 10,
+            "mean": 0.1,
+            "median": 0.1,
+            "min": 0.1,
+            "max": 0.1
+          },
+          "queriesWithNoRelevantHit": 0
+        },
+        "diacritic-free-or-typo": {
+          "queries": 5,
+          "recallAtK": {
+            "count": 5,
+            "mean": 0.8,
+            "median": 1.0,
+            "min": 0.0,
+            "max": 1.0
+          },
+          "ndcgAtK": {
+            "count": 5,
+            "mean": 0.626186,
+            "median": 0.63093,
+            "min": 0.0,
+            "max": 1.0
+          },
+          "precisionAtK": {
+            "count": 5,
+            "mean": 0.08,
+            "median": 0.1,
+            "min": 0.0,
+            "max": 0.1
+          },
+          "queriesWithNoRelevantHit": 1
+        },
+        "no-relevant-answer": {
+          "queries": 4,
+          "queriesReturningAtLeastOneHit": 4,
+          "shareReturningAHit": 1.0,
+          "meanHitsReturned": 10.0,
+          "highestScoreReturned": 0.181613,
+          "note": "Nothing in the corpus answers these queries, so every hit returned is a false positive. Reported as a rate because the modes apply no relevance threshold."
+        }
+      },
+      "overall": {
+        "assessedQueries": 25,
+        "recallAtK": {
+          "count": 25,
+          "mean": 0.94,
+          "median": 1.0,
+          "min": 0.0,
+          "max": 1.0
+        },
+        "ndcgAtK": {
+          "count": 25,
+          "mean": 0.842447,
+          "median": 1.0,
+          "min": 0.0,
+          "max": 1.0
+        },
+        "precisionAtK": {
+          "count": 25,
+          "mean": 0.104,
+          "median": 0.1,
+          "min": 0.0,
+          "max": 0.2
+        }
+      }
+    },
+    "hybrid": {
+      "groups": {
+        "czech": {
+          "queries": 10,
+          "recallAtK": {
+            "count": 10,
+            "mean": 0.95,
+            "median": 1.0,
+            "min": 0.5,
+            "max": 1.0
+          },
+          "ndcgAtK": {
+            "count": 10,
+            "mean": 0.891972,
+            "median": 1.0,
+            "min": 0.306574,
+            "max": 1.0
+          },
+          "precisionAtK": {
+            "count": 10,
+            "mean": 0.12,
+            "median": 0.1,
+            "min": 0.1,
+            "max": 0.2
+          },
+          "queriesWithNoRelevantHit": 0
+        },
+        "english": {
+          "queries": 10,
+          "recallAtK": {
+            "count": 10,
+            "mean": 1.0,
+            "median": 1.0,
+            "min": 1.0,
+            "max": 1.0
+          },
+          "ndcgAtK": {
+            "count": 10,
+            "mean": 0.963093,
+            "median": 1.0,
+            "min": 0.63093,
+            "max": 1.0
+          },
+          "precisionAtK": {
+            "count": 10,
+            "mean": 0.1,
+            "median": 0.1,
+            "min": 0.1,
+            "max": 0.1
+          },
+          "queriesWithNoRelevantHit": 0
+        },
+        "diacritic-free-or-typo": {
+          "queries": 5,
+          "recallAtK": {
+            "count": 5,
+            "mean": 0.8,
+            "median": 1.0,
+            "min": 0.0,
+            "max": 1.0
+          },
+          "ndcgAtK": {
+            "count": 5,
+            "mean": 0.726186,
+            "median": 1.0,
+            "min": 0.0,
+            "max": 1.0
+          },
+          "precisionAtK": {
+            "count": 5,
+            "mean": 0.08,
+            "median": 0.1,
+            "min": 0.0,
+            "max": 0.1
+          },
+          "queriesWithNoRelevantHit": 1
+        },
+        "no-relevant-answer": {
+          "queries": 4,
+          "queriesReturningAtLeastOneHit": 4,
+          "shareReturningAHit": 1.0,
+          "meanHitsReturned": 10.0,
+          "highestScoreReturned": 0.982175,
+          "note": "Nothing in the corpus answers these queries, so every hit returned is a false positive. Reported as a rate because the modes apply no relevance threshold."
+        }
+      },
+      "overall": {
+        "assessedQueries": 25,
+        "recallAtK": {
+          "count": 25,
+          "mean": 0.94,
+          "median": 1.0,
+          "min": 0.0,
+          "max": 1.0
+        },
+        "ndcgAtK": {
+          "count": 25,
+          "mean": 0.887263,
+          "median": 1.0,
+          "min": 0.0,
+          "max": 1.0
+        },
+        "precisionAtK": {
+          "count": 25,
+          "mean": 0.104,
+          "median": 0.1,
+          "min": 0.0,
+          "max": 0.2
+        }
+      }
+    }
+  },
+  "perQuery": [
+    {
+      "id": "cz-01",
+      "query": "sandály v iluminacích kodexu",
+      "group": "czech",
+      "basis": "Paragraph 2 states how many miniatures show sandals; paragraph 3 states how those sandals are sewn. Each names sandals in its own words, so each is an answer on its own.",
+      "relevantCount": 2,
+      "relevantChunkIds": [
+        "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+        "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2",
+            "8d317e9b01f2fa1f33702aac829f8d55f6530eee470ba45a68ea39ba5788d136",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 0.5,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.306574,
+          "topScore": 4.930693,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "46ee58e080e79b15ae65e926771b4831f7d31541cee317d31085607d4543aaae",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2",
+            "8d317e9b01f2fa1f33702aac829f8d55f6530eee470ba45a68ea39ba5788d136"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 0.5,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.184576,
+          "topScore": 0.319839,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "8d317e9b01f2fa1f33702aac829f8d55f6530eee470ba45a68ea39ba5788d136",
+            "46ee58e080e79b15ae65e926771b4831f7d31541cee317d31085607d4543aaae",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 0.5,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.306574,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "cz-02",
+      "query": "dvojitý steh voskovaná nit popruhy podešev",
+      "group": "czech",
+      "basis": "Paragraph 3 is the only Czech paragraph naming the double stitch, the waxed thread and the straps sewn from the inside of the sole.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2"
+          ],
+          "hitsReturned": 2,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 8.536126,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "1e9d66ff5f747d25c48b27628bc6bd21d42188af4a11fe69ff0c997a59f78eba",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.252513,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "1e9d66ff5f747d25c48b27628bc6bd21d42188af4a11fe69ff0c997a59f78eba",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 2,
+            "lexicalOnly": 0,
+            "vectorOnly": 8
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "cz-03",
+      "query": "datace kodexu gotická minuskula interpolace",
+      "group": "czech",
+      "basis": "Paragraph 4 carries the dating and the script description; no other Czech paragraph states either.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137"
+          ],
+          "hitsReturned": 2,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 10.107656,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.371967,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 2,
+            "lexicalOnly": 0,
+            "vectorOnly": 8
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "cz-04",
+      "query": "český překlad traktátu O světle a stínu",
+      "group": "czech",
+      "basis": "Paragraph 2 names the first Czech translator of the invented treatise and paragraph 3 the terminology that translation uses.",
+      "relevantCount": 2,
+      "relevantChunkIds": [
+        "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+        "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 2,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.2,
+          "ndcgAtK": 0.693426,
+          "topScore": 15.847085,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "8d317e9b01f2fa1f33702aac829f8d55f6530eee470ba45a68ea39ba5788d136",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 2,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.2,
+          "ndcgAtK": 0.693426,
+          "topScore": 0.606109,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "46ee58e080e79b15ae65e926771b4831f7d31541cee317d31085607d4543aaae",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 2,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.2,
+          "ndcgAtK": 0.693426,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "cz-05",
+      "query": "termín stín umbra kritické vydání revize",
+      "group": "czech",
+      "basis": "Paragraph 3 is where the two terms and the revision by the critical edition are recorded.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba"
+          ],
+          "hitsReturned": 2,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 16.314234,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.456278,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 2,
+            "lexicalOnly": 0,
+            "vectorOnly": 8
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "cz-06",
+      "query": "předání deskových desek vlhkost měření teploty",
+      "group": "czech",
+      "basis": "Paragraph 2 reports the handover and the humidity complaint; paragraph 3 reports the measurement and the remedy.",
+      "relevantCount": 2,
+      "relevantChunkIds": [
+        "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+        "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb"
+          ],
+          "hitsReturned": 3,
+          "relevantReturned": 2,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.2,
+          "ndcgAtK": 0.919721,
+          "topScore": 18.213466,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "1e9d66ff5f747d25c48b27628bc6bd21d42188af4a11fe69ff0c997a59f78eba",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "8d317e9b01f2fa1f33702aac829f8d55f6530eee470ba45a68ea39ba5788d136",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 2,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.2,
+          "ndcgAtK": 0.790386,
+          "topScore": 0.483209,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "1e9d66ff5f747d25c48b27628bc6bd21d42188af4a11fe69ff0c997a59f78eba",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "8d317e9b01f2fa1f33702aac829f8d55f6530eee470ba45a68ea39ba5788d136"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 2,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.2,
+          "ndcgAtK": 0.919721,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 3,
+            "lexicalOnly": 0,
+            "vectorOnly": 7
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "cz-07",
+      "query": "sigatura fond inventární číslo listy",
+      "group": "czech",
+      "basis": "Paragraph 2 defines the three-part shelfmark and gives the worked example RAJ 12/3.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "46ee58e080e79b15ae65e926771b4831f7d31541cee317d31085607d4543aaae"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "46ee58e080e79b15ae65e926771b4831f7d31541cee317d31085607d4543aaae",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e"
+          ],
+          "hitsReturned": 2,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 19.75092,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "46ee58e080e79b15ae65e926771b4831f7d31541cee317d31085607d4543aaae",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.522757,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "46ee58e080e79b15ae65e926771b4831f7d31541cee317d31085607d4543aaae",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 2,
+            "lexicalOnly": 0,
+            "vectorOnly": 8
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "cz-08",
+      "query": "konzervace suché čištění bez vody kontrola po šesti měsících",
+      "group": "czech",
+      "basis": "Paragraph 3 is the conservation procedure the query restates.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb"
+          ],
+          "hitsReturned": 5,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 22.465622,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.449413,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 5,
+            "lexicalOnly": 0,
+            "vectorOnly": 5
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "cz-09",
+      "query": "co hodnotí lexikální ranker proč překlep znamená jiný token",
+      "group": "czech",
+      "basis": "Paragraph 2 states what BM25 rewards and penalises and says a typo or removed diacritics is a different token for it. Judged in the language of the query; the same fact in English is judged under en-05.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3"
+          ],
+          "hitsReturned": 6,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 12.789514,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.350822,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 6,
+            "lexicalOnly": 0,
+            "vectorOnly": 4
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "cz-10",
+      "query": "pravidlo fúze reciproční hodnocení polovina výsledku",
+      "group": "czech",
+      "basis": "Paragraph 4 states the published fusion weights in Czech.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99"
+          ],
+          "hitsReturned": 1,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 16.273475,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "4e7195a8cea435e1f3be6e419e234bd6d8e26920d8c40f85ed8becc5af5cf30d",
+            "1e9d66ff5f747d25c48b27628bc6bd21d42188af4a11fe69ff0c997a59f78eba",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.528481,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "4e7195a8cea435e1f3be6e419e234bd6d8e26920d8c40f85ed8becc5af5cf30d",
+            "1e9d66ff5f747d25c48b27628bc6bd21d42188af4a11fe69ff0c997a59f78eba",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 1,
+            "lexicalOnly": 0,
+            "vectorOnly": 9
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-01",
+      "query": "how many miniatures show footwear in the codex",
+      "group": "english",
+      "basis": "Paragraph 2 gives the counts: forty-two miniatures, sixteen of them footwear.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.63093,
+          "topScore": 10.015157,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "44c2da866f310baa050aa5dce51bd0719cf2f906115ff1aff667a20cb5752024"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.63093,
+          "topScore": 0.371172,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.63093,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-02",
+      "query": "double stitch waxed thread outline line used only for footwear",
+      "group": "english",
+      "basis": "Paragraph 3 records the stitching technique and the outline line that identifies the footwear miniatures.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa"
+          ],
+          "hitsReturned": 6,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 26.758661,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.597542,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 6,
+            "lexicalOnly": 0,
+            "vectorOnly": 4
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-03",
+      "query": "guild pattern sewn from the inside of the sole admissions",
+      "group": "english",
+      "basis": "Paragraph 3 distinguishes the guild pattern from the household pattern and says admissions were judged on the guild pattern.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 28.618145,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.722671,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-04",
+      "query": "how many sandal makers worked in the street and how long an apprenticeship lasted",
+      "group": "english",
+      "basis": "Paragraph 2 carries both numbers: twenty-two makers and a two-year apprenticeship.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 11.145552,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.63093,
+          "topScore": 0.298895,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.961039,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-05",
+      "query": "why a query typed without diacritics may match nothing",
+      "group": "english",
+      "basis": "Paragraph 2 states that a query without diacritics or with a typo is a different token to BM25 and may match nothing.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "46ee58e080e79b15ae65e926771b4831f7d31541cee317d31085607d4543aaae"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 17.085643,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.447016,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-06",
+      "query": "how much of the fused score does reciprocal-rank fusion carry",
+      "group": "english",
+      "basis": "Paragraph 4 states the fusion weights: half reciprocal-rank fusion, a quarter for each ranker.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 16.721561,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "44c2da866f310baa050aa5dce51bd0719cf2f906115ff1aff667a20cb5752024",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.395499,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "44c2da866f310baa050aa5dce51bd0719cf2f906115ff1aff667a20cb5752024"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-07",
+      "query": "when does a stored claim become a report reference",
+      "group": "english",
+      "basis": "Paragraph 2 states the condition — the evidence must resolve to a stored chunk — and what a reference then carries.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 14.893108,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.437184,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-08",
+      "query": "retired evidence reported as stale instead of dropped",
+      "group": "english",
+      "basis": "Paragraph 3 is the rule for retired evidence: the link is kept, the reference is counted as excluded.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 16.253449,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.436701,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-09",
+      "query": "the store reached its chunk ceiling what do the verbs do",
+      "group": "english",
+      "basis": "Paragraph 3 states the ceiling and that the verbs name the count, the limit and the way back under it.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 15.111495,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.488499,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "en-10",
+      "query": "vectors are rebuilt from stored chunk text without a source file or a network",
+      "group": "english",
+      "basis": "Paragraph 4 states that re-embedding needs no source file and no network, and how a chunk with no signature is reported.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 20.624985,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.549948,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "ty-01",
+      "query": "sandaly iluminacich kodexu",
+      "group": "diacritic-free-or-typo",
+      "basis": "The same information need as cz-01, typed without diacritics. The judged answers are the same passages; only the query surface changed.",
+      "relevantCount": 2,
+      "relevantChunkIds": [
+        "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+        "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137"
+          ],
+          "hitsReturned": 1,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 4.930693,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "44c2da866f310baa050aa5dce51bd0719cf2f906115ff1aff667a20cb5752024",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 0.314717,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "44c2da866f310baa050aa5dce51bd0719cf2f906115ff1aff667a20cb5752024",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 1,
+            "lexicalOnly": 0,
+            "vectorOnly": 9
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "ty-02",
+      "query": "datace kodexu goticka minuskula interpolace",
+      "group": "diacritic-free-or-typo",
+      "basis": "The same information need as cz-03 without diacritics.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137"
+          ],
+          "hitsReturned": 2,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 6.738437,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.300496,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 2,
+            "lexicalOnly": 0,
+            "vectorOnly": 8
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "ty-03",
+      "query": "konzervace suché čisťění bez vody",
+      "group": "diacritic-free-or-typo",
+      "basis": "The same need as cz-08 with a typo in 'čištění'.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb"
+          ],
+          "hitsReturned": 5,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 8.988748,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.63093,
+          "topScore": 0.206852,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.97895,
+          "foundBy": {
+            "both": 5,
+            "lexicalOnly": 0,
+            "vectorOnly": 5
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "ty-04",
+      "query": "guild patern sewn from the inside of the sole",
+      "group": "diacritic-free-or-typo",
+      "basis": "The same need as en-03 with a typo in 'pattern'.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 20.307156,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 0.639408,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 1.0,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "ty-05",
+      "query": "preklad traktatu o svetle a stinu",
+      "group": "diacritic-free-or-typo",
+      "basis": "The same need as cz-04 without diacritics, narrowed to the translation itself.",
+      "relevantCount": 1,
+      "relevantChunkIds": [
+        "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c"
+      ],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.5,
+          "topScore": 3.816762,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.5,
+          "topScore": 0.2872,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+            "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 1,
+          "recallAtK": 1.0,
+          "precisionAtK": 0.1,
+          "ndcgAtK": 0.63093,
+          "topScore": 1.0,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "na-01",
+      "query": "how do I reset the password of the Zotero citation server on this workstation",
+      "group": "no-relevant-answer",
+      "basis": "No passage in the fixture corpus talks about a password, an account or a citation-server credential.",
+      "relevantCount": 0,
+      "relevantChunkIds": [],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "44c2da866f310baa050aa5dce51bd0719cf2f906115ff1aff667a20cb5752024",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+            "40a19a128bc6ff49872bd0b827882b23e626acb2c7d786cc30c09a1f391cbe41",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 7.327853,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "44c2da866f310baa050aa5dce51bd0719cf2f906115ff1aff667a20cb5752024",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "40a19a128bc6ff49872bd0b827882b23e626acb2c7d786cc30c09a1f391cbe41",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 0.181613,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "44c2da866f310baa050aa5dce51bd0719cf2f906115ff1aff667a20cb5752024",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "40a19a128bc6ff49872bd0b827882b23e626acb2c7d786cc30c09a1f391cbe41",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 0.950128,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "na-02",
+      "query": "telomerase activity in Saccharomyces cerevisiae during stationary growth",
+      "group": "no-relevant-answer",
+      "basis": "The corpus contains no biology text.",
+      "relevantCount": 0,
+      "relevantChunkIds": [],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad"
+          ],
+          "hitsReturned": 7,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 2.369654,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 0.114414,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 0.982175,
+          "foundBy": {
+            "both": 6,
+            "lexicalOnly": 1,
+            "vectorOnly": 3
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "na-03",
+      "query": "kolik stojí roční licence na archivní skener",
+      "group": "no-relevant-answer",
+      "basis": "No passage states a price; the archive manual and the letters cover handling, borrowing and conservation only.",
+      "relevantCount": 0,
+      "relevantChunkIds": [],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807"
+          ],
+          "hitsReturned": 3,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 4.689222,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "4e7195a8cea435e1f3be6e419e234bd6d8e26920d8c40f85ed8becc5af5cf30d",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+            "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+            "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 0.155655,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+            "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+            "4e7195a8cea435e1f3be6e419e234bd6d8e26920d8c40f85ed8becc5af5cf30d",
+            "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+            "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+            "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+            "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 0.735382,
+          "foundBy": {
+            "both": 3,
+            "lexicalOnly": 0,
+            "vectorOnly": 7
+          },
+          "scoredChunks": 40
+        }
+      }
+    },
+    {
+      "id": "na-04",
+      "query": "who currently chairs the international union of archival councils",
+      "group": "no-relevant-answer",
+      "basis": "No named real-world body or office holder appears in the fixture corpus.",
+      "relevantCount": 0,
+      "relevantChunkIds": [],
+      "modes": {
+        "lexical": {
+          "hitChunkIds": [
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 3.201201,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": null
+        },
+        "vector": {
+          "hitChunkIds": [
+            "40a19a128bc6ff49872bd0b827882b23e626acb2c7d786cc30c09a1f391cbe41",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 0.179902,
+          "foundBy": {
+            "both": 0,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        },
+        "hybrid": {
+          "hitChunkIds": [
+            "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+            "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+            "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+            "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+            "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+            "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+            "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+            "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+            "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+            "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657"
+          ],
+          "hitsReturned": 10,
+          "relevantReturned": 0,
+          "recallAtK": 0.0,
+          "precisionAtK": 0.0,
+          "ndcgAtK": 0.0,
+          "topScore": 0.968493,
+          "foundBy": {
+            "both": 10,
+            "lexicalOnly": 0,
+            "vectorOnly": 0
+          },
+          "scoredChunks": 40
+        }
+      }
+    }
+  ],
+  "nearCeilingFixture": {
+    "purpose": "full-scan cost at the store ceiling, on a synthetic repeated-sentence fixture",
+    "notMeasured": "relevance quality: every chunk of this fixture has the same text, so no ranking claim is made from it",
+    "currentChunks": 20000,
+    "decodableSignatures": 20000,
+    "probeQueries": 3,
+    "scoredChunksPerMode": {
+      "lexical": 20000,
+      "vector": 20000,
+      "hybrid": 20000
+    },
+    "latencyMs": {
+      "lexical": {
+        "samples": 3,
+        "medianMs": 253.695,
+        "p95Ms": 264.372,
+        "maxMs": 264.372,
+        "meanMs": 254.424
+      },
+      "vector": {
+        "samples": 3,
+        "medianMs": 1560.643,
+        "p95Ms": 1723.21,
+        "maxMs": 1723.21,
+        "meanMs": 1559.8
+      },
+      "hybrid": {
+        "samples": 3,
+        "medianMs": 1570.196,
+        "p95Ms": 1679.483,
+        "maxMs": 1679.483,
+        "meanMs": 1596.17
+      }
+    }
+  }
+}

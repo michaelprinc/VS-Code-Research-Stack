@@ -272,7 +272,30 @@ MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 # ceiling is raised rather than the payload trimmed: 1 769 472 bytes (1.6875 MiB), which leaves 59 261 bytes of
 # headroom, 3.6 % of the payload. The root README carries no hash or byte figures: a hash cannot be written into a file
 # the hashed payload contains, so the figures live in `.agent/QUALITY_STATE.md` and T15-21 of the acceptance record.
-MAX_UNPACKED_BYTES = 1_769_472
+# 0.3.15 (phase 16: the stabilisation round — the retrieval, provider and Zotero measurements, and the defects those
+# measurements exposed) re-measures it a seventh time. Measured on the artifact this tree builds: 121 members,
+# 614 663 bytes packed, 1 882 706 bytes unpacked. The member list is the same 121 as 0.3.14 — nothing added, nothing
+# removed, nothing trimmed — so the whole +172 495 unpacked is content growth inside reviewed members:
+# extension/worker/src/research_stack/research.py 69 174 → 134 870 (+65 696: the Zotero collection write path and the
+# provider field fixes), extension/worker/src/research_stack/zotero_store.py 6 073 → 24 777 (+18 704: the snapshot
+# baseline a membership check has to compare against, and a journal cap measured on the file that actually gets
+# written), extension/worker/src/research_stack/records.py +13 289 (the over-limit refusal, the vector counters, the
+# foundBy accounting), integrations.py +8 284 and machinefacts.py +6 594 (what the Toolkit knows about a provider and
+# what it refuses to claim), extension/guides/zotero-local-api.md 7 204 → 13 962 (+6 758: the eight operations, the
+# four refused by name, and the named refusals the code really raises),
+# extension/bundles/theological-research/references/my-library.md +6 010 and references/zotero-vocabulary.md +5 557
+# (collections are not tags), extension/changelog.md +5 190, extension/integrations.js +4 566,
+# extension/worker/src/research_stack/recommended_server.py +5 581, provider_budget.py +4 301,
+# extension/worker/README.md +4 639, extension/readme.md +3 715, dedupe_records.py +3 124, diagnostics.js +2 198,
+# bundles/catalog.json +1 403, lab_server.py +1 397, integrationprobe.js +1 324, extension/extension.js +958, and every
+# remaining member under +700. The ceiling therefore moves to 1 966 080 bytes (1.875 MiB), the next step on the ladder
+# this file has used (1.5 → 1.6875 → 1.875 MiB), which leaves 83 374 bytes of headroom — 4.2 % of the ceiling, 4.4 % of the payload (0.3.14: 59 261 bytes, 3.4 %). It is not
+# the 1 835 008 (1.75 MiB) this round first wrote down: that figure came from an interim build measured at 1 814 329
+# bytes, taken before the Zotero store growth and the provider fields landed, and a ceiling chosen from a stale
+# measurement is a ceiling that has to be raised again. The candidate was packaged twice in this round: the first
+# build's figures are recorded in evidence/payload-2026-11-22/README.md, and the second is +1 100 bytes larger because
+# two packaged pages still stated that no 0.3.15 gate run existed — a sentence that had just become false.
+MAX_UNPACKED_BYTES = 1_966_080
 SENSITIVE_NAMES = re.compile(r"(^|/)(\.env(\.|$)|\.venv|node_modules|\.git|corpus|models?|secrets?)(/|$)", re.I)
 # The capability scan is about starting a process or opening a socket. A method call on an object
 # (`SOME_PATTERN.exec(text)` on a RegExp, which `extension/lockfile.js` uses to read a version) is

@@ -1,0 +1,1695 @@
+{
+  "probe": "providers-2026-11-22",
+  "generatedAt": "2026-11-23T05:45:27+00:00",
+  "pacingSecondsPerHost": {
+    "api.crossref.org": 1.3,
+    "api.openalex.org": 0.6,
+    "api.semanticscholar.org": 2.0
+  },
+  "userAgent": "research-stack-toolkit/0.3.15 provider probe (anonymous; no contact address supplied)",
+  "credentialsSent": false,
+  "queries": [
+    "corpus iuris canonici",
+    "canon law spirituality",
+    "The Spirit of the Liturgy",
+    "A History of Canon Law",
+    "civitas Dei augustin"
+  ],
+  "dois": [
+    "10.32725/cetv.2017.022",
+    "10.2307/j.ctt28524j.7",
+    "10.1163/9789004525863-cp092202",
+    "10.1163/2211-2685_eco_c1317",
+    "10.1016/S0140-6736(97)11096-0",
+    "10.1038/nature00870",
+    "10.1056/nejmoa1200303"
+  ],
+  "requestCount": 58,
+  "requests": [
+    {
+      "label": "crossref search corpus iuris canonici",
+      "url": "https://api.crossref.org/works?rows=5&query=corpus%20iuris%20canonici",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 0,
+      "elapsedMs": 378,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref search canon law spirituality",
+      "url": "https://api.crossref.org/works?rows=5&query=canon%20law%20spirituality",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 362,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref search The Spirit of the Liturgy",
+      "url": "https://api.crossref.org/works?rows=5&query=The%20Spirit%20of%20the%20Liturgy",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1299,
+      "elapsedMs": 337,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref search A History of Canon Law",
+      "url": "https://api.crossref.org/works?rows=5&query=A%20History%20of%20Canon%20Law",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 403,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref search civitas Dei augustin",
+      "url": "https://api.crossref.org/works?rows=5&query=civitas%20Dei%20augustin",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 533,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref doi 10.32725/cetv.2017.022",
+      "url": "https://api.crossref.org/works/10.32725/cetv.2017.022",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 330,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref doi 10.2307/j.ctt28524j.7",
+      "url": "https://api.crossref.org/works/10.2307/j.ctt28524j.7",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 361,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref doi 10.1163/9789004525863-cp092202",
+      "url": "https://api.crossref.org/works/10.1163/9789004525863-cp092202",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 333,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref doi 10.1163/2211-2685_eco_c1317",
+      "url": "https://api.crossref.org/works/10.1163/2211-2685_eco_c1317",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 332,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref doi 10.1016/S0140-6736(97)11096-0",
+      "url": "https://api.crossref.org/works/10.1016/S0140-6736%2897%2911096-0",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 362,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref doi 10.1038/nature00870",
+      "url": "https://api.crossref.org/works/10.1038/nature00870",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 426,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref doi 10.1056/nejmoa1200303",
+      "url": "https://api.crossref.org/works/10.1056/nejmoa1200303",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1299,
+      "elapsedMs": 332,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref retraction direct 10.1016/S0140-6736(97)11096-0",
+      "url": "https://api.crossref.org/works/10.1016/S0140-6736%2897%2911096-0",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 325,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref retraction doi filter 10.1016/S0140-6736(97)11096-0",
+      "url": "https://api.crossref.org/works?filter=doi:10.1016/S0140-6736%2897%2911096-0&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 333,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref retraction bibliographic 10.1016/S0140-6736(97)11096-0",
+      "url": "https://api.crossref.org/works?query.bibliographic=RETRACTED%3A%20Ileal-lymphoid-nodular%20hyperplasia%2C%20non-specific%20colitis%2C%20and%20pervasive%20developmental%20disorder%20in%20children&rows=5",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 670,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref retraction direct 10.1038/nature00870",
+      "url": "https://api.crossref.org/works/10.1038/nature00870",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1292,
+      "elapsedMs": 429,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref retraction doi filter 10.1038/nature00870",
+      "url": "https://api.crossref.org/works?filter=doi:10.1038/nature00870&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 441,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref retraction bibliographic 10.1038/nature00870",
+      "url": "https://api.crossref.org/works?query.bibliographic=RETRACTED%20ARTICLE%3A%20Pluripotency%20of%20mesenchymal%20stem%20cells%20derived%20from%20adult%20marrow&rows=5",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 684,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref retraction direct 10.1056/nejmoa1200303",
+      "url": "https://api.crossref.org/works/10.1056/nejmoa1200303",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1293,
+      "elapsedMs": 338,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref retraction doi filter 10.1056/nejmoa1200303",
+      "url": "https://api.crossref.org/works?filter=doi:10.1056/nejmoa1200303&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 337,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref retraction bibliographic 10.1056/nejmoa1200303",
+      "url": "https://api.crossref.org/works?query.bibliographic=RETRACTED%3A%20Primary%20Prevention%20of%20Cardiovascular%20Disease%20with%20a%20Mediterranean%20Diet&rows=5",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 386,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type book",
+      "url": "https://api.crossref.org/works?filter=type:book&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1293,
+      "elapsedMs": 645,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type monograph",
+      "url": "https://api.crossref.org/works?filter=type:monograph&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 377,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type edited-book",
+      "url": "https://api.crossref.org/works?filter=type:edited-book&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 349,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type book-set",
+      "url": "https://api.crossref.org/works?filter=type:book-set&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 363,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type reference-book",
+      "url": "https://api.crossref.org/works?filter=type:reference-book&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 425,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type journal-article",
+      "url": "https://api.crossref.org/works?filter=type:journal-article&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 646,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type union book",
+      "url": "https://api.crossref.org/works?filter=type:book,doi:10.2307/j.ctt28524j.7&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 356,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type union monograph",
+      "url": "https://api.crossref.org/works?filter=type:monograph,doi:10.2307/j.ctt28524j.7&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 361,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type union edited-book",
+      "url": "https://api.crossref.org/works?filter=type:edited-book,doi:10.2307/j.ctt28524j.7&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 403,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref type union book-chapter",
+      "url": "https://api.crossref.org/works?filter=type:book-chapter,doi:10.2307/j.ctt28524j.7&rows=1",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 404,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref types seen",
+      "url": "https://api.crossref.org/works?rows=20&query=catechism",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 582,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref untitled journal-issue",
+      "url": "https://api.crossref.org/works?filter=type:journal-issue&rows=3&select=DOI,type,title,container-title,issued,created",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1292,
+      "elapsedMs": 346,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref untitled journal-volume",
+      "url": "https://api.crossref.org/works?filter=type:journal-volume&rows=3&select=DOI,type,title,container-title,issued,created",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 357,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref untitled component",
+      "url": "https://api.crossref.org/works?filter=type:component&rows=3&select=DOI,type,title,container-title,issued,created",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 384,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref untitled standard",
+      "url": "https://api.crossref.org/works?filter=type:standard&rows=3&select=DOI,type,title,container-title,issued,created",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 464,
+      "rateHeaders": {}
+    },
+    {
+      "label": "crossref untitled dataset",
+      "url": "https://api.crossref.org/works?filter=type:dataset&rows=3&select=DOI,type,title,container-title,issued,created",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 1300,
+      "elapsedMs": 398,
+      "rateHeaders": {}
+    },
+    {
+      "label": "openalex search corpus iuris canonici",
+      "url": "https://api.openalex.org/works?per-page=5&search=corpus%20iuris%20canonici",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 0,
+      "elapsedMs": 733,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "574"
+      }
+    },
+    {
+      "label": "openalex search canon law spirituality",
+      "url": "https://api.openalex.org/works?per-page=5&search=canon%20law%20spirituality",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 599,
+      "elapsedMs": 737,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "564"
+      }
+    },
+    {
+      "label": "openalex search The Spirit of the Liturgy",
+      "url": "https://api.openalex.org/works?per-page=5&search=The%20Spirit%20of%20the%20Liturgy",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 599,
+      "elapsedMs": 477,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "554"
+      }
+    },
+    {
+      "label": "openalex search A History of Canon Law",
+      "url": "https://api.openalex.org/works?per-page=5&search=A%20History%20of%20Canon%20Law",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 599,
+      "elapsedMs": 519,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "544"
+      }
+    },
+    {
+      "label": "openalex search civitas Dei augustin",
+      "url": "https://api.openalex.org/works?per-page=5&search=civitas%20Dei%20augustin",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 599,
+      "elapsedMs": 643,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "534"
+      }
+    },
+    {
+      "label": "openalex doi 10.32725/cetv.2017.022",
+      "url": "https://api.openalex.org/works/https://doi.org/10.32725/cetv.2017.022",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 599,
+      "elapsedMs": 463,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "534"
+      }
+    },
+    {
+      "label": "openalex doi 10.2307/j.ctt28524j.7",
+      "url": "https://api.openalex.org/works/https://doi.org/10.2307/j.ctt28524j.7",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 188,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "534"
+      }
+    },
+    {
+      "label": "openalex doi 10.1163/9789004525863-cp092202",
+      "url": "https://api.openalex.org/works/https://doi.org/10.1163/9789004525863-cp092202",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 241,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "534"
+      }
+    },
+    {
+      "label": "openalex doi 10.1163/2211-2685_eco_c1317",
+      "url": "https://api.openalex.org/works/https://doi.org/10.1163/2211-2685_eco_c1317",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 386,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "534"
+      }
+    },
+    {
+      "label": "openalex doi 10.1016/S0140-6736(97)11096-0",
+      "url": "https://api.openalex.org/works/https://doi.org/10.1016/S0140-6736%2897%2911096-0",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 483,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "534"
+      }
+    },
+    {
+      "label": "openalex doi 10.1038/nature00870",
+      "url": "https://api.openalex.org/works/https://doi.org/10.1038/nature00870",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 294,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "534"
+      }
+    },
+    {
+      "label": "openalex doi 10.1056/nejmoa1200303",
+      "url": "https://api.openalex.org/works/https://doi.org/10.1056/nejmoa1200303",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 590,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "534"
+      }
+    },
+    {
+      "label": "openalex coverage filter doi",
+      "url": "https://api.openalex.org/works?filter=doi:10.32725/cetv.2017.022&per-page=5",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 599,
+      "elapsedMs": 488,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "533"
+      }
+    },
+    {
+      "label": "openalex coverage search text",
+      "url": "https://api.openalex.org/works?search=Kanonick%C3%A9%20pr%C3%A1vo%20spiritualita&per-page=5",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 483,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "523"
+      }
+    },
+    {
+      "label": "openalex coverage by id",
+      "url": "https://api.openalex.org/works/W3206688818",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 599,
+      "elapsedMs": 204,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "523"
+      }
+    },
+    {
+      "label": "openalex coverage doi route",
+      "url": "https://api.openalex.org/works/https://doi.org/10.32725/cetv.2017.022",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 187,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "523"
+      }
+    },
+    {
+      "label": "openalex coverage free text doi",
+      "url": "https://api.openalex.org/works?search=10.32725/cetv.2017.022&per-page=5",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 408,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "513"
+      }
+    },
+    {
+      "label": "crossref coverage doi route",
+      "url": "https://api.crossref.org/works/10.32725/cetv.2017.022",
+      "host": "api.crossref.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 0,
+      "elapsedMs": 323,
+      "rateHeaders": {}
+    },
+    {
+      "label": "openalex select adapter list",
+      "url": "https://api.openalex.org/works/W3206688818?select=id,doi,title,authorships,publication_year,publication_date,primary_location,abstract_inverted_index,open_access",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 269,
+      "elapsedMs": 404,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "513"
+      }
+    },
+    {
+      "label": "openalex default representation",
+      "url": "https://api.openalex.org/works/W3206688818",
+      "host": "api.openalex.org",
+      "status": 200,
+      "outcome": "answered",
+      "waitedMs": 600,
+      "elapsedMs": 178,
+      "rateHeaders": {
+        "x-ratelimit-limit": "1000",
+        "x-ratelimit-remaining": "513"
+      }
+    },
+    {
+      "label": "semanticscholar anonymous raw",
+      "url": "https://api.semanticscholar.org/graph/v1/paper/search?query=corpus+iuris+canonici&limit=1&fields=title,year",
+      "host": "api.semanticscholar.org",
+      "status": 429,
+      "outcome": "refused"
+    }
+  ],
+  "fields": [
+    "title",
+    "authors",
+    "year",
+    "date",
+    "dateField",
+    "publicationType",
+    "retracted",
+    "citationCount",
+    "referenceCount",
+    "doi",
+    "venue"
+  ],
+  "providers": {
+    "crossref": {
+      "search": {
+        "corpus iuris canonici": {
+          "reported": 92719,
+          "returned": 5
+        },
+        "canon law spirituality": {
+          "reported": 1756209,
+          "returned": 5
+        },
+        "The Spirit of the Liturgy": {
+          "reported": 73021,
+          "returned": 5
+        },
+        "A History of Canon Law": {
+          "reported": 3762037,
+          "returned": 5
+        },
+        "civitas Dei augustin": {
+          "reported": 79956,
+          "returned": 5
+        }
+      },
+      "singleDoi": {
+        "rows": [
+          {
+            "title": "Kanonick\u00e9 pr\u00e1vo a spiritualita",
+            "authors": 1,
+            "year": "2017",
+            "date": "2017-03-30",
+            "dateField": "issued",
+            "allDates": {
+              "issued": "2017-03-30",
+              "published-print": "2017-03-30",
+              "created": "2021-10-11"
+            },
+            "publicationType": "journal-article",
+            "retracted": null,
+            "updatedBy": [],
+            "citationCount": 0,
+            "referenceCount": 32,
+            "doi": "10.32725/cetv.2017.022",
+            "venue": "Caritas et veritas",
+            "untitledContainer": false
+          },
+          {
+            "title": "Byzantine Canon Law to 1100",
+            "authors": 1,
+            "year": "2017",
+            "date": "2017-09-07",
+            "dateField": "created",
+            "allDates": {
+              "created": "2017-09-07"
+            },
+            "publicationType": "book-chapter",
+            "retracted": null,
+            "updatedBy": [],
+            "citationCount": 11,
+            "referenceCount": 0,
+            "doi": "10.2307/j.ctt28524j.7",
+            "venue": "The History of Byzantine and Eastern Canon Law to 1500",
+            "untitledContainer": false
+          },
+          {
+            "title": "CORPUS IURIS CANONICI",
+            "authors": 0,
+            "year": "2023",
+            "date": "2023-12-18",
+            "dateField": "created",
+            "allDates": {
+              "created": "2023-12-18"
+            },
+            "publicationType": "dataset",
+            "retracted": null,
+            "updatedBy": [],
+            "citationCount": 0,
+            "referenceCount": 0,
+            "doi": "10.1163/9789004525863-cp092202",
+            "venue": "The Plantin Press Online",
+            "untitledContainer": false
+          },
+          {
+            "title": "Corpus Iuris Canonici",
+            "authors": 0,
+            "year": "2014",
+            "date": "2014-10-29",
+            "dateField": "created",
+            "allDates": {
+              "created": "2014-10-29"
+            },
+            "publicationType": "dataset",
+            "retracted": null,
+            "updatedBy": [],
+            "citationCount": 0,
+            "referenceCount": 0,
+            "doi": "10.1163/2211-2685_eco_c1317",
+            "venue": "Encyclopedia of Christianity Online",
+            "untitledContainer": false
+          },
+          {
+            "title": "RETRACTED: Ileal-lymphoid-nodular hyperplasia, non-specific colitis, and pervasive developmental disorder in children",
+            "authors": 13,
+            "year": "1998",
+            "date": "1998-02-01",
+            "dateField": "issued",
+            "allDates": {
+              "issued": "1998-02-01",
+              "published-print": "1998-02-01",
+              "created": "2002-07-25"
+            },
+            "publicationType": "journal-article",
+            "retracted": true,
+            "updatedBy": [
+              {
+                "id": null,
+                "type": "retraction"
+              }
+            ],
+            "citationCount": 2051,
+            "referenceCount": 26,
+            "doi": "10.1016/s0140-6736(97)11096-0",
+            "venue": "The Lancet",
+            "untitledContainer": false
+          },
+          {
+            "title": "RETRACTED ARTICLE: Pluripotency of mesenchymal stem cells derived from adult marrow",
+            "authors": 16,
+            "year": "2002",
+            "date": "2002-06-20",
+            "dateField": "issued",
+            "allDates": {
+              "issued": "2002-06-20",
+              "published-online": "2002-06-20",
+              "published-print": "2002-07-04",
+              "created": "2002-07-28"
+            },
+            "publicationType": "journal-article",
+            "retracted": true,
+            "updatedBy": [
+              {
+                "id": null,
+                "type": "retraction"
+              },
+              {
+                "id": null,
+                "type": "retraction"
+              }
+            ],
+            "citationCount": 4492,
+            "referenceCount": 49,
+            "doi": "10.1038/nature00870",
+            "venue": "Nature",
+            "untitledContainer": false
+          },
+          {
+            "title": "RETRACTED: Primary Prevention of Cardiovascular Disease with a Mediterranean Diet",
+            "authors": 18,
+            "year": "2013",
+            "date": "2013-04-04",
+            "dateField": "issued",
+            "allDates": {
+              "issued": "2013-04-04",
+              "published-print": "2013-04-04",
+              "created": "2013-02-25"
+            },
+            "publicationType": "journal-article",
+            "retracted": true,
+            "updatedBy": [
+              {
+                "id": null,
+                "type": "retraction"
+              }
+            ],
+            "citationCount": 3613,
+            "referenceCount": 38,
+            "doi": "10.1056/nejmoa1200303",
+            "venue": "New England Journal of Medicine",
+            "untitledContainer": false
+          }
+        ],
+        "fill": {
+          "rowsReturned": 7,
+          "fieldsFilled": {
+            "title": 7,
+            "authors": 7,
+            "year": 7,
+            "date": 7,
+            "dateField": 7,
+            "publicationType": 7,
+            "retracted": 3,
+            "citationCount": 7,
+            "referenceCount": 7,
+            "doi": 7,
+            "venue": 7
+          },
+          "fieldsAbsent": {
+            "title": 0,
+            "authors": 0,
+            "year": 0,
+            "date": 0,
+            "dateField": 0,
+            "publicationType": 0,
+            "retracted": 4,
+            "citationCount": 0,
+            "referenceCount": 0,
+            "doi": 0,
+            "venue": 0
+          },
+          "fieldsReportedZero": {
+            "title": 0,
+            "authors": 2,
+            "year": 0,
+            "date": 0,
+            "dateField": 0,
+            "publicationType": 0,
+            "retracted": 0,
+            "citationCount": 3,
+            "referenceCount": 3,
+            "doi": 0,
+            "venue": 0
+          },
+          "provider": "crossref"
+        }
+      },
+      "routes": {
+        "10.1016/S0140-6736(97)11096-0": {
+          "singleDoiRoute": {
+            "hasUpdatedBy": true,
+            "retracted": true,
+            "date": "1998-02-01",
+            "dateField": "issued",
+            "citationCount": 2051,
+            "referenceCount": 26,
+            "updatedBy": [
+              {
+                "id": null,
+                "type": "retraction"
+              }
+            ]
+          },
+          "doiFilterRoute": {
+            "hasUpdatedBy": true,
+            "retracted": true,
+            "date": "1998-02-01",
+            "dateField": "issued",
+            "citationCount": 2051,
+            "referenceCount": 26,
+            "foundAmongRows": true
+          },
+          "bibliographicSearchRoute": {
+            "foundAmongRows": true,
+            "rowsReturned": 5,
+            "hasUpdatedBy": true,
+            "retracted": true,
+            "date": "1998-02-01",
+            "dateField": "issued",
+            "citationCount": 2051,
+            "referenceCount": 26
+          }
+        },
+        "10.1038/nature00870": {
+          "singleDoiRoute": {
+            "hasUpdatedBy": true,
+            "retracted": true,
+            "date": "2002-06-20",
+            "dateField": "issued",
+            "citationCount": 4492,
+            "referenceCount": 49,
+            "updatedBy": [
+              {
+                "id": null,
+                "type": "retraction"
+              },
+              {
+                "id": null,
+                "type": "retraction"
+              }
+            ]
+          },
+          "doiFilterRoute": {
+            "hasUpdatedBy": true,
+            "retracted": true,
+            "date": "2002-06-20",
+            "dateField": "issued",
+            "citationCount": 4492,
+            "referenceCount": 49,
+            "foundAmongRows": true
+          },
+          "bibliographicSearchRoute": {
+            "foundAmongRows": true,
+            "rowsReturned": 5,
+            "hasUpdatedBy": true,
+            "retracted": true,
+            "date": "2002-06-20",
+            "dateField": "issued",
+            "citationCount": 4492,
+            "referenceCount": 49
+          }
+        },
+        "10.1056/nejmoa1200303": {
+          "singleDoiRoute": {
+            "hasUpdatedBy": true,
+            "retracted": true,
+            "date": "2013-04-04",
+            "dateField": "issued",
+            "citationCount": 3613,
+            "referenceCount": 38,
+            "updatedBy": [
+              {
+                "id": null,
+                "type": "retraction"
+              }
+            ]
+          },
+          "doiFilterRoute": {
+            "hasUpdatedBy": true,
+            "retracted": true,
+            "date": "2013-04-04",
+            "dateField": "issued",
+            "citationCount": 3613,
+            "referenceCount": 38,
+            "foundAmongRows": true
+          },
+          "bibliographicSearchRoute": {
+            "foundAmongRows": false,
+            "rowsReturned": 5,
+            "hasUpdatedBy": false,
+            "retracted": null,
+            "date": null,
+            "dateField": null,
+            "citationCount": null,
+            "referenceCount": null
+          }
+        }
+      },
+      "untitledContainers": {
+        "journal-issue": {
+          "reported": 1522937,
+          "returned": 3,
+          "untitledRows": 3,
+          "titlesFilled": 0,
+          "example": {
+            "DOI": "10.1111/joim.1898.31.issue-18",
+            "type": "journal-issue",
+            "title": null,
+            "container-title": [
+              "Nordiskt Medicinskt Arkiv"
+            ],
+            "issued": {},
+            "created": {
+              "date-time": "2016-02-25T05:05:52Z",
+              "timestamp": 1456376752000
+            }
+          }
+        },
+        "journal-volume": {
+          "reported": 13474,
+          "returned": 3,
+          "untitledRows": 3,
+          "titlesFilled": 0,
+          "example": {
+            "DOI": "10.5747/ch.2021.v18",
+            "type": "journal-volume",
+            "title": null,
+            "container-title": [
+              "COLLOQUIUM HUMANARUM"
+            ],
+            "issued": {},
+            "created": {
+              "date-time": "2022-01-11T13:28:47Z",
+              "timestamp": 1641907727000
+            }
+          }
+        },
+        "component": {
+          "reported": 9518591,
+          "returned": 3,
+          "untitledRows": 0,
+          "titlesFilled": 1,
+          "example": {
+            "DOI": "10.1787/888933400053",
+            "type": "component",
+            "title": [
+              "Graphique 2.11. Montant moyen des op\u00e9rations internationales"
+            ],
+            "container-title": null,
+            "issued": {},
+            "created": {
+              "date-time": "2016-08-03T12:22:13Z",
+              "timestamp": 1470226933000
+            }
+          }
+        },
+        "standard": {
+          "reported": 419493,
+          "returned": 3,
+          "untitledRows": 0,
+          "titlesFilled": 3,
+          "example": {
+            "DOI": "10.1520/d6973-14r24",
+            "type": "standard",
+            "title": [
+              "Test Method for Indicating Wear Characteristics of Petroleum Hydraulic Fluids in"
+            ],
+            "container-title": null,
+            "issued": {},
+            "created": {
+              "date-time": "2024-10-29T12:30:52Z",
+              "timestamp": 1730205052000
+            }
+          }
+        },
+        "dataset": {
+          "reported": 3456559,
+          "returned": 3,
+          "untitledRows": 0,
+          "titlesFilled": 3,
+          "example": {
+            "DOI": "10.17989/encsr964fec",
+            "type": "dataset",
+            "title": [
+              "ENCSR964FEC"
+            ],
+            "container-title": [
+              "ENCODE Datasets"
+            ],
+            "issued": {},
+            "created": {
+              "date-time": "2021-05-27T19:30:27Z",
+              "timestamp": 1622143827000
+            }
+          }
+        }
+      },
+      "searchFill": {
+        "rowsReturned": 25,
+        "fieldsFilled": {
+          "title": 25,
+          "authors": 25,
+          "year": 25,
+          "date": 25,
+          "dateField": 25,
+          "publicationType": 25,
+          "retracted": 0,
+          "citationCount": 25,
+          "referenceCount": 25,
+          "doi": 25,
+          "venue": 24
+        },
+        "fieldsAbsent": {
+          "title": 0,
+          "authors": 0,
+          "year": 0,
+          "date": 0,
+          "dateField": 0,
+          "publicationType": 0,
+          "retracted": 25,
+          "citationCount": 0,
+          "referenceCount": 0,
+          "doi": 0,
+          "venue": 1
+        },
+        "fieldsReportedZero": {
+          "title": 0,
+          "authors": 10,
+          "year": 0,
+          "date": 0,
+          "dateField": 0,
+          "publicationType": 0,
+          "retracted": 0,
+          "citationCount": 19,
+          "referenceCount": 22,
+          "doi": 0,
+          "venue": 0
+        },
+        "provider": "crossref"
+      },
+      "dateGap": [
+        {
+          "doi": "10.32725/cetv.2017.022",
+          "allDates": {
+            "issued": "2017-03-30",
+            "published-print": "2017-03-30",
+            "created": "2021-10-11"
+          }
+        },
+        {
+          "doi": "10.1056/nejmoa1200303",
+          "allDates": {
+            "issued": "2013-04-04",
+            "published-print": "2013-04-04",
+            "created": "2013-02-25"
+          }
+        },
+        {
+          "doi": "10.1038/nature00870",
+          "allDates": {
+            "issued": "2002-06-20",
+            "published-online": "2002-06-20",
+            "published-print": "2002-07-04",
+            "created": "2002-07-28"
+          }
+        },
+        {
+          "doi": "10.1016/s0140-6736(97)11096-0",
+          "allDates": {
+            "issued": "1998-02-01",
+            "published-print": "1998-02-01",
+            "created": "2002-07-25"
+          }
+        }
+      ],
+      "typeUnions": {
+        "book": {
+          "reported": 799286
+        },
+        "monograph": {
+          "reported": 823796
+        },
+        "edited-book": {
+          "reported": 655013
+        },
+        "book-set": {
+          "reported": 667
+        },
+        "reference-book": {
+          "reported": 198355
+        },
+        "journal-article": {
+          "reported": 125427631
+        },
+        "union:book": {
+          "returned": 0,
+          "typeSeen": null
+        },
+        "union:monograph": {
+          "returned": 0,
+          "typeSeen": null
+        },
+        "union:edited-book": {
+          "returned": 0,
+          "typeSeen": null
+        },
+        "union:book-chapter": {
+          "returned": 1,
+          "typeSeen": "book-chapter"
+        },
+        "typesSeenForQuery": {
+          "reference-entry": 1,
+          "book-chapter": 10,
+          "book": 1,
+          "component": 1,
+          "dissertation": 1,
+          "book-part": 1,
+          "other": 2,
+          "dataset": 1,
+          "reference-book": 1,
+          "journal-article": 1
+        }
+      },
+      "fillSummary": {
+        "search": {
+          "rowsReturned": 25,
+          "fieldsFilled": {
+            "title": 25,
+            "authors": 25,
+            "year": 25,
+            "date": 25,
+            "dateField": 25,
+            "publicationType": 25,
+            "retracted": 0,
+            "citationCount": 25,
+            "referenceCount": 25,
+            "doi": 25,
+            "venue": 24
+          },
+          "fieldsAbsent": {
+            "title": 0,
+            "authors": 0,
+            "year": 0,
+            "date": 0,
+            "dateField": 0,
+            "publicationType": 0,
+            "retracted": 25,
+            "citationCount": 0,
+            "referenceCount": 0,
+            "doi": 0,
+            "venue": 1
+          },
+          "fieldsReportedZero": {
+            "title": 0,
+            "authors": 10,
+            "year": 0,
+            "date": 0,
+            "dateField": 0,
+            "publicationType": 0,
+            "retracted": 0,
+            "citationCount": 19,
+            "referenceCount": 22,
+            "doi": 0,
+            "venue": 0
+          },
+          "provider": "crossref"
+        },
+        "singleDoi": {
+          "rowsReturned": 7,
+          "fieldsFilled": {
+            "title": 7,
+            "authors": 7,
+            "year": 7,
+            "date": 7,
+            "dateField": 7,
+            "publicationType": 7,
+            "retracted": 3,
+            "citationCount": 7,
+            "referenceCount": 7,
+            "doi": 7,
+            "venue": 7
+          },
+          "fieldsAbsent": {
+            "title": 0,
+            "authors": 0,
+            "year": 0,
+            "date": 0,
+            "dateField": 0,
+            "publicationType": 0,
+            "retracted": 4,
+            "citationCount": 0,
+            "referenceCount": 0,
+            "doi": 0,
+            "venue": 0
+          },
+          "fieldsReportedZero": {
+            "title": 0,
+            "authors": 2,
+            "year": 0,
+            "date": 0,
+            "dateField": 0,
+            "publicationType": 0,
+            "retracted": 0,
+            "citationCount": 3,
+            "referenceCount": 3,
+            "doi": 0,
+            "venue": 0
+          },
+          "provider": "crossref"
+        }
+      }
+    },
+    "openalex": {
+      "search": {
+        "corpus iuris canonici": {
+          "reported": 5361,
+          "returned": 5
+        },
+        "canon law spirituality": {
+          "reported": 18937,
+          "returned": 5
+        },
+        "The Spirit of the Liturgy": {
+          "reported": 35754,
+          "returned": 5
+        },
+        "A History of Canon Law": {
+          "reported": 176151,
+          "returned": 5
+        },
+        "civitas Dei augustin": {
+          "reported": 1712,
+          "returned": 5
+        }
+      },
+      "doiLookup": {
+        "10.32725/cetv.2017.022": {
+          "found": true,
+          "id": "https://openalex.org/W3206688818",
+          "title": "Kanonick\u00e9 pr\u00e1vo a spiritualita",
+          "authors": 1,
+          "year": 2017,
+          "date": "2017-03-30",
+          "dateField": "publication_date",
+          "publicationType": "article",
+          "retracted": false,
+          "citationCount": 0,
+          "referenceCount": 2,
+          "doi": "10.32725/cetv.2017.022",
+          "venue": "Caritas et Veritas",
+          "isParatext": false
+        },
+        "10.2307/j.ctt28524j.7": {
+          "found": true,
+          "id": "https://openalex.org/W4248809357",
+          "title": "Byzantine Canon Law to 1100",
+          "authors": 1,
+          "year": 2017,
+          "date": "2017-09-07",
+          "dateField": "publication_date",
+          "publicationType": "book-chapter",
+          "retracted": false,
+          "citationCount": 54,
+          "referenceCount": 0,
+          "doi": "10.2307/j.ctt28524j.7",
+          "venue": "Catholic University of America Press eBooks",
+          "isParatext": false
+        },
+        "10.1163/9789004525863-cp092202": {
+          "found": true,
+          "id": "https://openalex.org/W4389881649",
+          "title": "CORPUS IURIS CANONICI",
+          "authors": 0,
+          "year": 2023,
+          "date": "2023-12-18",
+          "dateField": "publication_date",
+          "publicationType": "dataset",
+          "retracted": false,
+          "citationCount": 0,
+          "referenceCount": 0,
+          "doi": "10.1163/9789004525863-cp092202",
+          "venue": null,
+          "isParatext": false
+        },
+        "10.1163/2211-2685_eco_c1317": {
+          "found": true,
+          "id": "https://openalex.org/W4252851993",
+          "title": "Corpus Iuris Canonici",
+          "authors": 1,
+          "year": 2014,
+          "date": "2014-10-29",
+          "dateField": "publication_date",
+          "publicationType": "reference-entry",
+          "retracted": false,
+          "citationCount": 0,
+          "referenceCount": 0,
+          "doi": "10.1163/2211-2685_eco_c1317",
+          "venue": "Encyclopedia of Christianity Online",
+          "isParatext": false
+        },
+        "10.1016/S0140-6736(97)11096-0": {
+          "found": true,
+          "id": "https://openalex.org/W2117847125",
+          "title": "RETRACTED: Ileal-lymphoid-nodular hyperplasia, non-specific colitis, and pervasive developmental disorder in children",
+          "authors": 13,
+          "year": 1998,
+          "date": "1998-02-01",
+          "dateField": "publication_date",
+          "publicationType": "article",
+          "retracted": true,
+          "citationCount": 3608,
+          "referenceCount": 25,
+          "doi": "10.1016/s0140-6736(97)11096-0",
+          "venue": "The Lancet",
+          "isParatext": false
+        },
+        "10.1038/nature00870": {
+          "found": true,
+          "id": "https://openalex.org/W2158048826",
+          "title": "RETRACTED ARTICLE: Pluripotency of mesenchymal stem cells derived from adult marrow",
+          "authors": 16,
+          "year": 2002,
+          "date": "2002-06-20",
+          "dateField": "publication_date",
+          "publicationType": "article",
+          "retracted": true,
+          "citationCount": 6244,
+          "referenceCount": 50,
+          "doi": "10.1038/nature00870",
+          "venue": "Nature",
+          "isParatext": false
+        },
+        "10.1056/nejmoa1200303": {
+          "found": true,
+          "id": "https://openalex.org/W2166000498",
+          "title": "RETRACTED: Primary Prevention of Cardiovascular Disease with a Mediterranean Diet",
+          "authors": 18,
+          "year": 2013,
+          "date": "2013-02-25",
+          "dateField": "publication_date",
+          "publicationType": "article",
+          "retracted": true,
+          "citationCount": 5126,
+          "referenceCount": 36,
+          "doi": "10.1056/nejmoa1200303",
+          "venue": "New England Journal of Medicine",
+          "isParatext": false
+        }
+      },
+      "coverage": {
+        "workId": "W3206688818",
+        "doi": "10.32725/cetv.2017.022",
+        "title": "Kanonick\u00e9 pr\u00e1vo a spiritualita",
+        "openalexDoiFilter": {
+          "reported": 1,
+          "returned": [
+            "https://openalex.org/W3206688818"
+          ],
+          "foundWork": true
+        },
+        "openalexTitleSearch": {
+          "reported": 20,
+          "returned": [
+            "https://openalex.org/W3206688818",
+            "https://openalex.org/W4384567107",
+            "https://openalex.org/W3206562084",
+            "https://openalex.org/W7207912618",
+            "https://openalex.org/W2605840671"
+          ],
+          "foundWork": true
+        },
+        "openalexFreeTextDoiQuery": {
+          "reported": 0,
+          "returned": [],
+          "foundWork": false
+        },
+        "openalexIdRoute": {
+          "foundWork": true,
+          "id": "https://openalex.org/W3206688818"
+        },
+        "openalexDoiRoute": {
+          "foundWork": true,
+          "id": "https://openalex.org/W3206688818"
+        },
+        "crossrefDoiRoute": {
+          "foundWork": true,
+          "type": "journal-article",
+          "issued": "2017-03-30",
+          "citations": 0
+        },
+        "retestOfThe21NovemberClaim": "OpenAlex's topical search returned the work for the query used here, so the field conclusion that OpenAlex cannot find this DOI is not reproduced on this machine and is recorded as not proven."
+      },
+      "select": {
+        "adapterSelectList": "id,doi,title,authorships,publication_year,publication_date,primary_location,abstract_inverted_index,open_access",
+        "presentInDefault": {
+          "type": true,
+          "is_retracted": true,
+          "cited_by_count": true,
+          "is_paratext": true
+        },
+        "presentWithAdapterSelect": {
+          "type": false,
+          "is_retracted": false,
+          "cited_by_count": false,
+          "is_paratext": false
+        },
+        "defaultTopLevelKeys": [
+          "abstract_inverted_index",
+          "alternate_titles",
+          "apc_list",
+          "apc_paid",
+          "authorships",
+          "awards",
+          "best_oa_location",
+          "biblio",
+          "child_works_count",
+          "citation_normalized_percentile",
+          "cited_by_api_url",
+          "cited_by_count",
+          "cited_by_percentile_year",
+          "concepts",
+          "content_urls",
+          "corresponding_author_ids",
+          "corresponding_institution_ids",
+          "countries_distinct_count",
+          "counts_by_year",
+          "created_date",
+          "display_name",
+          "doi",
+          "funders",
+          "fwci",
+          "has_content",
+          "has_fulltext",
+          "id",
+          "ids",
+          "indexed_in",
+          "institutions",
+          "institutions_distinct_count",
+          "is_paratext",
+          "is_pulled",
+          "is_retracted",
+          "is_traditional",
+          "is_xpac",
+          "keywords",
+          "language",
+          "lineage",
+          "locations"
+        ],
+        "selectedTopLevelKeys": [
+          "abstract_inverted_index",
+          "authorships",
+          "doi",
+          "id",
+          "open_access",
+          "primary_location",
+          "publication_date",
+          "publication_year",
+          "title"
+        ]
+      },
+      "searchFill": {
+        "rowsReturned": 25,
+        "fieldsFilled": {
+          "title": 25,
+          "authors": 25,
+          "year": 25,
+          "date": 25,
+          "dateField": 25,
+          "publicationType": 25,
+          "retracted": 25,
+          "citationCount": 25,
+          "referenceCount": 25,
+          "doi": 18,
+          "venue": 23
+        },
+        "fieldsAbsent": {
+          "title": 0,
+          "authors": 0,
+          "year": 0,
+          "date": 0,
+          "dateField": 0,
+          "publicationType": 0,
+          "retracted": 0,
+          "citationCount": 0,
+          "referenceCount": 0,
+          "doi": 7,
+          "venue": 2
+        },
+        "fieldsReportedZero": {
+          "title": 0,
+          "authors": 3,
+          "year": 0,
+          "date": 0,
+          "dateField": 0,
+          "publicationType": 0,
+          "retracted": 25,
+          "citationCount": 17,
+          "referenceCount": 22,
+          "doi": 0,
+          "venue": 0
+        },
+        "provider": "openalex"
+      },
+      "fillSummary": {
+        "search": {
+          "rowsReturned": 25,
+          "fieldsFilled": {
+            "title": 25,
+            "authors": 25,
+            "year": 25,
+            "date": 25,
+            "dateField": 25,
+            "publicationType": 25,
+            "retracted": 25,
+            "citationCount": 25,
+            "referenceCount": 25,
+            "doi": 18,
+            "venue": 23
+          },
+          "fieldsAbsent": {
+            "title": 0,
+            "authors": 0,
+            "year": 0,
+            "date": 0,
+            "dateField": 0,
+            "publicationType": 0,
+            "retracted": 0,
+            "citationCount": 0,
+            "referenceCount": 0,
+            "doi": 7,
+            "venue": 2
+          },
+          "fieldsReportedZero": {
+            "title": 0,
+            "authors": 3,
+            "year": 0,
+            "date": 0,
+            "dateField": 0,
+            "publicationType": 0,
+            "retracted": 25,
+            "citationCount": 17,
+            "referenceCount": 22,
+            "doi": 0,
+            "venue": 0
+          },
+          "provider": "openalex"
+        }
+      }
+    },
+    "semanticScholar": {
+      "withoutAcknowledgement": {
+        "code": "PROVIDER_TERMS_NOT_ACKNOWLEDGED",
+        "message": "Semantic Scholar is disabled until the current API license is reviewed and this process explicitly opts in.",
+        "requestsSent": 0
+      },
+      "withAcknowledgement": {
+        "code": "PROVIDER_RATE_LIMITED",
+        "message": "Provider rate limit reached; the Toolkit's own bounded backoff applies, with any wait the provider named carried through.",
+        "retryAfter": null
+      },
+      "rawAnonymous": {
+        "status": 429,
+        "reason": "no reason given",
+        "bodyExcerpt": "{\"message\": \"Too Many Requests. Please wait and try again or apply for a key for higher rate limits. https://www.semanticscholar.org/product/api#api-key-form\", \"code\": \"429\"}"
+      }
+    }
+  },
+  "refusals": [
+    {
+      "label": "semanticscholar anonymous raw",
+      "host": "api.semanticscholar.org",
+      "status": 429,
+      "reason": "no reason given",
+      "bodyExcerpt": "{\"message\": \"Too Many Requests. Please wait and try again or apply for a key for higher rate limits. https://www.semanticscholar.org/product/api#api-key-form\", \"code\": \"429\"}"
+    }
+  ],
+  "notProven": [
+    "The field conclusion that OpenAlex search cannot find 10.32725/cetv.2017.022 did not reproduce on this machine: OpenAlex's topical search returned the work. What this run proves is which routes return it, not that the earlier observation was wrong \u2014 its query string was not recorded in the field receipt.",
+    "Semantic Scholar field fill could not be measured: every anonymous request was refused with HTTP 429 in this container, and an anonymous 429 is the provider's global pool, not this Toolkit's allowance."
+  ]
+}

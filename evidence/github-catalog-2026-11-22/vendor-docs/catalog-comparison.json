@@ -1,0 +1,1241 @@
+{
+  "generated_utc": "2026-11-23T04:29:07+00:00",
+  "labels": {
+    "vendor_catalog": "[V] names GitHub publishes today in the vendor README automated catalog",
+    "vendor_source_hints": "[D] read/write classification parsed from vendor Go source today",
+    "map_2026_11_17": "[D] names recorded in the tracked catalog map on 2026-11-17",
+    "shipped_presets": "[file] lists as shipped in extension/presets.json",
+    "measured": "none: no tools/list was captured (see probe/anonymous-probe-receipt.json)"
+  },
+  "vendor_today": {
+    "readme_local_groups": {
+      "actions": [
+        "actions_get",
+        "actions_list",
+        "actions_run_trigger",
+        "get_job_logs"
+      ],
+      "code_quality": [
+        "get_code_quality_finding"
+      ],
+      "code_security": [
+        "get_code_scanning_alert",
+        "list_code_scanning_alerts",
+        "update_code_scanning_alert"
+      ],
+      "context": [
+        "get_me",
+        "get_team_members",
+        "get_teams",
+        "ui_get"
+      ],
+      "copilot": [
+        "assign_copilot_to_issue",
+        "request_copilot_review"
+      ],
+      "copilot_issue_intents": [
+        "assign_copilot_to_issue_with_intent"
+      ],
+      "dependabot": [
+        "get_dependabot_alert",
+        "list_dependabot_alerts",
+        "update_dependabot_alert"
+      ],
+      "discussions": [
+        "discussion_comment_write",
+        "get_discussion",
+        "get_discussion_comments",
+        "list_discussion_categories",
+        "list_discussions"
+      ],
+      "gists": [
+        "create_gist",
+        "get_gist",
+        "list_gists",
+        "update_gist"
+      ],
+      "git": [
+        "get_repository_tree"
+      ],
+      "governance": [
+        "create_repository_ruleset",
+        "custom_properties_read",
+        "custom_properties_write",
+        "repository_ruleset_read"
+      ],
+      "issues": [
+        "add_issue_comment",
+        "get_label",
+        "issue_read",
+        "issue_write",
+        "list_issue_fields",
+        "list_issue_types",
+        "list_issues",
+        "search_issues",
+        "sub_issue_write",
+        "update_issue_comment"
+      ],
+      "labels": [
+        "get_label",
+        "label_write",
+        "list_label"
+      ],
+      "notifications": [
+        "dismiss_notification",
+        "get_notification_details",
+        "list_notifications",
+        "manage_notification_subscription",
+        "manage_repository_notification_subscription",
+        "mark_all_notifications_read"
+      ],
+      "orgs": [
+        "search_orgs"
+      ],
+      "projects": [
+        "projects_get",
+        "projects_list",
+        "projects_write"
+      ],
+      "pull_requests": [
+        "add_comment_to_pending_review",
+        "add_reply_to_pull_request_comment",
+        "create_pull_request",
+        "list_pull_requests",
+        "merge_pull_request",
+        "pull_request_read",
+        "pull_request_review_write",
+        "search_pull_requests",
+        "update_pull_request",
+        "update_pull_request_branch"
+      ],
+      "repos": [
+        "create_branch",
+        "create_or_update_file",
+        "create_repository",
+        "delete_file",
+        "delete_repository",
+        "fork_repository",
+        "get_commit",
+        "get_file_contents",
+        "get_latest_release",
+        "get_release_by_tag",
+        "get_tag",
+        "list_branches",
+        "list_commits",
+        "list_releases",
+        "list_repository_collaborators",
+        "list_tags",
+        "push_files",
+        "search_code",
+        "search_commits",
+        "search_repositories"
+      ],
+      "secret_protection": [
+        "get_secret_scanning_alert",
+        "list_secret_scanning_alerts",
+        "update_secret_scanning_alert"
+      ],
+      "security_advisories": [
+        "get_global_security_advisory",
+        "list_global_security_advisories",
+        "list_org_repository_security_advisories",
+        "list_repository_security_advisories"
+      ],
+      "stargazers": [
+        "list_starred_repositories",
+        "star_repository",
+        "unstar_repository"
+      ],
+      "users": [
+        "search_users"
+      ]
+    },
+    "readme_local_entries": 96,
+    "readme_local_unique": 95,
+    "readme_remote_only_groups": {
+      "copilot": [
+        "create_pull_request_with_copilot"
+      ],
+      "copilot_spaces": [
+        "get_copilot_space",
+        "list_copilot_spaces"
+      ],
+      "github_support_docs_search": [
+        "github_support_docs_search"
+      ]
+    },
+    "readme_remote_only_unique": 4,
+    "readme_toolset_table_ids": [
+      "context",
+      "actions",
+      "code_quality",
+      "code_security",
+      "copilot",
+      "copilot_automations",
+      "copilot_issue_intents",
+      "dependabot",
+      "discussions",
+      "gists",
+      "git",
+      "governance",
+      "issues",
+      "labels",
+      "notifications",
+      "orgs",
+      "projects",
+      "pull_requests",
+      "repos",
+      "secret_protection",
+      "security_advisories",
+      "stargazers",
+      "users"
+    ],
+    "readme_toolset_table_count": 23,
+    "source_toolset_metadata_ids": [
+      "actions",
+      "all",
+      "code_quality",
+      "code_security",
+      "context",
+      "copilot",
+      "copilot_automations",
+      "copilot_issue_intents",
+      "copilot_spaces",
+      "default",
+      "dependabot",
+      "discussions",
+      "gists",
+      "git",
+      "github_support_docs_search",
+      "governance",
+      "issues",
+      "labels",
+      "notifications",
+      "orgs",
+      "projects",
+      "pull_requests",
+      "repos",
+      "secret_protection",
+      "security_advisories",
+      "stargazers",
+      "users"
+    ],
+    "source_default_true_toolsets": [
+      "context",
+      "copilot",
+      "issues",
+      "pull_requests",
+      "repos",
+      "users"
+    ],
+    "read_only_names_today": [
+      "actions_get",
+      "actions_list",
+      "custom_properties_read",
+      "get_code_quality_finding",
+      "get_code_scanning_alert",
+      "get_commit",
+      "get_dependabot_alert",
+      "get_discussion",
+      "get_discussion_comments",
+      "get_file_contents",
+      "get_gist",
+      "get_global_security_advisory",
+      "get_job_logs",
+      "get_label",
+      "get_latest_release",
+      "get_me",
+      "get_notification_details",
+      "get_release_by_tag",
+      "get_repository_tree",
+      "get_secret_scanning_alert",
+      "get_tag",
+      "get_team_members",
+      "get_teams",
+      "issue_read",
+      "list_branches",
+      "list_code_scanning_alerts",
+      "list_commits",
+      "list_dependabot_alerts",
+      "list_discussion_categories",
+      "list_discussions",
+      "list_gists",
+      "list_global_security_advisories",
+      "list_issue_fields",
+      "list_issue_types",
+      "list_issues",
+      "list_label",
+      "list_notifications",
+      "list_org_repository_security_advisories",
+      "list_pull_requests",
+      "list_releases",
+      "list_repository_collaborators",
+      "list_repository_security_advisories",
+      "list_secret_scanning_alerts",
+      "list_starred_repositories",
+      "list_tags",
+      "projects_get",
+      "projects_list",
+      "pull_request_read",
+      "repository_ruleset_read",
+      "search_code",
+      "search_commits",
+      "search_issues",
+      "search_orgs",
+      "search_pull_requests",
+      "search_repositories",
+      "search_users",
+      "ui_get"
+    ],
+    "write_names_today": [
+      "actions_run_trigger",
+      "add_comment_to_pending_review",
+      "add_issue_comment",
+      "add_reply_to_pull_request_comment",
+      "assign_copilot_to_issue",
+      "assign_copilot_to_issue_with_intent",
+      "create_branch",
+      "create_gist",
+      "create_or_update_file",
+      "create_pull_request",
+      "create_repository",
+      "create_repository_ruleset",
+      "custom_properties_write",
+      "delete_file",
+      "delete_repository",
+      "discussion_comment_write",
+      "dismiss_notification",
+      "fork_repository",
+      "issue_write",
+      "label_write",
+      "manage_notification_subscription",
+      "manage_repository_notification_subscription",
+      "mark_all_notifications_read",
+      "merge_pull_request",
+      "projects_write",
+      "pull_request_review_write",
+      "push_files",
+      "request_copilot_review",
+      "star_repository",
+      "sub_issue_write",
+      "unstar_repository",
+      "update_code_scanning_alert",
+      "update_dependabot_alert",
+      "update_gist",
+      "update_issue_comment",
+      "update_pull_request",
+      "update_pull_request_branch",
+      "update_secret_scanning_alert"
+    ],
+    "names_without_hint": [
+      "create_pull_request_with_copilot",
+      "get_copilot_space",
+      "github_support_docs_search",
+      "list_copilot_spaces"
+    ]
+  },
+  "map_2026_11_17": {
+    "catalog_entries": 93,
+    "unique_names": 92,
+    "read_only_names": 57,
+    "write_names": [
+      "actions_run_trigger",
+      "add_comment_to_pending_review",
+      "add_issue_comment",
+      "add_reply_to_pull_request_comment",
+      "assign_copilot_to_issue",
+      "assign_copilot_to_issue_with_intent",
+      "create_branch",
+      "create_gist",
+      "create_or_update_file",
+      "create_pull_request",
+      "create_repository",
+      "create_repository_ruleset",
+      "custom_properties_write",
+      "delete_file",
+      "delete_repository",
+      "discussion_comment_write",
+      "dismiss_notification",
+      "fork_repository",
+      "issue_write",
+      "label_write",
+      "manage_notification_subscription",
+      "manage_repository_notification_subscription",
+      "mark_all_notifications_read",
+      "merge_pull_request",
+      "projects_write",
+      "pull_request_review_write",
+      "push_files",
+      "request_copilot_review",
+      "star_repository",
+      "sub_issue_write",
+      "unstar_repository",
+      "update_gist",
+      "update_issue_comment",
+      "update_pull_request",
+      "update_pull_request_branch"
+    ],
+    "toolsets_with_entries": 22,
+    "per_toolset": {
+      "context": {
+        "read": [
+          "get_me",
+          "get_team_members",
+          "get_teams",
+          "ui_get"
+        ],
+        "write": []
+      },
+      "repos": {
+        "read": [
+          "get_commit",
+          "get_file_contents",
+          "get_latest_release",
+          "get_release_by_tag",
+          "get_tag",
+          "list_branches",
+          "list_commits",
+          "list_releases",
+          "list_repository_collaborators",
+          "list_tags",
+          "search_code",
+          "search_commits",
+          "search_repositories"
+        ],
+        "write": [
+          "create_branch",
+          "create_or_update_file",
+          "create_repository",
+          "delete_file",
+          "delete_repository",
+          "fork_repository",
+          "push_files"
+        ]
+      },
+      "issues": {
+        "read": [
+          "get_label",
+          "issue_read",
+          "list_issue_fields",
+          "list_issue_types",
+          "list_issues",
+          "search_issues"
+        ],
+        "write": [
+          "add_issue_comment",
+          "issue_write",
+          "sub_issue_write",
+          "update_issue_comment"
+        ]
+      },
+      "pull_requests": {
+        "read": [
+          "list_pull_requests",
+          "pull_request_read",
+          "search_pull_requests"
+        ],
+        "write": [
+          "add_comment_to_pending_review",
+          "add_reply_to_pull_request_comment",
+          "create_pull_request",
+          "merge_pull_request",
+          "pull_request_review_write",
+          "update_pull_request",
+          "update_pull_request_branch"
+        ]
+      },
+      "users": {
+        "read": [
+          "search_users"
+        ],
+        "write": []
+      },
+      "orgs": {
+        "read": [
+          "search_orgs"
+        ],
+        "write": []
+      },
+      "labels": {
+        "read": [
+          "get_label",
+          "list_label"
+        ],
+        "write": [
+          "label_write"
+        ]
+      },
+      "git": {
+        "read": [
+          "get_repository_tree"
+        ],
+        "write": []
+      },
+      "gists": {
+        "read": [
+          "get_gist",
+          "list_gists"
+        ],
+        "write": [
+          "create_gist",
+          "update_gist"
+        ]
+      },
+      "notifications": {
+        "read": [
+          "get_notification_details",
+          "list_notifications"
+        ],
+        "write": [
+          "dismiss_notification",
+          "manage_notification_subscription",
+          "manage_repository_notification_subscription",
+          "mark_all_notifications_read"
+        ]
+      },
+      "projects": {
+        "read": [
+          "projects_get",
+          "projects_list"
+        ],
+        "write": [
+          "projects_write"
+        ]
+      },
+      "discussions": {
+        "read": [
+          "get_discussion",
+          "get_discussion_comments",
+          "list_discussion_categories",
+          "list_discussions"
+        ],
+        "write": [
+          "discussion_comment_write"
+        ]
+      },
+      "stargazers": {
+        "read": [
+          "list_starred_repositories"
+        ],
+        "write": [
+          "star_repository",
+          "unstar_repository"
+        ]
+      },
+      "actions": {
+        "read": [
+          "actions_get",
+          "actions_list",
+          "get_job_logs"
+        ],
+        "write": [
+          "actions_run_trigger"
+        ]
+      },
+      "code_quality": {
+        "read": [
+          "get_code_quality_finding"
+        ],
+        "write": []
+      },
+      "code_security": {
+        "read": [
+          "get_code_scanning_alert",
+          "list_code_scanning_alerts"
+        ],
+        "write": []
+      },
+      "secret_protection": {
+        "read": [
+          "get_secret_scanning_alert",
+          "list_secret_scanning_alerts"
+        ],
+        "write": []
+      },
+      "dependabot": {
+        "read": [
+          "get_dependabot_alert",
+          "list_dependabot_alerts"
+        ],
+        "write": []
+      },
+      "security_advisories": {
+        "read": [
+          "get_global_security_advisory",
+          "list_global_security_advisories",
+          "list_org_repository_security_advisories",
+          "list_repository_security_advisories"
+        ],
+        "write": []
+      },
+      "governance": {
+        "read": [
+          "custom_properties_read",
+          "repository_ruleset_read"
+        ],
+        "write": [
+          "create_repository_ruleset",
+          "custom_properties_write"
+        ]
+      },
+      "copilot": {
+        "read": [],
+        "write": [
+          "assign_copilot_to_issue",
+          "request_copilot_review"
+        ]
+      },
+      "copilot_issue_intents": {
+        "read": [],
+        "write": [
+          "assign_copilot_to_issue_with_intent"
+        ]
+      }
+    },
+    "names": [
+      "actions_get",
+      "actions_list",
+      "actions_run_trigger",
+      "add_comment_to_pending_review",
+      "add_issue_comment",
+      "add_reply_to_pull_request_comment",
+      "assign_copilot_to_issue",
+      "assign_copilot_to_issue_with_intent",
+      "create_branch",
+      "create_gist",
+      "create_or_update_file",
+      "create_pull_request",
+      "create_repository",
+      "create_repository_ruleset",
+      "custom_properties_read",
+      "custom_properties_write",
+      "delete_file",
+      "delete_repository",
+      "discussion_comment_write",
+      "dismiss_notification",
+      "fork_repository",
+      "get_code_quality_finding",
+      "get_code_scanning_alert",
+      "get_commit",
+      "get_dependabot_alert",
+      "get_discussion",
+      "get_discussion_comments",
+      "get_file_contents",
+      "get_gist",
+      "get_global_security_advisory",
+      "get_job_logs",
+      "get_label",
+      "get_latest_release",
+      "get_me",
+      "get_notification_details",
+      "get_release_by_tag",
+      "get_repository_tree",
+      "get_secret_scanning_alert",
+      "get_tag",
+      "get_team_members",
+      "get_teams",
+      "issue_read",
+      "issue_write",
+      "label_write",
+      "list_branches",
+      "list_code_scanning_alerts",
+      "list_commits",
+      "list_dependabot_alerts",
+      "list_discussion_categories",
+      "list_discussions",
+      "list_gists",
+      "list_global_security_advisories",
+      "list_issue_fields",
+      "list_issue_types",
+      "list_issues",
+      "list_label",
+      "list_notifications",
+      "list_org_repository_security_advisories",
+      "list_pull_requests",
+      "list_releases",
+      "list_repository_collaborators",
+      "list_repository_security_advisories",
+      "list_secret_scanning_alerts",
+      "list_starred_repositories",
+      "list_tags",
+      "manage_notification_subscription",
+      "manage_repository_notification_subscription",
+      "mark_all_notifications_read",
+      "merge_pull_request",
+      "projects_get",
+      "projects_list",
+      "projects_write",
+      "pull_request_read",
+      "pull_request_review_write",
+      "push_files",
+      "repository_ruleset_read",
+      "request_copilot_review",
+      "search_code",
+      "search_commits",
+      "search_issues",
+      "search_orgs",
+      "search_pull_requests",
+      "search_repositories",
+      "search_users",
+      "star_repository",
+      "sub_issue_write",
+      "ui_get",
+      "unstar_repository",
+      "update_gist",
+      "update_issue_comment",
+      "update_pull_request",
+      "update_pull_request_branch"
+    ],
+    "read_names": [
+      "actions_get",
+      "actions_list",
+      "custom_properties_read",
+      "get_code_quality_finding",
+      "get_code_scanning_alert",
+      "get_commit",
+      "get_dependabot_alert",
+      "get_discussion",
+      "get_discussion_comments",
+      "get_file_contents",
+      "get_gist",
+      "get_global_security_advisory",
+      "get_job_logs",
+      "get_label",
+      "get_latest_release",
+      "get_me",
+      "get_notification_details",
+      "get_release_by_tag",
+      "get_repository_tree",
+      "get_secret_scanning_alert",
+      "get_tag",
+      "get_team_members",
+      "get_teams",
+      "issue_read",
+      "list_branches",
+      "list_code_scanning_alerts",
+      "list_commits",
+      "list_dependabot_alerts",
+      "list_discussion_categories",
+      "list_discussions",
+      "list_gists",
+      "list_global_security_advisories",
+      "list_issue_fields",
+      "list_issue_types",
+      "list_issues",
+      "list_label",
+      "list_notifications",
+      "list_org_repository_security_advisories",
+      "list_pull_requests",
+      "list_releases",
+      "list_repository_collaborators",
+      "list_repository_security_advisories",
+      "list_secret_scanning_alerts",
+      "list_starred_repositories",
+      "list_tags",
+      "projects_get",
+      "projects_list",
+      "pull_request_read",
+      "repository_ruleset_read",
+      "search_code",
+      "search_commits",
+      "search_issues",
+      "search_orgs",
+      "search_pull_requests",
+      "search_repositories",
+      "search_users",
+      "ui_get"
+    ]
+  },
+  "shipped_presets": {
+    "full_tools_len": 92,
+    "full_tools_estimate": 92,
+    "full_toolsets_len": 22,
+    "limited_tools_len": 42,
+    "limited_tools_estimate": 42,
+    "limited_toolsets_len": 14,
+    "limited_exclude_len": 35,
+    "full_toolkit_len": 16,
+    "limited_toolkit_len": 20,
+    "nogh_toolkit_len": 20
+  },
+  "consistency": {
+    "map92_equals_shipped92": true,
+    "map92_symmetric_difference": [],
+    "shipped_limited_subset_of_shipped_full": true,
+    "shipped_limited_subset_of_map_readonly": true,
+    "shipped_exclude_equals_map_writes": true,
+    "shipped_exclude_symmetric_difference": []
+  },
+  "buckets_full_vs_vendor_today": {
+    "both": [
+      "actions_get",
+      "actions_list",
+      "actions_run_trigger",
+      "add_comment_to_pending_review",
+      "add_issue_comment",
+      "add_reply_to_pull_request_comment",
+      "assign_copilot_to_issue",
+      "assign_copilot_to_issue_with_intent",
+      "create_branch",
+      "create_gist",
+      "create_or_update_file",
+      "create_pull_request",
+      "create_repository",
+      "create_repository_ruleset",
+      "custom_properties_read",
+      "custom_properties_write",
+      "delete_file",
+      "delete_repository",
+      "discussion_comment_write",
+      "dismiss_notification",
+      "fork_repository",
+      "get_code_quality_finding",
+      "get_code_scanning_alert",
+      "get_commit",
+      "get_dependabot_alert",
+      "get_discussion",
+      "get_discussion_comments",
+      "get_file_contents",
+      "get_gist",
+      "get_global_security_advisory",
+      "get_job_logs",
+      "get_label",
+      "get_latest_release",
+      "get_me",
+      "get_notification_details",
+      "get_release_by_tag",
+      "get_repository_tree",
+      "get_secret_scanning_alert",
+      "get_tag",
+      "get_team_members",
+      "get_teams",
+      "issue_read",
+      "issue_write",
+      "label_write",
+      "list_branches",
+      "list_code_scanning_alerts",
+      "list_commits",
+      "list_dependabot_alerts",
+      "list_discussion_categories",
+      "list_discussions",
+      "list_gists",
+      "list_global_security_advisories",
+      "list_issue_fields",
+      "list_issue_types",
+      "list_issues",
+      "list_label",
+      "list_notifications",
+      "list_org_repository_security_advisories",
+      "list_pull_requests",
+      "list_releases",
+      "list_repository_collaborators",
+      "list_repository_security_advisories",
+      "list_secret_scanning_alerts",
+      "list_starred_repositories",
+      "list_tags",
+      "manage_notification_subscription",
+      "manage_repository_notification_subscription",
+      "mark_all_notifications_read",
+      "merge_pull_request",
+      "projects_get",
+      "projects_list",
+      "projects_write",
+      "pull_request_read",
+      "pull_request_review_write",
+      "push_files",
+      "repository_ruleset_read",
+      "request_copilot_review",
+      "search_code",
+      "search_commits",
+      "search_issues",
+      "search_orgs",
+      "search_pull_requests",
+      "search_repositories",
+      "search_users",
+      "star_repository",
+      "sub_issue_write",
+      "ui_get",
+      "unstar_repository",
+      "update_gist",
+      "update_issue_comment",
+      "update_pull_request",
+      "update_pull_request_branch"
+    ],
+    "shipped_only_stale_or_renamed": [],
+    "vendor_only_new_or_missing": [
+      "create_pull_request_with_copilot",
+      "get_copilot_space",
+      "github_support_docs_search",
+      "list_copilot_spaces",
+      "update_code_scanning_alert",
+      "update_dependabot_alert",
+      "update_secret_scanning_alert"
+    ],
+    "counts": {
+      "both": 92,
+      "shipped_only_stale_or_renamed": 0,
+      "vendor_only_new_or_missing": 7
+    }
+  },
+  "buckets_limited42_vs_vendor_readonly_today": {
+    "both": [
+      "get_code_quality_finding",
+      "get_code_scanning_alert",
+      "get_commit",
+      "get_dependabot_alert",
+      "get_file_contents",
+      "get_gist",
+      "get_global_security_advisory",
+      "get_label",
+      "get_latest_release",
+      "get_me",
+      "get_release_by_tag",
+      "get_repository_tree",
+      "get_secret_scanning_alert",
+      "get_tag",
+      "get_team_members",
+      "get_teams",
+      "issue_read",
+      "list_branches",
+      "list_code_scanning_alerts",
+      "list_commits",
+      "list_dependabot_alerts",
+      "list_gists",
+      "list_global_security_advisories",
+      "list_issue_fields",
+      "list_issue_types",
+      "list_issues",
+      "list_label",
+      "list_org_repository_security_advisories",
+      "list_pull_requests",
+      "list_releases",
+      "list_repository_collaborators",
+      "list_repository_security_advisories",
+      "list_secret_scanning_alerts",
+      "list_tags",
+      "pull_request_read",
+      "search_code",
+      "search_commits",
+      "search_issues",
+      "search_orgs",
+      "search_pull_requests",
+      "search_repositories",
+      "search_users"
+    ],
+    "shipped_only": [],
+    "vendor_readonly_only": [
+      "actions_get",
+      "actions_list",
+      "custom_properties_read",
+      "get_discussion",
+      "get_discussion_comments",
+      "get_job_logs",
+      "get_notification_details",
+      "list_discussion_categories",
+      "list_discussions",
+      "list_notifications",
+      "list_starred_repositories",
+      "projects_get",
+      "projects_list",
+      "repository_ruleset_read",
+      "ui_get"
+    ],
+    "gap_from_toolsets_not_enabled": [
+      "actions_get",
+      "actions_list",
+      "custom_properties_read",
+      "get_discussion",
+      "get_discussion_comments",
+      "get_job_logs",
+      "get_notification_details",
+      "list_discussion_categories",
+      "list_discussions",
+      "list_notifications",
+      "list_starred_repositories",
+      "projects_get",
+      "projects_list",
+      "repository_ruleset_read"
+    ],
+    "gap_by_choice": [
+      "ui_get"
+    ],
+    "toolsets_not_enabled_in_limited": [
+      "actions",
+      "copilot",
+      "copilot_automations",
+      "copilot_issue_intents",
+      "discussions",
+      "governance",
+      "notifications",
+      "projects",
+      "stargazers"
+    ],
+    "counts": {
+      "both": 42,
+      "shipped_only": 0,
+      "vendor_readonly_only": 15
+    }
+  },
+  "toolsets_membership_per_toolset": {
+    "actions": {
+      "vendor_today_entries": 4,
+      "map_2026_11_17_entries": 4,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "code_quality": {
+      "vendor_today_entries": 1,
+      "map_2026_11_17_entries": 1,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "code_security": {
+      "vendor_today_entries": 3,
+      "map_2026_11_17_entries": 2,
+      "new_in_vendor": [
+        "update_code_scanning_alert"
+      ],
+      "gone_from_vendor": []
+    },
+    "context": {
+      "vendor_today_entries": 4,
+      "map_2026_11_17_entries": 4,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "copilot": {
+      "vendor_today_entries": 2,
+      "map_2026_11_17_entries": 2,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "copilot_issue_intents": {
+      "vendor_today_entries": 1,
+      "map_2026_11_17_entries": 1,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "dependabot": {
+      "vendor_today_entries": 3,
+      "map_2026_11_17_entries": 2,
+      "new_in_vendor": [
+        "update_dependabot_alert"
+      ],
+      "gone_from_vendor": []
+    },
+    "discussions": {
+      "vendor_today_entries": 5,
+      "map_2026_11_17_entries": 5,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "gists": {
+      "vendor_today_entries": 4,
+      "map_2026_11_17_entries": 4,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "git": {
+      "vendor_today_entries": 1,
+      "map_2026_11_17_entries": 1,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "governance": {
+      "vendor_today_entries": 4,
+      "map_2026_11_17_entries": 4,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "issues": {
+      "vendor_today_entries": 10,
+      "map_2026_11_17_entries": 10,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "labels": {
+      "vendor_today_entries": 3,
+      "map_2026_11_17_entries": 3,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "notifications": {
+      "vendor_today_entries": 6,
+      "map_2026_11_17_entries": 6,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "orgs": {
+      "vendor_today_entries": 1,
+      "map_2026_11_17_entries": 1,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "projects": {
+      "vendor_today_entries": 3,
+      "map_2026_11_17_entries": 3,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "pull_requests": {
+      "vendor_today_entries": 10,
+      "map_2026_11_17_entries": 10,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "repos": {
+      "vendor_today_entries": 20,
+      "map_2026_11_17_entries": 20,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "secret_protection": {
+      "vendor_today_entries": 3,
+      "map_2026_11_17_entries": 2,
+      "new_in_vendor": [
+        "update_secret_scanning_alert"
+      ],
+      "gone_from_vendor": []
+    },
+    "security_advisories": {
+      "vendor_today_entries": 4,
+      "map_2026_11_17_entries": 4,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "stargazers": {
+      "vendor_today_entries": 3,
+      "map_2026_11_17_entries": 3,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    },
+    "users": {
+      "vendor_today_entries": 1,
+      "map_2026_11_17_entries": 1,
+      "new_in_vendor": [],
+      "gone_from_vendor": []
+    }
+  },
+  "toolsets": {
+    "vendor_readme_local_toolset_ids": [
+      "actions",
+      "code_quality",
+      "code_security",
+      "context",
+      "copilot",
+      "copilot_automations",
+      "copilot_issue_intents",
+      "dependabot",
+      "discussions",
+      "gists",
+      "git",
+      "governance",
+      "issues",
+      "labels",
+      "notifications",
+      "orgs",
+      "projects",
+      "pull_requests",
+      "repos",
+      "secret_protection",
+      "security_advisories",
+      "stargazers",
+      "users"
+    ],
+    "vendor_readme_local_toolset_ids_with_catalog_entries": [
+      "actions",
+      "code_quality",
+      "code_security",
+      "context",
+      "copilot",
+      "copilot_issue_intents",
+      "dependabot",
+      "discussions",
+      "gists",
+      "git",
+      "governance",
+      "issues",
+      "labels",
+      "notifications",
+      "orgs",
+      "projects",
+      "pull_requests",
+      "repos",
+      "secret_protection",
+      "security_advisories",
+      "stargazers",
+      "users"
+    ],
+    "vendor_source_toolset_ids": [
+      "actions",
+      "code_quality",
+      "code_security",
+      "context",
+      "copilot",
+      "copilot_automations",
+      "copilot_issue_intents",
+      "copilot_spaces",
+      "dependabot",
+      "discussions",
+      "gists",
+      "git",
+      "github_support_docs_search",
+      "governance",
+      "issues",
+      "labels",
+      "notifications",
+      "orgs",
+      "projects",
+      "pull_requests",
+      "repos",
+      "secret_protection",
+      "security_advisories",
+      "stargazers",
+      "users"
+    ],
+    "shipped_full_toolsets": [
+      "context",
+      "repos",
+      "issues",
+      "pull_requests",
+      "users",
+      "copilot",
+      "copilot_issue_intents",
+      "actions",
+      "code_quality",
+      "code_security",
+      "dependabot",
+      "discussions",
+      "gists",
+      "git",
+      "governance",
+      "labels",
+      "notifications",
+      "orgs",
+      "projects",
+      "secret_protection",
+      "security_advisories",
+      "stargazers"
+    ],
+    "shipped_limited_toolsets": [
+      "context",
+      "repos",
+      "git",
+      "issues",
+      "pull_requests",
+      "labels",
+      "users",
+      "orgs",
+      "gists",
+      "code_quality",
+      "code_security",
+      "secret_protection",
+      "dependabot",
+      "security_advisories"
+    ],
+    "full_toolsets_not_named_by_vendor": [],
+    "vendor_local_toolsets_not_in_full_preset": [
+      "copilot_automations"
+    ]
+  }
+}

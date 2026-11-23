@@ -60,11 +60,28 @@ function probeArgv({ providers } = {}) {
   return ["probe-integrations", "--providers", ids.join(",")];
 }
 
-/** Only what the worker needs: a key travels with the mode that asked for it, a licence flag with a recorded consent. */
+/**
+ * Only what the worker needs: a key travels with the mode that asked for it, a licence flag with a recorded consent.
+ *
+ * Since 0.3.15 the two facts that make that consent a fact travel with it: the moment the operator confirmed
+ * the licence in this profile (`license.acknowledgedAt`) and what they answered when a key was offered
+ * (`keyDecision`). Sent as the names the worker already reads — `SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT`
+ * and `SEMANTIC_SCHOLAR_KEY_DECISION` (`src/research_stack/integrations.py`). Carrying only the boolean left
+ * the worker's own machine-level record (`machinefacts.read_provider_state`) holding a consent this process
+ * was never told about, so a stored confirmation reported as `PROVIDER_TERMS_STORED_BUT_NOT_INJECTED`: the
+ * card said confirmed, the check behaved as unconfirmed. Nothing here records a consent on the operator's
+ * behalf — `authorizeSemanticScholar` still refuses to write one the operator did not give, and this function
+ * forwards only what that record already holds. A credential value appears in the object only when the mode
+ * the operator chose asked for one.
+ */
 function probeEnvironment({ registry, apiKey } = {}) {
   const entry = registry?.providers?.["semantic-scholar"];
   if (!entry || !integrations.isAuthorized(registry, "semantic-scholar")) return {};
   const env = { SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED: "true" };
+  if (typeof entry.license?.acknowledgedAt === "string" && entry.license.acknowledgedAt.length) {
+    env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT = entry.license.acknowledgedAt;
+  }
+  if (integrations.KEY_DECISIONS.includes(entry.keyDecision)) env.SEMANTIC_SCHOLAR_KEY_DECISION = entry.keyDecision;
   if (entry.mode === "api-key" && typeof apiKey === "string" && apiKey.length) env.SEMANTIC_SCHOLAR_API_KEY = apiKey;
   return env;
 }

@@ -1,0 +1,1236 @@
+{
+  "derived_utc": "2026-11-23T03:58:05+00:00",
+  "repo": "github/github-mcp-server",
+  "ref": "main",
+  "labels": "vendor source parse [D]; no tools/list was captured",
+  "toolset_metadata": {
+    "all": {
+      "const": "ToolsetMetadataAll",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "default": {
+      "const": "ToolsetMetadataDefault",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "context": {
+      "const": "ToolsetMetadataContext",
+      "default": true,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "repos": {
+      "const": "ToolsetMetadataRepos",
+      "default": true,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "git": {
+      "const": "ToolsetMetadataGit",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "issues": {
+      "const": "ToolsetMetadataIssues",
+      "default": true,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "pull_requests": {
+      "const": "ToolsetMetadataPullRequests",
+      "default": true,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "users": {
+      "const": "ToolsetMetadataUsers",
+      "default": true,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "orgs": {
+      "const": "ToolsetMetadataOrgs",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "governance": {
+      "const": "ToolsetMetadataGovernance",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "actions": {
+      "const": "ToolsetMetadataActions",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "code_quality": {
+      "const": "ToolsetMetadataCodeQuality",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "code_security": {
+      "const": "ToolsetMetadataCodeSecurity",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "secret_protection": {
+      "const": "ToolsetMetadataSecretProtection",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "dependabot": {
+      "const": "ToolsetMetadataDependabot",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "notifications": {
+      "const": "ToolsetMetadataNotifications",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "discussions": {
+      "const": "ToolsetMetadataDiscussions",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "gists": {
+      "const": "ToolsetMetadataGists",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "security_advisories": {
+      "const": "ToolsetMetadataSecurityAdvisories",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "projects": {
+      "const": "ToolsetMetadataProjects",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "stargazers": {
+      "const": "ToolsetMetadataStargazers",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "labels": {
+      "const": "ToolsetMetadataLabels",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "copilot": {
+      "const": "ToolsetMetadataCopilot",
+      "default": true,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "copilot_automations": {
+      "const": "ToolsetMetadataCopilotAutomations",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "copilot_issue_intents": {
+      "const": "ToolsetMetadataCopilotIssueIntents",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "copilot_spaces": {
+      "const": "ToolsetMetadataCopilotSpaces",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    },
+    "github_support_docs_search": {
+      "const": "ToolsetMetadataSupportSearch",
+      "default": false,
+      "declared_in": "pkg/github/tools.go",
+      "blob_sha": "6a0a26217585a3617c3d52c60a40a5b9338ec71c"
+    }
+  },
+  "tool_declarations": [
+    {
+      "name": "actions_list",
+      "toolset_const": "ToolsetMetadataActions",
+      "toolset_id": "actions",
+      "read_only_hint": true,
+      "file": "pkg/github/actions.go",
+      "blob_sha": "dc71ab5261be3864c4a3d4e464ef0448b3466751"
+    },
+    {
+      "name": "actions_get",
+      "toolset_const": "ToolsetMetadataActions",
+      "toolset_id": "actions",
+      "read_only_hint": true,
+      "file": "pkg/github/actions.go",
+      "blob_sha": "dc71ab5261be3864c4a3d4e464ef0448b3466751"
+    },
+    {
+      "name": "actions_run_trigger",
+      "toolset_const": "ToolsetMetadataActions",
+      "toolset_id": "actions",
+      "read_only_hint": false,
+      "file": "pkg/github/actions.go",
+      "blob_sha": "dc71ab5261be3864c4a3d4e464ef0448b3466751"
+    },
+    {
+      "name": "get_job_logs",
+      "toolset_const": "ToolsetMetadataActions",
+      "toolset_id": "actions",
+      "read_only_hint": true,
+      "file": "pkg/github/actions.go",
+      "blob_sha": "dc71ab5261be3864c4a3d4e464ef0448b3466751"
+    },
+    {
+      "name": "get_code_quality_finding",
+      "toolset_const": "ToolsetMetadataCodeQuality",
+      "toolset_id": "code_quality",
+      "read_only_hint": true,
+      "file": "pkg/github/code_quality.go",
+      "blob_sha": "e5ef82c3942a771e58e75f09c67de58ec3dff4da"
+    },
+    {
+      "name": "get_code_scanning_alert",
+      "toolset_const": "ToolsetMetadataCodeSecurity",
+      "toolset_id": "code_security",
+      "read_only_hint": true,
+      "file": "pkg/github/code_scanning.go",
+      "blob_sha": "6d0ef073b575f1748196a561087ace4aab54c5cf"
+    },
+    {
+      "name": "list_code_scanning_alerts",
+      "toolset_const": "ToolsetMetadataCodeSecurity",
+      "toolset_id": "code_security",
+      "read_only_hint": true,
+      "file": "pkg/github/code_scanning.go",
+      "blob_sha": "6d0ef073b575f1748196a561087ace4aab54c5cf"
+    },
+    {
+      "name": "get_me",
+      "toolset_const": "ToolsetMetadataContext",
+      "toolset_id": "context",
+      "read_only_hint": true,
+      "file": "pkg/github/context_tools.go",
+      "blob_sha": "93f9eed04c0af64abeafcbabdab4874dce594f81"
+    },
+    {
+      "name": "get_teams",
+      "toolset_const": "ToolsetMetadataContext",
+      "toolset_id": "context",
+      "read_only_hint": true,
+      "file": "pkg/github/context_tools.go",
+      "blob_sha": "93f9eed04c0af64abeafcbabdab4874dce594f81"
+    },
+    {
+      "name": "get_team_members",
+      "toolset_const": "ToolsetMetadataContext",
+      "toolset_id": "context",
+      "read_only_hint": true,
+      "file": "pkg/github/context_tools.go",
+      "blob_sha": "93f9eed04c0af64abeafcbabdab4874dce594f81"
+    },
+    {
+      "name": "assign_copilot_to_issue",
+      "toolset_const": "ToolsetMetadataCopilot",
+      "toolset_id": "copilot",
+      "read_only_hint": false,
+      "file": "pkg/github/copilot.go",
+      "blob_sha": "151c7e3f59ea4f5ff7e0b2582dd208dea54e6b17"
+    },
+    {
+      "name": "assign_copilot_to_issue_with_intent",
+      "toolset_const": "ToolsetMetadataCopilotIssueIntents",
+      "toolset_id": "copilot_issue_intents",
+      "read_only_hint": false,
+      "file": "pkg/github/copilot.go",
+      "blob_sha": "151c7e3f59ea4f5ff7e0b2582dd208dea54e6b17"
+    },
+    {
+      "name": "request_copilot_review",
+      "toolset_const": "ToolsetMetadataCopilot",
+      "toolset_id": "copilot",
+      "read_only_hint": false,
+      "file": "pkg/github/copilot.go",
+      "blob_sha": "151c7e3f59ea4f5ff7e0b2582dd208dea54e6b17"
+    },
+    {
+      "name": "AssignCodingAgent",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": null,
+      "file": "pkg/github/copilot.go",
+      "blob_sha": "151c7e3f59ea4f5ff7e0b2582dd208dea54e6b17"
+    },
+    {
+      "name": "repo",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": null,
+      "file": "pkg/github/copilot.go",
+      "blob_sha": "151c7e3f59ea4f5ff7e0b2582dd208dea54e6b17"
+    },
+    {
+      "name": "custom_properties_read",
+      "toolset_const": "ToolsetMetadataGovernance",
+      "toolset_id": "governance",
+      "read_only_hint": true,
+      "file": "pkg/github/custom_properties.go",
+      "blob_sha": "055efc4461bdf859faca7f5b49660ef0a82a30f2"
+    },
+    {
+      "name": "custom_properties_write",
+      "toolset_const": "ToolsetMetadataGovernance",
+      "toolset_id": "governance",
+      "read_only_hint": false,
+      "file": "pkg/github/custom_properties.go",
+      "blob_sha": "055efc4461bdf859faca7f5b49660ef0a82a30f2"
+    },
+    {
+      "name": "get_dependabot_alert",
+      "toolset_const": "ToolsetMetadataDependabot",
+      "toolset_id": "dependabot",
+      "read_only_hint": true,
+      "file": "pkg/github/dependabot.go",
+      "blob_sha": "32669788c0e2261983b5b1a8551557f0c4a58c0e"
+    },
+    {
+      "name": "list_dependabot_alerts",
+      "toolset_const": "ToolsetMetadataDependabot",
+      "toolset_id": "dependabot",
+      "read_only_hint": true,
+      "file": "pkg/github/dependabot.go",
+      "blob_sha": "32669788c0e2261983b5b1a8551557f0c4a58c0e"
+    },
+    {
+      "name": "list_discussions",
+      "toolset_const": "ToolsetMetadataDiscussions",
+      "toolset_id": "discussions",
+      "read_only_hint": true,
+      "file": "pkg/github/discussions.go",
+      "blob_sha": "2de3b3fd95c6ce5eb6907cab27d6eeb929a4ce5e"
+    },
+    {
+      "name": "get_discussion",
+      "toolset_const": "ToolsetMetadataDiscussions",
+      "toolset_id": "discussions",
+      "read_only_hint": true,
+      "file": "pkg/github/discussions.go",
+      "blob_sha": "2de3b3fd95c6ce5eb6907cab27d6eeb929a4ce5e"
+    },
+    {
+      "name": "get_discussion_comments",
+      "toolset_const": "ToolsetMetadataDiscussions",
+      "toolset_id": "discussions",
+      "read_only_hint": true,
+      "file": "pkg/github/discussions.go",
+      "blob_sha": "2de3b3fd95c6ce5eb6907cab27d6eeb929a4ce5e"
+    },
+    {
+      "name": "discussion_comment_write",
+      "toolset_const": "ToolsetMetadataDiscussions",
+      "toolset_id": "discussions",
+      "read_only_hint": false,
+      "file": "pkg/github/discussions.go",
+      "blob_sha": "2de3b3fd95c6ce5eb6907cab27d6eeb929a4ce5e"
+    },
+    {
+      "name": "list_discussion_categories",
+      "toolset_const": "ToolsetMetadataDiscussions",
+      "toolset_id": "discussions",
+      "read_only_hint": true,
+      "file": "pkg/github/discussions.go",
+      "blob_sha": "2de3b3fd95c6ce5eb6907cab27d6eeb929a4ce5e"
+    },
+    {
+      "name": "find_duplicate",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": true,
+      "file": "pkg/github/find_duplicate.go",
+      "blob_sha": "b276d608dad52965c80c68b3970354b8457553d6"
+    },
+    {
+      "name": "list_gists",
+      "toolset_const": "ToolsetMetadataGists",
+      "toolset_id": "gists",
+      "read_only_hint": true,
+      "file": "pkg/github/gists.go",
+      "blob_sha": "cca352964409d9be6cd7b4b396e2b83cbf3eace9"
+    },
+    {
+      "name": "get_gist",
+      "toolset_const": "ToolsetMetadataGists",
+      "toolset_id": "gists",
+      "read_only_hint": true,
+      "file": "pkg/github/gists.go",
+      "blob_sha": "cca352964409d9be6cd7b4b396e2b83cbf3eace9"
+    },
+    {
+      "name": "create_gist",
+      "toolset_const": "ToolsetMetadataGists",
+      "toolset_id": "gists",
+      "read_only_hint": false,
+      "file": "pkg/github/gists.go",
+      "blob_sha": "cca352964409d9be6cd7b4b396e2b83cbf3eace9"
+    },
+    {
+      "name": "update_gist",
+      "toolset_const": "ToolsetMetadataGists",
+      "toolset_id": "gists",
+      "read_only_hint": false,
+      "file": "pkg/github/gists.go",
+      "blob_sha": "cca352964409d9be6cd7b4b396e2b83cbf3eace9"
+    },
+    {
+      "name": "get_repository_tree",
+      "toolset_const": "ToolsetMetadataGit",
+      "toolset_id": "git",
+      "read_only_hint": true,
+      "file": "pkg/github/git.go",
+      "blob_sha": "872e342527bc57119e1b234d94a2368847714ee9"
+    },
+    {
+      "name": "issue_dependency_read",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": true,
+      "file": "pkg/github/issue_dependencies.go",
+      "blob_sha": "19a3b7db82d8831c48088ad5be98a4321dfad56c"
+    },
+    {
+      "name": "issue_dependency_write",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issue_dependencies.go",
+      "blob_sha": "19a3b7db82d8831c48088ad5be98a4321dfad56c"
+    },
+    {
+      "name": "list_issue_fields",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": true,
+      "file": "pkg/github/issue_fields.go",
+      "blob_sha": "9937f74bfdd4604b22dab4d11b63256093b2508d"
+    },
+    {
+      "name": "issue_read",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": true,
+      "file": "pkg/github/issues.go",
+      "blob_sha": "30005854aaf2cc583f26600925432ec4550ddeee"
+    },
+    {
+      "name": "list_issue_types",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": true,
+      "file": "pkg/github/issues.go",
+      "blob_sha": "30005854aaf2cc583f26600925432ec4550ddeee"
+    },
+    {
+      "name": "add_issue_comment",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues.go",
+      "blob_sha": "30005854aaf2cc583f26600925432ec4550ddeee"
+    },
+    {
+      "name": "update_issue_comment",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues.go",
+      "blob_sha": "30005854aaf2cc583f26600925432ec4550ddeee"
+    },
+    {
+      "name": "sub_issue_write",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues.go",
+      "blob_sha": "30005854aaf2cc583f26600925432ec4550ddeee"
+    },
+    {
+      "name": "search_issues",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": true,
+      "file": "pkg/github/issues.go",
+      "blob_sha": "30005854aaf2cc583f26600925432ec4550ddeee"
+    },
+    {
+      "name": "issue_write",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues.go",
+      "blob_sha": "30005854aaf2cc583f26600925432ec4550ddeee"
+    },
+    {
+      "name": "list_issues",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": true,
+      "file": "pkg/github/issues.go",
+      "blob_sha": "30005854aaf2cc583f26600925432ec4550ddeee"
+    },
+    {
+      "name": "create_issue",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "update_issue_assignees",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "update_issue_labels",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "update_issue_type",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "update_issue_state",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "add_sub_issue",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "remove_sub_issue",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "reprioritize_sub_issue",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "set_issue_fields",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "add_issue_reaction",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "remove_issue_reaction",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "add_issue_comment_reaction",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "remove_issue_comment_reaction",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": false,
+      "file": "pkg/github/issues_granular.go",
+      "blob_sha": "eab4a204cd415213036f2fe80b83f2151f0074c0"
+    },
+    {
+      "name": "get_label",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": true,
+      "file": "pkg/github/labels.go",
+      "blob_sha": "c9479e50623d45d101b68fbdb0e5f0c6db6f6e93"
+    },
+    {
+      "name": "list_label",
+      "toolset_const": null,
+      "toolset_id": null,
+      "read_only_hint": true,
+      "file": "pkg/github/labels.go",
+      "blob_sha": "c9479e50623d45d101b68fbdb0e5f0c6db6f6e93"
+    },
+    {
+      "name": "label_write",
+      "toolset_const": null,
+      "toolset_id": null,
+      "read_only_hint": false,
+      "file": "pkg/github/labels.go",
+      "blob_sha": "c9479e50623d45d101b68fbdb0e5f0c6db6f6e93"
+    },
+    {
+      "name": "list_notifications",
+      "toolset_const": "ToolsetMetadataNotifications",
+      "toolset_id": "notifications",
+      "read_only_hint": true,
+      "file": "pkg/github/notifications.go",
+      "blob_sha": "332d2ffd3bb494c17cbaa0c477a989330514d162"
+    },
+    {
+      "name": "dismiss_notification",
+      "toolset_const": "ToolsetMetadataNotifications",
+      "toolset_id": "notifications",
+      "read_only_hint": false,
+      "file": "pkg/github/notifications.go",
+      "blob_sha": "332d2ffd3bb494c17cbaa0c477a989330514d162"
+    },
+    {
+      "name": "mark_all_notifications_read",
+      "toolset_const": "ToolsetMetadataNotifications",
+      "toolset_id": "notifications",
+      "read_only_hint": false,
+      "file": "pkg/github/notifications.go",
+      "blob_sha": "332d2ffd3bb494c17cbaa0c477a989330514d162"
+    },
+    {
+      "name": "get_notification_details",
+      "toolset_const": "ToolsetMetadataNotifications",
+      "toolset_id": "notifications",
+      "read_only_hint": true,
+      "file": "pkg/github/notifications.go",
+      "blob_sha": "332d2ffd3bb494c17cbaa0c477a989330514d162"
+    },
+    {
+      "name": "manage_notification_subscription",
+      "toolset_const": "ToolsetMetadataNotifications",
+      "toolset_id": "notifications",
+      "read_only_hint": false,
+      "file": "pkg/github/notifications.go",
+      "blob_sha": "332d2ffd3bb494c17cbaa0c477a989330514d162"
+    },
+    {
+      "name": "manage_repository_notification_subscription",
+      "toolset_const": "ToolsetMetadataNotifications",
+      "toolset_id": "notifications",
+      "read_only_hint": false,
+      "file": "pkg/github/notifications.go",
+      "blob_sha": "332d2ffd3bb494c17cbaa0c477a989330514d162"
+    },
+    {
+      "name": "projects_list",
+      "toolset_const": "ToolsetMetadataProjects",
+      "toolset_id": "projects",
+      "read_only_hint": true,
+      "file": "pkg/github/projects.go",
+      "blob_sha": "e55b2a29d6ebd7f58ee870c75a17b72d43887a0e"
+    },
+    {
+      "name": "projects_get",
+      "toolset_const": "ToolsetMetadataProjects",
+      "toolset_id": "projects",
+      "read_only_hint": true,
+      "file": "pkg/github/projects.go",
+      "blob_sha": "e55b2a29d6ebd7f58ee870c75a17b72d43887a0e"
+    },
+    {
+      "name": "projects_write",
+      "toolset_const": "ToolsetMetadataProjects",
+      "toolset_id": "projects",
+      "read_only_hint": false,
+      "file": "pkg/github/projects.go",
+      "blob_sha": "e55b2a29d6ebd7f58ee870c75a17b72d43887a0e"
+    },
+    {
+      "name": "pull_request_read",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": true,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "create_pull_request",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "update_pull_request",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "add_reply_to_pull_request_comment",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "list_pull_requests",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": true,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "merge_pull_request",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "search_pull_requests",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": true,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "update_pull_request_branch",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "pull_request_review_write",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "add_comment_to_pending_review",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests.go",
+      "blob_sha": "7f9e337d38f8dedf173faba705b04a8a1bbdfaf4"
+    },
+    {
+      "name": "update_pull_request_draft_state",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "request_pull_request_reviewers",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "create_pull_request_review",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "submit_pending_pull_request_review",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "delete_pending_pull_request_review",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "add_pull_request_review_comment",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "resolve_review_thread",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "unresolve_review_thread",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "add_pull_request_review_comment_reaction",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "remove_pull_request_review_comment_reaction",
+      "toolset_const": "ToolsetMetadataPullRequests",
+      "toolset_id": "pull_requests",
+      "read_only_hint": false,
+      "file": "pkg/github/pullrequests_granular.go",
+      "blob_sha": "e8782d998de6218b99c60edce22a4ad16b12f18f"
+    },
+    {
+      "name": "get_commit",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "list_commits",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "list_branches",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "create_or_update_file",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": false,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "create_repository",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": false,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "delete_repository",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": false,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "get_file_contents",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "fork_repository",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": false,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "delete_file",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": false,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "create_branch",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": false,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "push_files",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": false,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "list_tags",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "get_tag",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "list_releases",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "get_latest_release",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "get_release_by_tag",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "list_starred_repositories",
+      "toolset_const": "ToolsetMetadataStargazers",
+      "toolset_id": "stargazers",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "star_repository",
+      "toolset_const": "ToolsetMetadataStargazers",
+      "toolset_id": "stargazers",
+      "read_only_hint": false,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "unstar_repository",
+      "toolset_const": "ToolsetMetadataStargazers",
+      "toolset_id": "stargazers",
+      "read_only_hint": false,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "get_file_blame",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "list_repository_collaborators",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/repositories.go",
+      "blob_sha": "b884f4888db69c1b2d1faaa77119262c93e262ef"
+    },
+    {
+      "name": "repository_content",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": null,
+      "file": "pkg/github/repository_resource.go",
+      "blob_sha": "8141e2f0f64e275ecc941d8565277de6cde19585"
+    },
+    {
+      "name": "repository_content_branch",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": null,
+      "file": "pkg/github/repository_resource.go",
+      "blob_sha": "8141e2f0f64e275ecc941d8565277de6cde19585"
+    },
+    {
+      "name": "repository_content_commit",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": null,
+      "file": "pkg/github/repository_resource.go",
+      "blob_sha": "8141e2f0f64e275ecc941d8565277de6cde19585"
+    },
+    {
+      "name": "repository_content_tag",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": null,
+      "file": "pkg/github/repository_resource.go",
+      "blob_sha": "8141e2f0f64e275ecc941d8565277de6cde19585"
+    },
+    {
+      "name": "repository_content_pr",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": null,
+      "file": "pkg/github/repository_resource.go",
+      "blob_sha": "8141e2f0f64e275ecc941d8565277de6cde19585"
+    },
+    {
+      "name": "repository_ruleset_read",
+      "toolset_const": "ToolsetMetadataGovernance",
+      "toolset_id": "governance",
+      "read_only_hint": true,
+      "file": "pkg/github/rulesets.go",
+      "blob_sha": "d0854ea89640ab8b7b52c1f403ab73a4d1ce7e46"
+    },
+    {
+      "name": "create_repository_ruleset",
+      "toolset_const": "ToolsetMetadataGovernance",
+      "toolset_id": "governance",
+      "read_only_hint": false,
+      "file": "pkg/github/rulesets.go",
+      "blob_sha": "d0854ea89640ab8b7b52c1f403ab73a4d1ce7e46"
+    },
+    {
+      "name": "search_repositories",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/search.go",
+      "blob_sha": "6caaf389d50630a363adba1d9000fe009aa2b91a"
+    },
+    {
+      "name": "search_code",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/search.go",
+      "blob_sha": "6caaf389d50630a363adba1d9000fe009aa2b91a"
+    },
+    {
+      "name": "search_users",
+      "toolset_const": "ToolsetMetadataUsers",
+      "toolset_id": "users",
+      "read_only_hint": true,
+      "file": "pkg/github/search.go",
+      "blob_sha": "6caaf389d50630a363adba1d9000fe009aa2b91a"
+    },
+    {
+      "name": "search_orgs",
+      "toolset_const": "ToolsetMetadataOrgs",
+      "toolset_id": "orgs",
+      "read_only_hint": true,
+      "file": "pkg/github/search.go",
+      "blob_sha": "6caaf389d50630a363adba1d9000fe009aa2b91a"
+    },
+    {
+      "name": "search_commits",
+      "toolset_const": "ToolsetMetadataRepos",
+      "toolset_id": "repos",
+      "read_only_hint": true,
+      "file": "pkg/github/search.go",
+      "blob_sha": "6caaf389d50630a363adba1d9000fe009aa2b91a"
+    },
+    {
+      "name": "get_secret_scanning_alert",
+      "toolset_const": "ToolsetMetadataSecretProtection",
+      "toolset_id": "secret_protection",
+      "read_only_hint": true,
+      "file": "pkg/github/secret_scanning.go",
+      "blob_sha": "c9a10b5e1c3a17e12f3a6f0ec3fca9fd72092171"
+    },
+    {
+      "name": "list_secret_scanning_alerts",
+      "toolset_const": "ToolsetMetadataSecretProtection",
+      "toolset_id": "secret_protection",
+      "read_only_hint": true,
+      "file": "pkg/github/secret_scanning.go",
+      "blob_sha": "c9a10b5e1c3a17e12f3a6f0ec3fca9fd72092171"
+    },
+    {
+      "name": "list_global_security_advisories",
+      "toolset_const": null,
+      "toolset_id": null,
+      "read_only_hint": true,
+      "file": "pkg/github/security_advisories.go",
+      "blob_sha": "42eb505f773ed98ed82ae9465535f6e12adffa9c"
+    },
+    {
+      "name": "list_repository_security_advisories",
+      "toolset_const": "ToolsetMetadataSecurityAdvisories",
+      "toolset_id": "security_advisories",
+      "read_only_hint": true,
+      "file": "pkg/github/security_advisories.go",
+      "blob_sha": "42eb505f773ed98ed82ae9465535f6e12adffa9c"
+    },
+    {
+      "name": "get_global_security_advisory",
+      "toolset_const": "ToolsetMetadataSecurityAdvisories",
+      "toolset_id": "security_advisories",
+      "read_only_hint": true,
+      "file": "pkg/github/security_advisories.go",
+      "blob_sha": "42eb505f773ed98ed82ae9465535f6e12adffa9c"
+    },
+    {
+      "name": "list_org_repository_security_advisories",
+      "toolset_const": "ToolsetMetadataSecurityAdvisories",
+      "toolset_id": "security_advisories",
+      "read_only_hint": true,
+      "file": "pkg/github/security_advisories.go",
+      "blob_sha": "42eb505f773ed98ed82ae9465535f6e12adffa9c"
+    },
+    {
+      "name": "ui_get",
+      "toolset_const": "ToolsetMetadataContext",
+      "toolset_id": "context",
+      "read_only_hint": true,
+      "file": "pkg/github/ui_tools.go",
+      "blob_sha": "03673efd62bd7149c8914477e835649e06dabf16"
+    },
+    {
+      "name": "update_code_scanning_alert",
+      "toolset_const": "ToolsetMetadataCodeSecurity",
+      "toolset_id": "code_security",
+      "read_only_hint": false,
+      "file": "pkg/github/update_code_scanning_alert.go",
+      "blob_sha": "3808bad539d0391ab8a6088bef73dc1c0e539349"
+    },
+    {
+      "name": "update_dependabot_alert",
+      "toolset_const": "ToolsetMetadataDependabot",
+      "toolset_id": "dependabot",
+      "read_only_hint": false,
+      "file": "pkg/github/update_dependabot_alert.go",
+      "blob_sha": "cad135fb04c0f850b36d34f4a5297de48740c903"
+    },
+    {
+      "name": "update_secret_scanning_alert",
+      "toolset_const": "ToolsetMetadataSecretProtection",
+      "toolset_id": "secret_protection",
+      "read_only_hint": false,
+      "file": "pkg/github/update_secret_scanning_alert.go",
+      "blob_sha": "58377e7ef774d9c56bd6d9fe95b38d7c30827efb"
+    },
+    {
+      "name": "issue_to_fix_workflow",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": null,
+      "file": "pkg/github/workflow_prompts.go",
+      "blob_sha": "415d5a74cf1b6140d90aee0e12c0f1d0e3d1e971"
+    },
+    {
+      "name": "owner",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": null,
+      "file": "pkg/github/workflow_prompts.go",
+      "blob_sha": "415d5a74cf1b6140d90aee0e12c0f1d0e3d1e971"
+    },
+    {
+      "name": "repo",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": null,
+      "file": "pkg/github/workflow_prompts.go",
+      "blob_sha": "415d5a74cf1b6140d90aee0e12c0f1d0e3d1e971"
+    },
+    {
+      "name": "title",
+      "toolset_const": "ToolsetMetadataIssues",
+      "toolset_id": "issues",
+      "read_only_hint": null,
+      "file": "pkg/github/workflow_prompts.go",
+      "blob_sha": "415d5a74cf1b6140d90aee0e12c0f1d0e3d1e971"
+    }
+  ]
+}

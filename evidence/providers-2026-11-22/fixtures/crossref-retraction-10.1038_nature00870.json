@@ -1,0 +1,225 @@
+{
+  "proves": "Crossref names a retraction through `updated-by` with type `retraction`; the single-DOI route and the DOI filter carry it, and the bibliographic search route does not",
+  "measuredAt": "2026-11-23T05:45:27+00:00",
+  "doi": "10.1038/nature00870",
+  "title": "RETRACTED ARTICLE: Pluripotency of mesenchymal stem cells derived from adult marrow",
+  "routes": {
+    "singleDoiRoute": {
+      "hasUpdatedBy": true,
+      "retracted": true,
+      "date": "2002-06-20",
+      "dateField": "issued",
+      "citationCount": 4492,
+      "referenceCount": 49,
+      "updatedBy": [
+        {
+          "id": null,
+          "type": "retraction"
+        },
+        {
+          "id": null,
+          "type": "retraction"
+        }
+      ]
+    },
+    "doiFilterRoute": {
+      "hasUpdatedBy": true,
+      "retracted": true,
+      "date": "2002-06-20",
+      "dateField": "issued",
+      "citationCount": 4492,
+      "referenceCount": 49,
+      "foundAmongRows": true
+    },
+    "bibliographicSearchRoute": {
+      "foundAmongRows": true,
+      "rowsReturned": 5,
+      "hasUpdatedBy": true,
+      "retracted": true,
+      "date": "2002-06-20",
+      "dateField": "issued",
+      "citationCount": 4492,
+      "referenceCount": 49
+    }
+  },
+  "redactedRows": {
+    "singleDoiRoute": {
+      "DOI": "10.1038/nature00870",
+      "type": "journal-article",
+      "title": [
+        "RETRACTED ARTICLE: Pluripotency of mesenchymal stem cells derived from adult mar"
+      ],
+      "container-title": [
+        "Nature"
+      ],
+      "issued": {},
+      "created": {
+        "date-time": "2002-07-28T17:36:01Z",
+        "timestamp": 1027877761000
+      },
+      "updated-by": [
+        {
+          "DOI": "10.1038/nature05812",
+          "type": "correction",
+          "label": "Correction",
+          "source": "retraction-watch",
+          "updated": {
+            "date-parts": [
+              [
+                2007,
+                6,
+                14
+              ]
+            ],
+            "date-time": "2007-06-14T00:00:00Z",
+            "timestamp": 1181779200000
+          },
+          "record-id": "54381"
+        },
+        {
+          "DOI": "10.1038/s41586-024-07653-0",
+          "type": "retraction",
+          "label": "Retraction",
+          "source": "retraction-watch",
+          "updated": {
+            "date-parts": [
+              [
+                2024,
+                6,
+                17
+              ]
+            ],
+            "date-time": "2024-06-17T00:00:00Z",
+            "timestamp": 1718582400000
+          },
+          "record-id": "54180"
+        },
+        {
+          "DOI": "10.1038/nature05812",
+          "type": "erratum",
+          "label": "Erratum",
+          "source": "publisher",
+          "updated": {
+            "date-parts": [
+              [
+                2007,
+                6,
+                14
+              ]
+            ],
+            "date-time": "2007-06-14T00:00:00Z",
+            "timestamp": 1181779200000
+          }
+        },
+        {
+          "DOI": "10.1038/s41586-024-07653-0",
+          "type": "retraction",
+          "label": "Retraction",
+          "source": "publisher",
+          "updated": {
+            "date-parts": [
+              [
+                2024,
+                6,
+                17
+              ]
+            ],
+            "date-time": "2024-06-17T00:00:00Z",
+            "timestamp": 1718582400000
+          }
+        }
+      ],
+      "is-referenced-by-count": 4492,
+      "reference-count": 49
+    },
+    "doiFilterRoute": {
+      "DOI": "10.1038/nature00870",
+      "type": "journal-article",
+      "title": [
+        "RETRACTED ARTICLE: Pluripotency of mesenchymal stem cells derived from adult mar"
+      ],
+      "container-title": [
+        "Nature"
+      ],
+      "issued": {},
+      "created": {
+        "date-time": "2002-07-28T17:36:01Z",
+        "timestamp": 1027877761000
+      },
+      "updated-by": [
+        {
+          "DOI": "10.1038/nature05812",
+          "type": "correction",
+          "label": "Correction",
+          "source": "retraction-watch",
+          "updated": {
+            "date-parts": [
+              [
+                2007,
+                6,
+                14
+              ]
+            ],
+            "date-time": "2007-06-14T00:00:00Z",
+            "timestamp": 1181779200000
+          },
+          "record-id": "54381"
+        },
+        {
+          "DOI": "10.1038/s41586-024-07653-0",
+          "type": "retraction",
+          "label": "Retraction",
+          "source": "retraction-watch",
+          "updated": {
+            "date-parts": [
+              [
+                2024,
+                6,
+                17
+              ]
+            ],
+            "date-time": "2024-06-17T00:00:00Z",
+            "timestamp": 1718582400000
+          },
+          "record-id": "54180"
+        },
+        {
+          "DOI": "10.1038/nature05812",
+          "type": "erratum",
+          "label": "Erratum",
+          "source": "publisher",
+          "updated": {
+            "date-parts": [
+              [
+                2007,
+                6,
+                14
+              ]
+            ],
+            "date-time": "2007-06-14T00:00:00Z",
+            "timestamp": 1181779200000
+          }
+        },
+        {
+          "DOI": "10.1038/s41586-024-07653-0",
+          "type": "retraction",
+          "label": "Retraction",
+          "source": "publisher",
+          "updated": {
+            "date-parts": [
+              [
+                2024,
+                6,
+                17
+              ]
+            ],
+            "date-time": "2024-06-17T00:00:00Z",
+            "timestamp": 1718582400000
+          }
+        }
+      ],
+      "is-referenced-by-count": 4492,
+      "reference-count": 49
+    }
+  }
+}

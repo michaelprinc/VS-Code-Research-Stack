@@ -1250,6 +1250,18 @@ function activateWith(vscode, context, diagnosticServices) {
     let keyConfigured = false;
     if (integrations.isAuthorized(integrationRegistry, "semantic-scholar")) {
       env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED = "true";
+      // 0.3.15 (P3): the two facts that make a consent a fact travel with it — to the probe, and since this
+      // release also to the worker that serves the search tools. Without them the worker's own machine-level
+      // record holds a confirmation this process never mentioned, and the only honest report is
+      // `PROVIDER_TERMS_STORED_BUT_NOT_INJECTED`: the card says confirmed, the check behaves as unconfirmed.
+      // Nothing here records a consent the operator did not give — `authorizeSemanticScholar` still refuses to
+      // write one — and an undated consent is not given an invented date.
+      if (typeof record.license?.acknowledgedAt === "string" && record.license.acknowledgedAt.length) {
+        env.SEMANTIC_SCHOLAR_LICENSE_ACKNOWLEDGED_AT = record.license.acknowledgedAt;
+      }
+      if (integrations.KEY_DECISIONS.includes(record.keyDecision)) {
+        env.SEMANTIC_SCHOLAR_KEY_DECISION = record.keyDecision;
+      }
       if (record.mode === "api-key") {
         const key = await integrationStore.readApiKey(context.secrets, "semantic-scholar");
         if (key) { env.SEMANTIC_SCHOLAR_API_KEY = key; keyConfigured = true; }

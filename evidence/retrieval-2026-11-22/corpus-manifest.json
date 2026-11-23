@@ -1,0 +1,394 @@
+{
+  "frozen": true,
+  "nature": "Synthetic fixture text authored for this measurement. It is not the operator's research corpus, and no private text is present in it. Relevance is judged by construction: the relevant passage is the passage written to answer the query.",
+  "indexer": {
+    "schemaVersion": 4,
+    "chunker": "full.chunks_for_source defaults (chunk_chars=1200, overlap_chars=120)",
+    "storeChunkCeiling": 20000,
+    "backend": {
+      "backendId": "rsk-hashing-v1",
+      "dimensions": 256,
+      "tokenizerId": "unicode-word-v1",
+      "features": "tokens + character 3-grams + character 4-grams, signed feature hashing",
+      "encoding": "base64-int16-le",
+      "modelDownloaded": false,
+      "networkRequired": false,
+      "nature": "lexical signature, not a trained semantic model"
+    }
+  },
+  "files": [
+    {
+      "path": "corpus/cz/archivni-prirucka.md",
+      "bytes": 627,
+      "sha256": "64e67995dddfc15c3d3e0c7fd9d18104b83ba8e6ace5ab5df059d4c6672ba712"
+    },
+    {
+      "path": "corpus/cz/iluminace.md",
+      "bytes": 723,
+      "sha256": "e4df833c8029b88be9d552dce2e302f8c8d5c0d8ea47a7c3fa0014c5ec064321"
+    },
+    {
+      "path": "corpus/cz/korespondence.md",
+      "bytes": 626,
+      "sha256": "9c7456164ea6742282589f0e1e2a6715c190e2ba40dd71d86c8047a898a93656"
+    },
+    {
+      "path": "corpus/cz/metody.md",
+      "bytes": 770,
+      "sha256": "8a28eccb341b7c7ddf51f4b07a0b95e4a7a3f9ef8ae861f7c8f1cf23adb40d14"
+    },
+    {
+      "path": "corpus/cz/preklady.md",
+      "bytes": 638,
+      "sha256": "10b046181791d66455de6a466922fba132511f8976c806ac77494b5e3839f347"
+    },
+    {
+      "path": "corpus/en/citation-export.md",
+      "bytes": 670,
+      "sha256": "df5541c58d90305980b7c4eb25845a9b9993ac37a102763384fe86f97ea37a43"
+    },
+    {
+      "path": "corpus/en/guild-records.md",
+      "bytes": 623,
+      "sha256": "3f6f03c71d513dfe2e3e8ff49954ed368b5979348abce7bc2da6cef953b099c0"
+    },
+    {
+      "path": "corpus/en/illuminations.md",
+      "bytes": 740,
+      "sha256": "04a0eebc50557de5c911d78d939cdf9221eb5b7d36863465b9c7016caead0da0"
+    },
+    {
+      "path": "corpus/en/retrieval-methods.md",
+      "bytes": 863,
+      "sha256": "a6498f1134cd5e66fdfbacdc61078432a67edfdb802b9969cf53b4fb02a4d519"
+    },
+    {
+      "path": "corpus/en/workshop-notes.md",
+      "bytes": 714,
+      "sha256": "75556828e764a269ca01a752d8e43d5927c59b266e1def8e22a981b085e81d24"
+    }
+  ],
+  "chunkCount": 40,
+  "chunks": [
+    {
+      "chunkId": "c38b059eab9946a2a02b5ee212e5d46bba99b8e1486f5fefaa4f276317420713",
+      "sourcePath": "corpus/cz/archivni-prirucka.md",
+      "locator": "paragraph=1;chars=0-74",
+      "chars": 74,
+      "text_sha256": "4d9d3b47c33a098ac6c7335c370b414632f615157186569f0b55f9a9eea22c7e",
+      "excerpt": "# Fixture 05 — Archivní příručka: sigatury a konzervace (synthetický t"
+    },
+    {
+      "chunkId": "46ee58e080e79b15ae65e926771b4831f7d31541cee317d31085607d4543aaae",
+      "sourcePath": "corpus/cz/archivni-prirucka.md",
+      "locator": "paragraph=2;chars=76-235",
+      "chars": 159,
+      "text_sha256": "9667efc32fc568c64084173b67660b6cc8568861840529c03f4c004261cc4ba9",
+      "excerpt": "Sigatura v této fixture má tři části: fond, inventární číslo a počet l"
+    },
+    {
+      "chunkId": "de37a17fd441c893b72903878b5362e8cbef0a054093aa64331e533d20518a85",
+      "sourcePath": "corpus/cz/archivni-prirucka.md",
+      "locator": "paragraph=3;chars=237-406",
+      "chars": 169,
+      "text_sha256": "83ff677bca18ea5e3bb6abba8d0f42cb96a97a4b48ad2d73817623f054f5534e",
+      "excerpt": "Konzervační postup popisuje tři kroky: stabilizaci teploty, suché čišt"
+    },
+    {
+      "chunkId": "7fddd4c0de66190c122166258f93a7df8363218236ef12feb673ab7dd3f11a1e",
+      "sourcePath": "corpus/cz/archivni-prirucka.md",
+      "locator": "paragraph=4;chars=408-546",
+      "chars": 138,
+      "text_sha256": "5808fe42911c163d6414a3e11f80aa1adffd7d055e7010d2d81ce063a69d4a87",
+      "excerpt": "Pro vypůjčování platí, že sigatura s příznakem „křehký“ se nepůjčuje m"
+    },
+    {
+      "chunkId": "9122cdfecb45ba1221458bc7d0591c2d7ccca3894d471b31300719f6fb6d5137",
+      "sourcePath": "corpus/cz/iluminace.md",
+      "locator": "paragraph=1;chars=0-60",
+      "chars": 60,
+      "text_sha256": "6aa39fd5cce061380512c9d8171c8e82ff36c7c844b1b58d26ea3fc9a7e9b725",
+      "excerpt": "# Fixture 01 — Iluminace Rájeckého kodexu (synthetický text)"
+    },
+    {
+      "chunkId": "7fa3cfcb3282c540e67137727ad251b1319c6b634602ab04d169815f6da6b9c2",
+      "sourcePath": "corpus/cz/iluminace.md",
+      "locator": "paragraph=2;chars=62-279",
+      "chars": 217,
+      "text_sha256": "307907f28b0a4720c1a5994058390d1154c66f736e97f59675c261d8e09e9bec",
+      "excerpt": "Rájecký kodex je smyšlený rukopis sestavený pro tuto testovací množinu"
+    },
+    {
+      "chunkId": "573cadfdb402b59aa8f2ee207a24dfb5c4332589838d9bf09c88343225115770",
+      "sourcePath": "corpus/cz/iluminace.md",
+      "locator": "paragraph=3;chars=281-497",
+      "chars": 216,
+      "text_sha256": "14a7c16fe8da0f7df575213477dc3584dd656e981e0b63062ee764a0efe36f9c",
+      "excerpt": "Technika šití těchto sandálů je popsána jako dvojitý steh voskovanou n"
+    },
+    {
+      "chunkId": "d6bed413e6171a5703f279efd81a87238c2a485776b1904f88e235d174ae3bc1",
+      "sourcePath": "corpus/cz/iluminace.md",
+      "locator": "paragraph=4;chars=499-660",
+      "chars": 161,
+      "text_sha256": "b7006f7eaf77a0784b8ece0087b0ade3cf818f3bc0935fbfc6838e8c6e123a55",
+      "excerpt": "Datace je v této fixture smyšlená: kodex bývá v katalogu uváděn jako č"
+    },
+    {
+      "chunkId": "4e7195a8cea435e1f3be6e419e234bd6d8e26920d8c40f85ed8becc5af5cf30d",
+      "sourcePath": "corpus/cz/korespondence.md",
+      "locator": "paragraph=1;chars=0-57",
+      "chars": 57,
+      "text_sha256": "f083009bb9b07c0656e1d90894deb5a14622b8f55d1d54c0270953ea35267c19",
+      "excerpt": "# Fixture 03 — Korespondence archivářů (synthetický text)"
+    },
+    {
+      "chunkId": "b733f946639888bdb2ad24153b24a8f3be166e21c38177cee270bc673bc84807",
+      "sourcePath": "corpus/cz/korespondence.md",
+      "locator": "paragraph=2;chars=59-230",
+      "chars": 171,
+      "text_sha256": "66005660dd21eaa5311bf2ed759a89565d4ec7aeec4b1164ee91e778d3d6830b",
+      "excerpt": "Dopis z 12. března popisuje předání osmnácti deskových desek a dvou sv"
+    },
+    {
+      "chunkId": "3dfa23b53d47f752ed7ebcfe91f24ca67e6d8555bbc27b22444609c667d64aeb",
+      "sourcePath": "corpus/cz/korespondence.md",
+      "locator": "paragraph=3;chars=232-406",
+      "chars": 174,
+      "text_sha256": "cd1c6622b96b6ff061d8c5ef523eaa3709891df60b9a919529521bbc7bbb07e9",
+      "excerpt": "Dopis z 4. května odpovídá: teplota byla změřena, náprava spočívala v "
+    },
+    {
+      "chunkId": "dda47e0d3d58eb4f78f517bd8f82289d62f7c413fc85ca3b3cbb3d17f724dd12",
+      "sourcePath": "corpus/cz/korespondence.md",
+      "locator": "paragraph=4;chars=408-551",
+      "chars": 143,
+      "text_sha256": "13c3b5841b9f23a4a9a05d362a20ad5e8f2d980e2ef2c94bdcacb9748125f0ff",
+      "excerpt": "Třetí dopis řeší půjčovnu: kodex je půjčován jen prezenčně, s výjimkou"
+    },
+    {
+      "chunkId": "8d317e9b01f2fa1f33702aac829f8d55f6530eee470ba45a68ea39ba5788d136",
+      "sourcePath": "corpus/cz/metody.md",
+      "locator": "paragraph=1;chars=0-57",
+      "chars": 57,
+      "text_sha256": "a2d4102ecf5c042414c4c27c72f43c3c7c171c8fd7fc74a291d6917e97015530",
+      "excerpt": "# Fixture 04 — Metody hledání v corpus (synthetický text)"
+    },
+    {
+      "chunkId": "a14afc861000cfcd12603a07e448737a524f1373f6ffc7b6582349683a2e72ba",
+      "sourcePath": "corpus/cz/metody.md",
+      "locator": "paragraph=2;chars=59-279",
+      "chars": 220,
+      "text_sha256": "e2bcd92f237554c0e9f80d80342969c91d9969e998c4a7180567c810091b763e",
+      "excerpt": "Lexikální ranker v této fixture počítá BM25: hodnotí sdílené tokeny, t"
+    },
+    {
+      "chunkId": "16be5dea4f3cf8554ed5d2801e6880e9bcf305aa79d25df43dd7597d82ab73bb",
+      "sourcePath": "corpus/cz/metody.md",
+      "locator": "paragraph=3;chars=281-485",
+      "chars": 204,
+      "text_sha256": "0da358baa4efe60963b014c6da168844b0273240684c3ac0188b8cb1fb57e3fc",
+      "excerpt": "Vektorový ranker počítá lexikální signaturu: sdílené tvary slov a troj"
+    },
+    {
+      "chunkId": "cbbf7847e2b07e226ff17e33f43c35078130782517bb6ba8de9b044cb5e54c99",
+      "sourcePath": "corpus/cz/metody.md",
+      "locator": "paragraph=4;chars=487-690",
+      "chars": 203,
+      "text_sha256": "a0a01d4b89f387ab6f584d62999f58451d1bec8908afc0de4fbf0157e23bdeb6",
+      "excerpt": "Hybridní režim oba pořadí kombinuje. Pravidlo fúze je publikované: rec"
+    },
+    {
+      "chunkId": "26970938fd432d35a7473b8b2b496c235364935c3e985712f7a78642aad52e5b",
+      "sourcePath": "corpus/cz/preklady.md",
+      "locator": "paragraph=1;chars=0-74",
+      "chars": 74,
+      "text_sha256": "04bb978d95ee869dc1a2f4b9201d2029f3cb5180c594f6301c94448ba93cd623",
+      "excerpt": "# Fixture 02 — České překlady traktátu O světle a stínu (synthetický t"
+    },
+    {
+      "chunkId": "4549ad61c46669480c0a8098a86f2dbfddf1b738b457e4f8f227e29beb145b4c",
+      "sourcePath": "corpus/cz/preklady.md",
+      "locator": "paragraph=2;chars=76-256",
+      "chars": 180,
+      "text_sha256": "36e87ebcb5e0698a85ee8acd35b59867bcfcc3bf8b39221218bf03f059b77a06",
+      "excerpt": "Traktát O světle a stínu je smyšlený latinský text. První český překla"
+    },
+    {
+      "chunkId": "325928bce59e49220773d2060fcef349c4e5d7ce38170981ef7644f865e50294",
+      "sourcePath": "corpus/cz/preklady.md",
+      "locator": "paragraph=3;chars=258-421",
+      "chars": 163,
+      "text_sha256": "4e404a1bd149cad11e271a04ed4bd0a1f81f2533a91ca478c81a54ea5bc571f8",
+      "excerpt": "Překlad rozlišuje dva termíny: „stín“ pro umbra a „polostín“ pro umbra"
+    },
+    {
+      "chunkId": "1e9d66ff5f747d25c48b27628bc6bd21d42188af4a11fe69ff0c997a59f78eba",
+      "sourcePath": "corpus/cz/preklady.md",
+      "locator": "paragraph=4;chars=423-564",
+      "chars": 141,
+      "text_sha256": "f8f94b2b4cc8f865f142f96a817f427f8bca72551fe7d895cb55a18eab0bfdbb",
+      "excerpt": "Poznámka pod čarou u sedmé kapitoly říká, že originál obsahuje tři vyn"
+    },
+    {
+      "chunkId": "40a19a128bc6ff49872bd0b827882b23e626acb2c7d786cc30c09a1f391cbe41",
+      "sourcePath": "corpus/en/citation-export.md",
+      "locator": "paragraph=1;chars=0-53",
+      "chars": 53,
+      "text_sha256": "ffbc20bf2948885e475180aeb97105be9e30fbb9e72026dddedf4068a94983e6",
+      "excerpt": "# Fixture 09 — Citation export rules (synthetic text)"
+    },
+    {
+      "chunkId": "bb922c49baf0a0b18dba8f23912eab3d331937367250dd8ead567bac651b4daa",
+      "sourcePath": "corpus/en/citation-export.md",
+      "locator": "paragraph=2;chars=55-287",
+      "chars": 232,
+      "text_sha256": "8aaf82960ce0b2380fd5b2cb74c0f6f0ad65d751fc0c0fda94c968f2184f97e4",
+      "excerpt": "Stored claims become report references only when their evidence resolv"
+    },
+    {
+      "chunkId": "75993e2b3e54fcddfa03d16269ae133abf0e85fd75d16b36357ca46d703969c5",
+      "sourcePath": "corpus/en/citation-export.md",
+      "locator": "paragraph=3;chars=289-510",
+      "chars": 221,
+      "text_sha256": "adcc20fff18482ce2ca856bc67c5d1ef4208207d0c7c7d3aa184f9c12e897ff2",
+      "excerpt": "Evidence that a source re-index retired is reported as stale rather th"
+    },
+    {
+      "chunkId": "ce073b0952b505646a74406db03a59530a691dbe19fd40bebab346a76fcc993b",
+      "sourcePath": "corpus/en/citation-export.md",
+      "locator": "paragraph=4;chars=512-667",
+      "chars": 155,
+      "text_sha256": "ed3473cb2a53f3a69adb4122a6c729e8c9b50f4a4c5355afaf4746f98408d7c3",
+      "excerpt": "The export never invents a locator. If the chunk no longer resolves, t"
+    },
+    {
+      "chunkId": "904c57d6a6cf2413ab09bd7faff403b93a850b7a9b575db938df8c6cd6bd2e87",
+      "sourcePath": "corpus/en/guild-records.md",
+      "locator": "paragraph=1;chars=0-66",
+      "chars": 66,
+      "text_sha256": "6dea22b5da5d2eb00c802c15c1bfecd8ee40e20767b984e288ed2a39cafe6e81",
+      "excerpt": "# Fixture 07 — Guild records of the sandal makers (synthetic text)"
+    },
+    {
+      "chunkId": "0e18621697e9c66eee6cd0b70cb45660f46e8c2537c659da0fd846a91cba78a9",
+      "sourcePath": "corpus/en/guild-records.md",
+      "locator": "paragraph=2;chars=68-280",
+      "chars": 212,
+      "text_sha256": "3c94c02567042ce2cc80b7700b9f160374bfcc0573a6f216efc378dfee2637d1",
+      "excerpt": "The guild records in this fixture name twenty-two sandal makers workin"
+    },
+    {
+      "chunkId": "734754e9ebba70262f94560dc258e08be6b7518035669f7cf1275600529d257a",
+      "sourcePath": "corpus/en/guild-records.md",
+      "locator": "paragraph=3;chars=282-477",
+      "chars": 195,
+      "text_sha256": "c8b31d59f2a14420d1483a501f520118aef2b54553c9eb91efb1cbf550d88e4e",
+      "excerpt": "The records distinguish two stitching patterns: the guild pattern, sew"
+    },
+    {
+      "chunkId": "e419014adbd4e85329064ea3b99762114bb527c80e27a8109367c4fdc2fbe718",
+      "sourcePath": "corpus/en/guild-records.md",
+      "locator": "paragraph=4;chars=479-620",
+      "chars": 141,
+      "text_sha256": "b3694cac9562d80c08e3bad2922fd421e64e7aafbc61a05b2c1ea4bcebb984e2",
+      "excerpt": "A later entry records that the guild kept a list of debtors and that t"
+    },
+    {
+      "chunkId": "11d213faaaa497f7ada355044e64e236bdcf945b4b45242cb647d8127c1192c0",
+      "sourcePath": "corpus/en/illuminations.md",
+      "locator": "paragraph=1;chars=0-73",
+      "chars": 73,
+      "text_sha256": "3e4fabf05ba657dfab8b346058a22855a9d587e55ecdf9aed9269844ef4c57f6",
+      "excerpt": "# Fixture 06 — Illuminations of the invented Rajec codex (synthetic te"
+    },
+    {
+      "chunkId": "ae27822643463af739607bc21c299441fb0d9ac2bf6b6abbd0f57a8b420852ef",
+      "sourcePath": "corpus/en/illuminations.md",
+      "locator": "paragraph=2;chars=75-349",
+      "chars": 274,
+      "text_sha256": "b6506df7365cb7d094e98ff332fedefe837909971b57291e5c37112e09cbd292",
+      "excerpt": "The Rajec codex is an invented manuscript used only as fixture text fo"
+    },
+    {
+      "chunkId": "6068e7913fd25545ee117a73baa5ee2024d2f23b42daf4994b0bf017cf3a0657",
+      "sourcePath": "corpus/en/illuminations.md",
+      "locator": "paragraph=3;chars=351-558",
+      "chars": 207,
+      "text_sha256": "a3f094b7688c6dcc4405c7170fa087cf0078d5c1febcbd3f2bea38b9510a552a",
+      "excerpt": "The stitching technique is recorded as a double stitch with waxed thre"
+    },
+    {
+      "chunkId": "e4d58f2fb9313f72ba83796ec5287fadbda487b89e0c8a3e9c4da45a74a3a99a",
+      "sourcePath": "corpus/en/illuminations.md",
+      "locator": "paragraph=4;chars=560-737",
+      "chars": 177,
+      "text_sha256": "e8f4118d98ed4277cf2c28f5a26abe947c4b3c053f6cec0be2f9264de355e5b0",
+      "excerpt": "The dating in this fixture is deliberately invented: the codex is list"
+    },
+    {
+      "chunkId": "7908ccfca514fee2ddb355025f821bd9b0031e10dc66566becec206e17b595ad",
+      "sourcePath": "corpus/en/retrieval-methods.md",
+      "locator": "paragraph=1;chars=0-74",
+      "chars": 74,
+      "text_sha256": "e5ca6abff0d1aa3722de6321e144346d2ba74d9774a166047d2e7501ebb0beb7",
+      "excerpt": "# Fixture 08 — Retrieval methods measured in this toolkit (synthetic t"
+    },
+    {
+      "chunkId": "b518688b8c8d2de444f6cae419ce8c5de4156d1f44d3845efd55d5dcd73ae83a",
+      "sourcePath": "corpus/en/retrieval-methods.md",
+      "locator": "paragraph=2;chars=76-337",
+      "chars": 261,
+      "text_sha256": "8732def10d21c2ff0979d147b4b9b3cfbf8f38950d6f7c74ee4b5186cbd4f105",
+      "excerpt": "Lexical search ranks with BM25: shared tokens are rewarded, long docum"
+    },
+    {
+      "chunkId": "751c175b75ad666708a76a10590967783886075d4eda224fe1caa67ebac8018c",
+      "sourcePath": "corpus/en/retrieval-methods.md",
+      "locator": "paragraph=3;chars=339-594",
+      "chars": 255,
+      "text_sha256": "458b8ed76258eb1148afde3de2655cfeeb33fc27f1e724aec88995484b3a5f6c",
+      "excerpt": "Vector search ranks a lexical signature: hashed word tokens together w"
+    },
+    {
+      "chunkId": "c9c4b64009b25715607c625f7d97188ffdf8c7de10ed8f37ffdd5e0a82ab28e3",
+      "sourcePath": "corpus/en/retrieval-methods.md",
+      "locator": "paragraph=4;chars=596-860",
+      "chars": 264,
+      "text_sha256": "435a5da01fdb4a19570637403fe7ddc0db569455352626c4bddda3225fdce848",
+      "excerpt": "Hybrid search fuses the two rankings with a published rule: reciprocal"
+    },
+    {
+      "chunkId": "44c2da866f310baa050aa5dce51bd0719cf2f906115ff1aff667a20cb5752024",
+      "sourcePath": "corpus/en/workshop-notes.md",
+      "locator": "paragraph=1;chars=0-65",
+      "chars": 65,
+      "text_sha256": "b59735e6de3b5eac90703fec78d21f14646efcb1b413a02fca81beeca8cf89ff",
+      "excerpt": "# Fixture 10 — Workshop notes on the local index (synthetic text)"
+    },
+    {
+      "chunkId": "26ac150973aa8d18613a68a2fb272cd7c04e77043dff7ada619b6b2d2277571b",
+      "sourcePath": "corpus/en/workshop-notes.md",
+      "locator": "paragraph=2;chars=67-287",
+      "chars": 220,
+      "text_sha256": "3f6b4138f398b726ba013e9ff4311a905e503b11de64e29f070119c6b2767329",
+      "excerpt": "The workspace index stores chunks and vectors in one SQLite file under"
+    },
+    {
+      "chunkId": "e2350538495edf600b696319457f0d21ddfd28053093fbc39b4c6c555421f1ad",
+      "sourcePath": "corpus/en/workshop-notes.md",
+      "locator": "paragraph=3;chars=289-520",
+      "chars": 231,
+      "text_sha256": "9c2f15507e7a457ac88515a88e25241f5e5d91cf9431b5749a1db40f65dfab4e",
+      "excerpt": "The index has a ceiling on how many current chunks a store may hold. A"
+    },
+    {
+      "chunkId": "7ba3d3d737acb0c377d58487854e885fd0b6e35e211f251bc993e625ebf484a5",
+      "sourcePath": "corpus/en/workshop-notes.md",
+      "locator": "paragraph=4;chars=522-711",
+      "chars": 189,
+      "text_sha256": "8b2672383f991b8691616f3c5b097040266e93b1b5e70c33a1a7af6b7fdf2741",
+      "excerpt": "Vectors are built from the chunk text already in the store, so a re-em"
+    }
+  ]
+}
